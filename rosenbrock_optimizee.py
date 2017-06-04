@@ -18,7 +18,8 @@ class Rosenbrock:
         t0 = x[::2]
         t1 = x[1::2]
 
-        return tf.reduce_sum((self.a - t0)**2 + self.b * (t1 - t0**2)**2)
+        s = tf.reduce_sum((self.a - t0)**2 + self.b * (t1 - t0**2)**2)
+        return tf.clip_by_value(s, 0, 10**10)
 
 
     def get_initial_x(self):
