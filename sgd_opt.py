@@ -18,7 +18,9 @@ class SgdOpt(basic_model.BasicModel):
         fx, g = self._fg(f, x, i)
         g = tf.stop_gradient(g)
 
+        g_norm = tf.reduce_sum(g**2)
+
         x -= self.lr * g
 
-        return [x], fx
+        return [x], fx, g_norm
 

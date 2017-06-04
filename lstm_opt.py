@@ -54,6 +54,8 @@ class LSTMOpt(basic_model.BasicModel):
         fx, g = self._fg(f, x, i)
         g = tf.stop_gradient(g)
 
+        g_norm = tf.reduce_sum(g**2)
+
         m = self.beta1 * m + (1 - self.beta1) * g
         v = self.beta2 * v + (1 - self.beta2) * (g ** 2)
 
@@ -74,4 +76,4 @@ class LSTMOpt(basic_model.BasicModel):
         d = d / (tf.cast(tf.shape(x)[0], tf.float32) * tf.sqrt(tf.reduce_sum(d ** 2)))
         x += d * tf.exp(loglr)
 
-        return [sid + 1, b1t, b2t, x, m, v, lstm_state, loglr], fx
+        return [sid + 1, b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm

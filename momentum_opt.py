@@ -32,7 +32,9 @@ class MomentumOpt(basic_model.BasicModel):
         fx, g = self._fg(f, x, i)
         g = tf.stop_gradient(g)
 
+        g_norm = tf.reduce_sum(g**2)
+
         v = self.mu * v - self.lr * g
         x += v
 
-        return [x, v], fx
+        return [x, v], fx, g_norm

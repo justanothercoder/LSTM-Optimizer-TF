@@ -1,17 +1,13 @@
 import os
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 import tensorflow as tf
 from tensorflow.python.ops import gradients
 
 class BasicModel:
     def __init__(self, optimizee, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None):
-        self.optimizee = optimizee
-        self.f = optimizee.loss
+        self.optimizee = list(optimizee.items())[0][1]
+        self.f = self.optimizee.loss
         self.train_lr = train_lr
         self.n_bptt_steps = n_bptt_steps
         self.loss_type = loss_type
@@ -24,24 +20,15 @@ class BasicModel:
     def test(self, eid, n_batches, n_steps=20):
         self.restore(eid)
 
-        mean_trajectory = np.zeros(n_steps)
-        epochs = 0
+        rets = []
 
         for batch in range(n_batches):
             ret = self.test_one_iteration(n_steps)
-            print("\tBatch: {}".format(batch))
-                
-            mean_trajectory += ret['fxs']
-            epochs += 1
+            rets.append(ret)
 
-        plt.plot(mean_trajectory / epochs, label=self.name)
-        
-        plt.title('mean trajectory over {} functions for {} steps'.format(10 * n_batches, n_steps))
-        plt.xlabel('iteration number')
-        plt.ylabel('function value')
-        plt.legend(loc='best')
-        plt.savefig('plot_test.svg', format='svg')
-        os.system('convert plot_test.svg plot_test.png')
+            print("\tBatch: {}".format(batch))
+
+        return rets
 
 
     def test_one_iteration(self, n_steps):
@@ -57,27 +44,35 @@ class BasicModel:
 
         losses = []
         fxs = []
+        lrs = []
+        norms = []
 
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(self.optimizee.get_next_dict(self.n_bptt_steps))
 
-            state, loss, fx, summaries_str = session.run([
-                self.states[-1], self.losses[-1], self.losses, self.summaries
+            states, loss, fx, g_norm, summaries_str = session.run([
+                self.states, self.loss, self.losses, self.norms, self.summaries
             ], feed_dict=feed_dict)
+
+            state = states[-1]
             
             if i == 0:
                 print("\t\tFirst function value: {}".format(fx[0]))
 
             losses.append(loss)
             fxs.extend(fx)
+            lrs.extend([s[-1] for s in states])
+            norms.extend(g_norm)
 
-        print("\t\tLoss: {}".format(loss))
+        print("\t\tLoss: {}".format(np.sum(losses)))
         print("\t\tLast function value: {}".format(fx[-1]))
 
-        ret['loss'] = np.mean(losses)
+        ret['loss'] = np.sum(losses)
         ret['fxs'] = np.array(fxs)
+        ret['lrs'] = np.array(lrs).mean(axis=1)
+        ret['norms'] = np.array(norms)
 
         for summary_str in summaries_str:
             self.test_writer.add_summary(summary_str, self.bid)
@@ -205,20 +200,23 @@ class BasicModel:
 
             states = []
             losses = []
+            norms = []
 
             state = self.input_state
 
             for i in range(self.n_bptt_steps):
-                state, f = self._iter(self.f, i, state)
+                state, f, g_norm = self._iter(self.f, i, state)
 
                 losses.append(f)
                 states.append(state)
+                norms.append(g_norm)
 
                 if i == 0:
                     self.loop_scope.reuse_variables()
 
             self.losses = losses
             self.states = states
+            self.norms = norms
 
 
     def _build_loss(self):
@@ -240,9 +238,12 @@ class BasicModel:
 
     def _iter(self, f, i, state):
         x, = state
+
         fx, g = self._fg(f, x, i)
+        g_norm = tf.reduce_sum(g**2)
+
         x -= tf.exp(self.loglr) * g
-        return [x], fx
+        return [x], fx, g_norm
 
 
     def _build_input(self):
