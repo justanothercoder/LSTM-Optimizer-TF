@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormLSTMCell
+from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormBasicLSTMCell
 
 import basic_model
 
@@ -21,7 +21,7 @@ class LSTMOpt(basic_model.BasicModel):
     def _build_pre(self):
         #self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
         self.lstm = MultiRNNCell([
-            LayerNormLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
+            LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
             for _ in range(self.num_layers)
         ])
         
