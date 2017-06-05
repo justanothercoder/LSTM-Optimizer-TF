@@ -1,11 +1,11 @@
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell
+from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormLSTMCell
 
 import basic_model
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, **kwargs):
+    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, **kwargs):
         super(LSTMOpt, self).__init__(optimizee, **kwargs)
 
         self.num_units = num_units
@@ -15,9 +15,15 @@ class LSTMOpt(basic_model.BasicModel):
         self.beta2 = beta2
         self.eps = 1e-8
 
+        self.p_drop = p_drop
+
 
     def _build_pre(self):
-        self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
+        #self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
+        self.lstm = MultiRNNCell([
+            LayerNormLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
+            for _ in range(self.num_layers)
+        ])
         
 
     def _build_input(self):

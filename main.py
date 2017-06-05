@@ -123,6 +123,7 @@ def run_plot(flags):
         lrs = np.array([ret['lrs'] for ret in rets])
 
         if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
+            print("Skipped {}".format(name))
             continue
 
         mean_trajectory = np.mean(fxs, axis=0)
