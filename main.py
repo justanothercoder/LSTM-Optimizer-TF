@@ -90,7 +90,7 @@ def run_test(flags):
                     name = '{name}_{eid}'.format(name=opt.name, eid=eid)
                     results[name] = rets
 
-            filename = '{}_{}_results.pkl'.format(flags.name, flags.problem)
+            filename = '{}_{}_{}_results.pkl'.format(flags.name, flags.problem, flags.mode)
             with open(filename, 'wb') as res_file:
                 d = {
                     'problem': flags.problem,
@@ -164,6 +164,7 @@ def run_plot(flags):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--cpu', action='store_true', help='run model on CPU')
     parser.add_argument('--gpu', type=int, default=2, help='gpu id')
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which train/test optimizer')
     parser.add_argument('--num_units', type=int, default=20, help='number of units in LSTM')
@@ -202,5 +203,9 @@ if __name__ == '__main__':
     
     #shutil.rmtree('./{}_data/'.format(flags.name), ignore_errors=True)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(flags.gpu)
+    if flags.cpu:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(flags.gpu)
+
     flags.func(flags)
