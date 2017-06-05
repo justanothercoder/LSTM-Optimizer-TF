@@ -3,6 +3,8 @@ import tensorflow as tf
 
 
 class Quadratic:
+    name = 'quadratic'
+
     def __init__(self, low=20, high=100):
         self.low = low
         self.high = high

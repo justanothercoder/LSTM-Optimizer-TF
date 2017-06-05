@@ -3,6 +3,8 @@ import tensorflow as tf
 
 
 class Rosenbrock:
+    name = 'rosenbrock'
+
     def __init__(self, low=2, high=10):
         self.low = low
         self.high = high
