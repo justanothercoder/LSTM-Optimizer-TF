@@ -7,10 +7,6 @@ import shutil
 import pickle
 from collections import OrderedDict
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 import numpy as np
 import tensorflow as tf
 import basic_model
@@ -21,6 +17,8 @@ from momentum_opt import MomentumOpt
 
 import quadratic_optimizee
 import rosenbrock_optimizee
+
+import plotting
 
 
 optimizees = {
@@ -36,7 +34,7 @@ def run_train(flags):
         with tf.Session(graph=graph) as session:
 
             opt = LSTMOpt(optimizees, train_lr=flags.train_lr, 
-                                   n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, 
+                                   n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, stop_grad=flags.stop_grad,
                                    num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
 
             for optimizee in optimizees.values():
@@ -45,7 +43,17 @@ def run_train(flags):
             opt.build()
 
             session.run(tf.global_variables_initializer())
-            opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps, eid=flags.eid)
+            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps, eid=flags.eid)
+            
+            filename = '{}_train_results.pkl'.format(flags.name)
+            with open(filename, 'wb') as res_file:
+                d = {
+                    'name': flags.name,
+                    'mode': 'training',
+                    'train_results': train_rets,
+                    'test_results': test_rets,
+                }
+                pickle.dump(d, res_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def run_test(flags):
@@ -90,9 +98,10 @@ def run_test(flags):
                     name = '{name}_{eid}'.format(name=opt.name, eid=eid)
                     results[name] = rets
 
-            filename = '{}_{}_{}_results.pkl'.format(flags.name, flags.problem, flags.mode)
+            filename = '{}_{}_{}_test_results.pkl'.format(flags.name, flags.problem, flags.mode)
             with open(filename, 'wb') as res_file:
                 d = {
+                    'mode': 'testing',
                     'problem': flags.problem,
                     'n_steps': flags.n_steps,
                     'results': results,
@@ -105,62 +114,12 @@ def run_plot(flags):
     with open(flags.filename, 'rb') as f:
         d = pickle.load(f)
 
-    if flags.plot_lr:
-        fig, axes = plt.subplots(nrows=3, figsize=(15, 12), sharex=True)
-        (ax_f, ax_g, ax_lr) = axes
+    if d['mode'] == 'training':
+        plotting.plot_training_results(flags, d)
+    elif d['mode'] == 'testing':
+        plotting.plot_test_results(flags, d)
     else:
-        fig, axes = plt.subplots(nrows=2, figsize=(15, 12), sharex=True)
-        (ax_f, ax_g) = axes
-
-    #fig.subplots_adjust(hspace=0)
-
-    #ax_t = ax.twinx()
-
-    for name, rets in d['results'].items():
-        fxs = np.array([ret['fxs'] / ret['fxs'][0] for ret in rets])
-        norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
-        #lrs = np.array([ret['lrs'] / ret['lrs'][0] for ret in rets])
-        lrs = np.array([ret['lrs'] for ret in rets])
-
-        if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
-            print("Skipped {}".format(name))
-            continue
-
-        mean_trajectory = np.mean(fxs, axis=0)
-        std = np.std(fxs, axis=0)
-
-        mean_norm = np.mean(norms, axis=0)
-        std_norm = np.std(norms, axis=0)
-
-        ax_f.semilogy(mean_trajectory, label=name)
-        ax_g.semilogy(mean_norm, label=name)
-
-        if flags.plot_lr:
-            mean_lr = np.mean(lrs, axis=0)
-            std_lr = np.std(lrs, axis=0)
-
-            p = ax_lr.plot(mean_lr, label=name)
-            ax_lr.fill_between(np.arange(mean_lr.shape[0]), mean_lr + std_lr, mean_lr - std_lr, alpha=0.3, facecolor=p[-1].get_color())
-
-        #plt.plot(mean_trajectory, label="{name}_{epoch}".format(name=opt.name, epoch=eid))
-        #plt.fill_between(np.arange(rets.shape[1]), mean_trajectory + std, mean_trajectory - std, alpha=0.5)
-
-    axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(**d))
-
-    ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
-    ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
-
-    if flags.plot_lr:
-        ax_lr.set_ylabel('mean learning rate')
-
-    axes[-1].set_xlabel('iteration number')
-    axes[0].legend(loc='best')
-
-    fig.savefig('{}_plot_test.svg'.format(d['problem']), format='svg')
-    fig.tight_layout()
-    os.system('convert {problem}_plot_test.svg {problem}_plot_test.png'.format(**d))
-
-    print("Plotted to {problem}_plot_test.svg and {problem}_plot_test.png".format(**d))
+        raise ValueError("Unknown mode")
 
 
 if __name__ == '__main__':
@@ -181,6 +140,7 @@ if __name__ == '__main__':
     parser_train.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
+    parser_train.add_argument('--no-stop_grad', action='store_false', dest='stop_grad')
 
     parser_train.set_defaults(func=run_train)
 
@@ -199,7 +159,7 @@ if __name__ == '__main__':
 
     parser_plot.set_defaults(func=run_plot)
 
-    flags = parser.parse_args()
+    ulags = parser.parse_args()
     pprint.pprint(flags)
     
     #shutil.rmtree('./{}_data/'.format(flags.name), ignore_errors=True)
