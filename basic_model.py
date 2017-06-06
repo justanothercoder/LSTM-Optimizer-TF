@@ -89,10 +89,14 @@ class BasicModel:
             self.restore(eid)
             self.bid = eid * n_batches 
 
+        train_rets = []
+        test_rets = []
+
         for epoch in range(eid, n_epochs):
             print("Epoch: {}".format(epoch))
             for batch in range(n_batches):
                 ret = self.train_one_iteration(n_steps)
+                train_rets.append(ret)
                 print("\tBatch: {}".format(batch))
 
             if (epoch + 1) % 10 == 0:
@@ -100,8 +104,11 @@ class BasicModel:
 
                 print("Test epoch: {}".format(epoch))
                 for batch in range(n_batches):
-                    self.test_one_iteration(n_steps)
+                    ret = self.test_one_iteration(n_steps)
+                    test_rets.append(ret)
                     print("\tTest batch: {}".format(batch))
+        
+        return train_rets, test_rets
 
 
     def train_one_iteration(self, n_steps):

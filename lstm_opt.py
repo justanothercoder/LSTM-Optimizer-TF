@@ -5,7 +5,7 @@ import basic_model
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, **kwargs):
+    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, stop_grad=True, **kwargs):
         super(LSTMOpt, self).__init__(optimizee, **kwargs)
 
         self.num_units = num_units
@@ -16,6 +16,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.eps = 1e-8
 
         self.p_drop = p_drop
+        self.stop_grad = stop_grad
 
 
     def _build_pre(self):
@@ -58,7 +59,9 @@ class LSTMOpt(basic_model.BasicModel):
         sid, b1t, b2t, x, m, v, lstm_state, loglr = state
 
         fx, g = self._fg(f, x, i)
-        g = tf.stop_gradient(g)
+
+        if self.stop_grad:
+            g = tf.stop_gradient(g)
 
         g_norm = tf.reduce_sum(g**2)
 
