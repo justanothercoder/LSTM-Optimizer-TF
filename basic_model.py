@@ -72,7 +72,7 @@ class BasicModel:
         print("\t\tLast function value: {}".format(fx[-1]))
 
         ret['optimizee_name'] = opt_name
-        ret['loss']  = np.sum(losses)
+        ret['loss']  = np.mean(losses)
         ret['fxs']   = np.array(fxs)
         ret['lrs']   = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
@@ -235,7 +235,8 @@ class BasicModel:
             losses = self.losses[opt_name]
 
             if self.loss_type == 'log':
-                loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[0]))
+                #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[0]))
+                loss = tf.reduce_sum(tf.log(losses) - tf.log(losses[0]))
             elif self.loss_type == 'sum':
                 loss = tf.reduce_mean(losses)
             else:

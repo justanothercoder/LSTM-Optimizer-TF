@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -37,9 +38,12 @@ def plot_test_results(flags, d):
         norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
         lrs = np.array([ret['lrs'] for ret in rets])
 
-        if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
-            print("Skipped {}".format(name))
+        if np.mean(lrs, axis=0)[-1] < -500:
             continue
+
+        #if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
+        #    print("Skipped {}".format(name))
+        #    continue
 
         mean_trajectory = np.mean(fxs, axis=0)
         std = np.std(fxs, axis=0)
@@ -69,16 +73,19 @@ def plot_test_results(flags, d):
     axes[0].legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='{problem}_plot_test.svg'.format(**d))
+    save_figure(fig, filename='{problem}_plot_test'.format(**d))
 
 
-def plot_train_results(flags, d):
+def plot_training_results(flags, d):
     by_opt = lambda ret: ret['optimizee_name']
 
     train_results_splits, opts = split_list(d['train_results'], by_opt)
     test_results_splits , _    = split_list(d['test_results'], by_opt)
 
     fig, axes = plt.subplots(nrows=len(opts), figsize=(15, 12)) 
+
+    if len(opts) == 1:
+        axes = (axes,)
 
     for i, opt_name in enumerate(opts):
         ax = axes[i]

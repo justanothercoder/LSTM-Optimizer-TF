@@ -32,6 +32,14 @@ def run_train(flags):
 
     with graph.as_default():
         with tf.Session(graph=graph) as session:
+                
+            optimizees = {
+                'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
+                'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
+            }
+
+            if flags.optimizee != 'all':
+                optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 
             opt = LSTMOpt(optimizees, train_lr=flags.train_lr, 
                                    n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, stop_grad=flags.stop_grad,
@@ -91,14 +99,14 @@ def run_test(flags):
                     rets = o.test(eid=flags.eid, n_batches=flags.n_batches, n_steps=flags.n_steps)
                     results[o.name] = rets
             else:
-                for eid in range(100, flags.eid + 1, 100):
+                for eid in range(50, flags.eid + 1, 10):
                     np.random.set_state(st)
                     rets = opt.test(eid=eid, n_batches=flags.n_batches, n_steps=flags.n_steps)
 
                     name = '{name}_{eid}'.format(name=opt.name, eid=eid)
                     results[name] = rets
 
-            filename = '{}_{}_{}_test_results.pkl'.format(flags.name, flags.problem, flags.mode)
+            filename = '{name}_{problem}_{mode}_test_results.pkl'.format(**vars(flags))
             with open(filename, 'wb') as res_file:
                 d = {
                     'mode': 'testing',
@@ -129,18 +137,20 @@ if __name__ == '__main__':
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which train/test optimizer')
     parser.add_argument('--num_units', type=int, default=20, help='number of units in LSTM')
     parser.add_argument('--num_layers', type=int, default=2, help='number of lstm layers')
+    parser.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
     parser.add_argument('--name', type=str, default='lstm_opt', help='name of model')
 
     subparsers = parser.add_subparsers(help='mode: train or test')
 
     parser_train = subparsers.add_parser('train', help='train optimizer on a set of functions')
+    parser_train.add_argument('--optimizee', type=str, nargs='+', default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
     parser_train.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_train.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
-    parser_train.add_argument('--no-stop_grad', action='store_false', dest='stop_grad')
+    parser_train.add_argument('--no-stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
 
     parser_train.set_defaults(func=run_train)
 
@@ -159,7 +169,7 @@ if __name__ == '__main__':
 
     parser_plot.set_defaults(func=run_plot)
 
-    ulags = parser.parse_args()
+    flags = parser.parse_args()
     pprint.pprint(flags)
     
     #shutil.rmtree('./{}_data/'.format(flags.name), ignore_errors=True)

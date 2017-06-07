@@ -5,7 +5,7 @@ import basic_model
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, stop_grad=True, **kwargs):
+    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, layer_norm=True, stop_grad=True, **kwargs):
         super(LSTMOpt, self).__init__(optimizee, **kwargs)
 
         self.num_units = num_units
@@ -17,14 +17,15 @@ class LSTMOpt(basic_model.BasicModel):
 
         self.p_drop = p_drop
         self.stop_grad = stop_grad
+        self.layer_norm = layer_norm
 
 
     def _build_pre(self):
-        #self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
-        self.lstm = MultiRNNCell([
-            LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
-            for _ in range(self.num_layers)
-        ])
+        self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
+        #self.lstm = MultiRNNCell([
+        #    LayerNormBasicLSTMCell(self.num_units, layer_norm=self.layer_norm, dropout_keep_prob=1.0 - self.p_drop) 
+        #    for _ in range(self.num_layers)
+        #])
         
 
     def _build_input(self):
