@@ -159,9 +159,9 @@ class BasicModel:
 
 
     def build(self):
-        with tf.variable_scope('{}_opt'.format(self.name)) as scope:
-            self.train_writer = tf.summary.FileWriter('{}_data/train'.format(self.name), self.session.graph)
-            self.test_writer = tf.summary.FileWriter('{}_data/test'.format(self.name), self.session.graph)
+        with tf.variable_scope('{name}'.format(name=self.name)) as scope:
+            self.train_writer = tf.summary.FileWriter('models/{name}/tf_data/train'.format(name=self.name), self.session.graph)
+            self.test_writer = tf.summary.FileWriter('models/{name}/tf_data/test'.format(name=self.name), self.session.graph)
             self.summaries = {name: [] for name in self.optimizees}
 
             self._build_pre()
@@ -284,12 +284,12 @@ class BasicModel:
 
 
     def restore(self, eid):
-        self.saver.restore(self.session, '{}_data/epoch-{}'.format(self.name, eid))
+        self.saver.restore(self.session, 'models/{model_name}/tf_data/epoch-{eid}'.format(model_name=self.name, eid=eid))
         print(self.name, "restored.")
 
 
     def save(self, eid):
-        folder = '{}_data'.format(self.name)
+        folder = 'models/{model_name}/tf_data'.format(model_name=self.name)
         filename = '{}/epoch'.format(folder)
         sfilename = '{}/epoch-last'.format(folder)
 

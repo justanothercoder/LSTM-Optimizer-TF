@@ -4,7 +4,9 @@ import os
 import argparse
 import pprint
 import shutil
+import shlex
 import pickle
+import subprocess
 from collections import OrderedDict
 
 import numpy as np
@@ -18,7 +20,9 @@ from momentum_opt import MomentumOpt
 import quadratic_optimizee
 import rosenbrock_optimizee
 
+import util
 import plotting
+import testing
 
 
 optimizees = {
@@ -53,15 +57,7 @@ def run_train(flags):
             session.run(tf.global_variables_initializer())
             train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps, eid=flags.eid)
             
-            filename = '{}_train_results.pkl'.format(flags.name)
-            with open(filename, 'wb') as res_file:
-                d = {
-                    'name': flags.name,
-                    'mode': 'training',
-                    'train_results': train_rets,
-                    'test_results': test_rets,
-                }
-                pickle.dump(d, res_file, protocol=pickle.HIGHEST_PROTOCOL)
+            util.dump_results(flags.name, (train_rets, test_rets), phase='train')
 
 
 def run_test(flags):
@@ -99,38 +95,32 @@ def run_test(flags):
                     rets = o.test(eid=flags.eid, n_batches=flags.n_batches, n_steps=flags.n_steps)
                     results[o.name] = rets
             else:
-                for eid in range(50, flags.eid + 1, 10):
+                for eid in range(flags.start_eid, flags.eid + 1, flags.step):
                     np.random.set_state(st)
                     rets = opt.test(eid=eid, n_batches=flags.n_batches, n_steps=flags.n_steps)
 
                     name = '{name}_{eid}'.format(name=opt.name, eid=eid)
                     results[name] = rets
 
-            filename = '{name}_{problem}_{mode}_test_results.pkl'.format(**vars(flags))
-            with open(filename, 'wb') as res_file:
-                d = {
-                    'mode': 'testing',
-                    'problem': flags.problem,
-                    'n_steps': flags.n_steps,
-                    'results': results,
-                    'n_functions': flags.n_batches,
-                }
-                pickle.dump(d, res_file, protocol=pickle.HIGHEST_PROTOCOL)
+            util.dump_results(flags.name, results, phase='test', problem=flags.problem, mode=flags.mode)
+
+            for o in s_opts:
+                shutil.rmtree('models/' + o.name)
 
             
 def run_plot(flags):
     with open(flags.filename, 'rb') as f:
         d = pickle.load(f)
 
-    if d['mode'] == 'training':
+    if d['phase'] == 'train':
         plotting.plot_training_results(flags, d)
-    elif d['mode'] == 'testing':
+    elif d['phase'] == 'test':
         plotting.plot_test_results(flags, d)
     else:
-        raise ValueError("Unknown mode")
+        raise ValueError("Unknown phase")
 
 
-if __name__ == '__main__':
+def make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cpu', action='store_true', help='run model on CPU')
     parser.add_argument('--gpu', type=int, default=2, help='gpu id')
@@ -160,6 +150,8 @@ if __name__ == '__main__':
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_test.add_argument('--filename', type=str, default='plot_test')
     parser_test.add_argument('--mode', type=str, default='many', choices=['many', 'cv'], help='which mode to run')
+    parser_test.add_argument('--start_eid', type=int, default=100, help='epoch from which start to run cv')
+    parser_test.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
 
     parser_test.set_defaults(func=run_test)
 
@@ -169,8 +161,17 @@ if __name__ == '__main__':
 
     parser_plot.set_defaults(func=run_plot)
 
+    return parser
+
+
+if __name__ == '__main__':
+    parser = make_parser()
+
     flags = parser.parse_args()
     pprint.pprint(flags)
+
+    subprocess.call(shlex.split('mkdir -p models/{model_name}/train/'.format(model_name=flags.name)))
+    subprocess.call(shlex.split('mkdir -p models/{model_name}/test/'.format(model_name=flags.name)))
     
     #shutil.rmtree('./{}_data/'.format(flags.name), ignore_errors=True)
 

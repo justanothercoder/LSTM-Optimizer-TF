@@ -61,7 +61,7 @@ def plot_test_results(flags, d):
             p = ax_lr.plot(mean_lr, label=name)
             ax_lr.fill_between(np.arange(mean_lr.shape[0]), mean_lr + std_lr, mean_lr - std_lr, alpha=0.3, facecolor=p[-1].get_color())
 
-    axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(**d))
+    axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(n_steps=fxs.shape[1], n_functions=fxs.shape[0], **d))
 
     ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
     ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
@@ -73,14 +73,16 @@ def plot_test_results(flags, d):
     axes[0].legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='{problem}_plot_test'.format(**d))
+    save_figure(fig, filename='models/{model_name}/test/{problem}'.format(**d))
 
 
 def plot_training_results(flags, d):
     by_opt = lambda ret: ret['optimizee_name']
 
-    train_results_splits, opts = split_list(d['train_results'], by_opt)
-    test_results_splits , _    = split_list(d['test_results'], by_opt)
+    train_results, test_results = d['results']
+
+    train_results_splits, opts = split_list(train_results, by_opt)
+    test_results_splits , _    = split_list(test_results, by_opt)
 
     fig, axes = plt.subplots(nrows=len(opts), figsize=(15, 12)) 
 
@@ -102,4 +104,4 @@ def plot_training_results(flags, d):
         ax.legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='{name}_plot_train'.format(**d))
+    save_figure(fig, filename='models/{model_name}/train/training'.format(**d))
