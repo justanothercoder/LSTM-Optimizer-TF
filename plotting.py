@@ -73,7 +73,7 @@ def plot_test_results(flags, d):
     axes[0].legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='models/{model_name}/test/{problem}'.format(**d))
+    save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
 
 
 def plot_training_results(flags, d):

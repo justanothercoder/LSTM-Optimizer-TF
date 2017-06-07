@@ -109,15 +109,20 @@ def run_test(flags):
 
             
 def run_plot(flags):
-    with open(flags.filename, 'rb') as f:
+    if flags.phase == 'train':
+        filename = 'models/{name}/train/results.pkl'
+    elif flags.phase == 'test':
+        filename = 'models/{name}/test/{problem}_{mode}.pkl'
+    else:
+        raise ValueError("Unknown phase: {}".format(flags.phase))
+
+    with open(filename.format(**vars(flags)), 'rb') as f:
         d = pickle.load(f)
 
-    if d['phase'] == 'train':
+    if flags.phase == 'train':
         plotting.plot_training_results(flags, d)
-    elif d['phase'] == 'test':
+    elif flags.phase == 'test':
         plotting.plot_test_results(flags, d)
-    else:
-        raise ValueError("Unknown phase")
 
 
 def make_parser():
@@ -128,11 +133,11 @@ def make_parser():
     parser.add_argument('--num_units', type=int, default=20, help='number of units in LSTM')
     parser.add_argument('--num_layers', type=int, default=2, help='number of lstm layers')
     parser.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
-    parser.add_argument('--name', type=str, default='lstm_opt', help='name of model')
 
     subparsers = parser.add_subparsers(help='mode: train or test')
 
     parser_train = subparsers.add_parser('train', help='train optimizer on a set of functions')
+    parser_train.add_argument('name', type=str, help='name of model')
     parser_train.add_argument('--optimizee', type=str, nargs='+', default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
@@ -145,19 +150,22 @@ def make_parser():
     parser_train.set_defaults(func=run_train)
 
     parser_test = subparsers.add_parser('test', help='run trained optimizer on some problem')
+    parser_test.add_argument('name', type=str, help='name of model')
     parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock'], help='problem to run test on')
+    parser_test.add_argument('mode', type=str, default='many', choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
-    parser_test.add_argument('--filename', type=str, default='plot_test')
-    parser_test.add_argument('--mode', type=str, default='many', choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--start_eid', type=int, default=100, help='epoch from which start to run cv')
     parser_test.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
 
     parser_test.set_defaults(func=run_test)
 
     parser_plot = subparsers.add_parser('plot', help='plot dumped results')
-    parser_plot.add_argument('filename', type=str, help='results to print')
-    parser_plot.add_argument('--plot_lr', action='store_true')
+    parser_plot.add_argument('name', type=str, help='name of model')
+    parser_plot.add_argument('phase', type=str, choices=['train', 'test'], help='train or test phase')
+    parser_plot.add_argument('--problem', type=str, help='optimizee name')
+    parser_plot.add_argument('--mode', type=str, choices=['many', 'cv'], help='mode of testing')
+    parser_plot.add_argument('--plot_lr', action='store_true', help='enable plotting of learning rate')
 
     parser_plot.set_defaults(func=run_plot)
 
