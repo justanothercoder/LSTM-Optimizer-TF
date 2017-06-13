@@ -1,24 +1,23 @@
 #!/usr/bin/env python
 
 import os
+import copy
 import argparse
 import pprint
-import shutil
-import shlex
-import pickle
+import shutil, shlex
+import json, pickle
 import subprocess
 from collections import OrderedDict
 
 import numpy as np
 import tensorflow as tf
-import basic_model
 
+import basic_model
 from lstm_opt import LSTMOpt
 from sgd_opt import SgdOpt
 from momentum_opt import MomentumOpt
 
-import quadratic_optimizee
-import rosenbrock_optimizee
+import quadratic_optimizee, rosenbrock_optimizee
 
 import util
 import plotting
@@ -32,6 +31,12 @@ optimizees = {
 
 
 def run_train(flags):
+    with open('models/{model_name}/train/config'.format(model_name=flags.name), 'w') as conf:
+        d = copy.copy(vars(flags))
+        del d['eid'], d['gpu'], d['cpu'], d['func']
+        print(d)
+        json.dump(d, conf, sort_keys=True, indent=4)
+
     graph = tf.Graph()
 
     with graph.as_default():
@@ -82,8 +87,7 @@ def run_test(flags):
             session.run(tf.global_variables_initializer())
 
             if flags.eid == 0:
-                print("eid must be > 0 if mode is testing")
-                return
+                raise ValueError("eid must be > 0 if mode is testing")
 
             st = np.random.get_state()
 
@@ -99,13 +103,16 @@ def run_test(flags):
                     np.random.set_state(st)
                     rets = opt.test(eid=eid, n_batches=flags.n_batches, n_steps=flags.n_steps)
 
-                    name = '{name}_{eid}'.format(name=opt.name, eid=eid)
+                    name = '{name}_{eid}'.format(name=flags.name, eid=eid)
                     results[name] = rets
 
             util.dump_results(flags.name, results, phase='test', problem=flags.problem, mode=flags.mode)
 
             for o in s_opts:
-                shutil.rmtree('models/' + o.name)
+                try:
+                    shutil.rmtree('models/' + o.name)
+                except:
+                    pass
 
             
 def run_plot(flags):
@@ -145,14 +152,14 @@ def make_parser():
     parser_train.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
-    parser_train.add_argument('--no-stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
+    parser_train.add_argument('--no_stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
 
     parser_train.set_defaults(func=run_train)
 
     parser_test = subparsers.add_parser('test', help='run trained optimizer on some problem')
     parser_test.add_argument('name', type=str, help='name of model')
     parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock'], help='problem to run test on')
-    parser_test.add_argument('mode', type=str, default='many', choices=['many', 'cv'], help='which mode to run')
+    parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_test.add_argument('--start_eid', type=int, default=100, help='epoch from which start to run cv')
@@ -166,6 +173,7 @@ def make_parser():
     parser_plot.add_argument('--problem', type=str, help='optimizee name')
     parser_plot.add_argument('--mode', type=str, choices=['many', 'cv'], help='mode of testing')
     parser_plot.add_argument('--plot_lr', action='store_true', help='enable plotting of learning rate')
+    parser_plot.add_argument('--frac', type=float, default=1.0, help='fraction of data to plot')
 
     parser_plot.set_defaults(func=run_plot)
 

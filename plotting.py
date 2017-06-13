@@ -38,8 +38,9 @@ def plot_test_results(flags, d):
         norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
         lrs = np.array([ret['lrs'] for ret in rets])
 
-        if np.mean(lrs, axis=0)[-1] < -500:
-            continue
+        #if np.mean(lrs, axis=0)[-1] < -500:
+        #    print("Skipping {}".format(name))
+        #    continue
 
         #if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
         #    print("Skipped {}".format(name))
@@ -95,8 +96,11 @@ def plot_training_results(flags, d):
         losses_train = [ret['loss'] for ret in train_results_splits[opt_name]]
         losses_test  = [ret['loss'] for ret in test_results_splits [opt_name]]
 
-        ax.plot(losses_train, label='train')
-        ax.plot(losses_test, label='test')
+        l_train = int(len(losses_train) * (1. - flags.frac))
+        l_test = int(len(losses_test) * (1. - flags.frac))
+
+        ax.plot(losses_train[l_train:], label='train')
+        ax.plot(losses_test[l_test:], label='test')
             
         ax.set_title(opt_name)
         ax.set_ylabel('loss')

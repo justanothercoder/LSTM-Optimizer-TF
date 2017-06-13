@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormBasicLSTMCell
 
@@ -21,11 +22,11 @@ class LSTMOpt(basic_model.BasicModel):
 
 
     def _build_pre(self):
-        self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
-        #self.lstm = MultiRNNCell([
-        #    LayerNormBasicLSTMCell(self.num_units, layer_norm=self.layer_norm, dropout_keep_prob=1.0 - self.p_drop) 
-        #    for _ in range(self.num_layers)
-        #])
+        #self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
+        self.lstm = MultiRNNCell([
+            LayerNormBasicLSTMCell(self.num_units, layer_norm=self.layer_norm, dropout_keep_prob=1.0 - self.p_drop) 
+            for _ in range(self.num_layers)
+        ])
         
 
     def _build_input(self):
@@ -51,7 +52,9 @@ class LSTMOpt(basic_model.BasicModel):
         b1t = tf.ones([])
         b2t = tf.ones([])
         lstm_state = self.lstm.zero_state(tf.size(x), tf.float32)
-        loglr = tf.zeros(shape=tf.shape(x))
+        
+        #loglr = tf.zeros(shape=tf.shape(x))
+        loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2))
 
         self.initial_state = [tf.zeros([]), b1t, b2t, x, m, v, lstm_state, loglr]
 
