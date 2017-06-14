@@ -46,6 +46,12 @@ def plot_test_results(flags, d):
         #    print("Skipped {}".format(name))
         #    continue
 
+        l_test = int((1. - flags.frac) * fxs.shape[1])
+
+        fxs   = fxs[:, l_test:]
+        norms = norms[:, l_test:]
+        lrs   = lrs[:, l_test:]
+
         mean_trajectory = np.mean(fxs, axis=0)
         std = np.std(fxs, axis=0)
 

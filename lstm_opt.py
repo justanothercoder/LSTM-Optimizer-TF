@@ -85,8 +85,10 @@ class LSTMOpt(basic_model.BasicModel):
         d, loglr_add = tf.unstack(last, axis=1)
 
         loglr += loglr_add
+
+        n_coords = tf.cast(tf.shape(x)[0], tf.float32)
         
-        d = d / (tf.cast(tf.shape(x)[0], tf.float32) * tf.sqrt(tf.reduce_sum(d ** 2)))
+        d = d / (tf.norm(d) * n_coords)
         x += d * tf.exp(loglr)
 
         return [sid + 1, b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm
