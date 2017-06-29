@@ -12,23 +12,28 @@ class Quadratic:
 
     def build(self):
         with tf.variable_scope('quadratic'):
-            self.W = tf.placeholder(tf.float32, [None, None], name='W')
-            self.b = tf.placeholder(tf.float32, [None], name='b')
+            self.W = tf.placeholder(tf.float32, [None, None, None], name='W')
+            self.b = tf.placeholder(tf.float32, [None, None], name='b')
 
     
     def loss(self, x, i):
         return tf.reduce_mean((tf.matmul(self.W, tf.expand_dims(x, 1)) - self.b)**2)
 
 
-    def get_initial_x(self):
+    def get_initial_x(self, batch_size=1):
         self.D = np.random.randint(low=self.low, high=self.high)
-        return np.random.normal(0, 0.1, size=self.D)
+        #return np.random.normal(0, 0.1, size=self.D)
+
+        return np.random.normal(0, 0.1, size=(batch_size, self.D))
 
 
-    def get_new_params(self):
+    def get_new_params(self, batch_size=1):
         return {
-            self.W: np.random.normal(0, 0.1, size=(self.D, self.D)),
-            self.b: np.random.normal(0, 0.1, size=self.D),
+            #self.W: np.random.normal(0, 0.1, size=(self.D, self.D)),
+            #self.b: np.random.normal(0, 0.1, size=self.D),
+
+            self.W: np.random.normal(0, 0.1, size=(batch_size, self.D, self.D)),
+            self.b: np.random.normal(0, 0.1, size=(batch_size, self.D)),
         }
                 
         

@@ -4,18 +4,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-
-def split_list(lst, descr):
-    splits = { }
-
-    keys = set()
-
-    for item in lst:
-        key = descr(item)
-        keys.add(key)
-        splits.setdefault(key, []).append(item)
-
-    return splits, keys
+import util
+from util import split_list
 
 
 def save_figure(fig, filename):
@@ -34,9 +24,21 @@ def plot_test_results(flags, d):
 
 
     for name, rets in d['results'].items():
-        fxs = np.array([ret['fxs'] / ret['fxs'][0] for ret in rets])
-        norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
-        lrs = np.array([ret['lrs'] for ret in rets])
+        #fxs = np.array([ret['fxs'] / ret['fxs'][0] for ret in rets])
+        #norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
+        #lrs = np.array([ret['lrs'] for ret in rets])
+
+        fxs = np.concatenate([
+            np.reshape(ret['fxs'] / ret['fxs'][:1], (-1, 1))
+            for ret in rets
+        ], axis=-1).T
+
+        norms = np.concatenate([
+            np.reshape(ret['norms'] / ret['norms'][:1], (-1, 1))
+            for ret in rets
+        ], axis=-1).T
+
+        lrs = np.concatenate([ret['lrs'] for ret in rets], axis=-1).T
 
         #if np.mean(lrs, axis=0)[-1] < -500:
         #    print("Skipping {}".format(name))
@@ -65,8 +67,11 @@ def plot_test_results(flags, d):
             mean_lr = np.mean(lrs, axis=0)
             std_lr = np.std(lrs, axis=0)
 
-            p = ax_lr.plot(mean_lr, label=name)
-            ax_lr.fill_between(np.arange(mean_lr.shape[0]), mean_lr + std_lr, mean_lr - std_lr, alpha=0.3, facecolor=p[-1].get_color())
+            #p = ax_lr.plot(mean_lr, label=name)
+            #ax_lr.fill_between(np.arange(mean_lr.shape[0]), mean_lr + std_lr, mean_lr - std_lr, alpha=0.3, facecolor=p[-1].get_color())
+
+            p = ax_lr.semilogy(np.exp(mean_lr), label=name)
+            ax_lr.fill_between(np.arange(mean_lr.shape[0]), np.exp(mean_lr + std_lr), np.exp(mean_lr - std_lr), alpha=0.3, facecolor=p[-1].get_color())
 
     axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(n_steps=fxs.shape[1], n_functions=fxs.shape[0], **d))
 
@@ -96,6 +101,10 @@ def plot_training_results(flags, d):
     if len(opts) == 1:
         axes = (axes,)
 
+    alpha = 1.0
+    if flags.plot_moving:
+        alpha = 0.5
+
     for i, opt_name in enumerate(opts):
         ax = axes[i]
 
@@ -105,8 +114,17 @@ def plot_training_results(flags, d):
         l_train = int(len(losses_train) * (1. - flags.frac))
         l_test = int(len(losses_test) * (1. - flags.frac))
 
-        ax.plot(losses_train[l_train:], label='train')
-        ax.plot(losses_test[l_test:], label='test')
+        s = len(losses_train[l_train:]) // len(losses_test[l_test:])
+
+        p_train = ax.plot(losses_train[l_train:], label='train', alpha=alpha)
+        p_test  = ax.plot(range(0, len(losses_train[l_train:]), s), losses_test[l_test:], label='test', alpha=alpha)
+
+        if flags.plot_moving:
+            moving_train = util.get_moving(losses_train, mu=0.95)
+            moving_test  = util.get_moving(losses_test,  mu=0.95)
+
+            ax.plot(moving_train[l_train:], label='moving train', color=p_train[-1].get_color())
+            ax.plot(range(0, len(moving_train[l_train:]), s), moving_test[l_test:], label='moving test', color=p_test[-1].get_color())
             
         ax.set_title(opt_name)
         ax.set_ylabel('loss')

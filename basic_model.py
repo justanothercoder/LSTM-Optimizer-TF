@@ -60,19 +60,19 @@ class BasicModel:
 
             state = states[-1]
             
-            if i == 0:
-                print("\t\tFirst function value: {}".format(fx[0]))
+            #if i == 0:
+            #    print("\t\tFirst function value: {}".format(fx[0]))
 
             losses.append(loss)
             fxs.extend(fx)
             lrs.extend([s[-1] for s in states])
             norms.extend(g_norm)
 
-        print("\t\tLoss: {}".format(np.mean(losses)))
-        print("\t\tLast function value: {}".format(fx[-1]))
+        print("\t\tLoss: {}".format(np.mean(losses / np.log(10))))
+        #print("\t\tLast function value: {}".format(fx[-1]))
 
         ret['optimizee_name'] = opt_name
-        ret['loss']  = np.mean(losses)
+        ret['loss']  = np.sum(losses)
         ret['fxs']   = np.array(fxs)
         ret['lrs']   = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
@@ -84,7 +84,7 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=1, n_steps=20, eid=0):
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, eid=0):
         if eid > 0:
             self.restore(eid)
             self.bid = eid * n_batches 
@@ -95,7 +95,7 @@ class BasicModel:
         for epoch in range(eid, n_epochs):
             print("Epoch: {}".format(epoch))
             for batch in range(n_batches):
-                ret = self.train_one_iteration(n_steps)
+                ret = self.train_one_iteration(n_steps, batch_size)
                 train_rets.append(ret)
                 print("\tBatch: {}".format(batch))
 
@@ -111,7 +111,7 @@ class BasicModel:
         return train_rets, test_rets
 
 
-    def train_one_iteration(self, n_steps):
+    def train_one_iteration(self, n_steps, batch_size=1):
         self.bid += 1
         session = tf.get_default_session()
 
@@ -119,10 +119,10 @@ class BasicModel:
 
         opt_name, optimizee = random.choice(list(self.optimizees.items()))
 
-        x = optimizee.get_initial_x()
+        x = optimizee.get_initial_x(batch_size)
         state = session.run(self.initial_state, feed_dict={self.x: x})
 
-        optimizee_params = optimizee.get_new_params()
+        optimizee_params = optimizee.get_new_params(batch_size)
 
         losses = []
         fxs = []
@@ -139,16 +139,19 @@ class BasicModel:
             ], feed_dict=feed_dict)
 
             if i == 0:
-                print("\t\tFirst function value: {}".format(fx[0]))
+                #print("\t\tFirst function value: {}".format(fx[0]))
+                print("\t\tfx shape: {}".format(np.array(fx).shape))
+                print("\t\tFirst function value: {}".format(fx[0][0]))
 
             losses.append(loss)
             fxs.extend(fx)
 
-        print("\t\tLoss: {}".format(np.mean(losses)))
-        print("\t\tLast function value: {}".format(fx[-1]))
+        print("\t\tLoss: {}".format(np.mean(losses / np.log(10))))
+        #print("\t\tLast function value: {}".format(fx[-1]))
+        print("\t\tLast function value: {}".format(fx[-1][0]))
 
         ret['optimizee_name'] = opt_name
-        ret['loss'] = np.mean(losses)
+        ret['loss'] = np.sum(losses)
         ret['fxs'] = fxs
 
         for summary_str in summaries_str:
@@ -177,17 +180,17 @@ class BasicModel:
             # loglr_mean, loglr_std = tf.nn.moments(self.loglr, axes=[0])
             # lr_mean, lr_std = tf.nn.moments(tf.exp(self.loglr), axes=[0])
 
-            for opt_name in self.optimizees:
+            #for opt_name in self.optimizees:
 
-                loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
-                lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
-                 
-                self.summaries[opt_name].append(tf.summary.scalar('train_loss', self.loss[opt_name]))
-                self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_mean', loglr_mean))
-                self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_std', loglr_std))
-                self.summaries[opt_name].append(tf.summary.scalar('learning_rate_mean', lr_mean))
-                self.summaries[opt_name].append(tf.summary.scalar('learning_rate_std', lr_std))
-                self.summaries[opt_name].append(tf.summary.scalar('function_value', self.losses[opt_name][-1]))
+            #    loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
+            #    lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
+            #     
+            #    self.summaries[opt_name].append(tf.summary.scalar('train_loss', self.loss[opt_name]))
+            #    self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_mean', loglr_mean))
+            #    self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_std', loglr_std))
+            #    self.summaries[opt_name].append(tf.summary.scalar('learning_rate_mean', lr_mean))
+            #    self.summaries[opt_name].append(tf.summary.scalar('learning_rate_std', lr_std))
+            #    self.summaries[opt_name].append(tf.summary.scalar('function_value', self.losses[opt_name][-1]))
 
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
@@ -232,11 +235,16 @@ class BasicModel:
         self.loss = {}
 
         for opt_name in self.optimizees:
-            losses = self.losses[opt_name]
+            losses = self.losses[opt_name] # losses shape = (n_bptt_steps, n_functions)
+
+            losses = tf.stack(losses)
 
             if self.loss_type == 'log':
                 #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[0]))
-                loss = tf.reduce_sum(tf.log(losses) - tf.log(losses[0]))
+                #loss = tf.reduce_sum(tf.log(losses) - tf.log(losses[0]))
+                
+                #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[:1]))
+                loss = tf.reduce_mean(tf.reduce_sum(tf.log(losses) - tf.log(losses[:1]), axis=0))
             elif self.loss_type == 'sum':
                 loss = tf.reduce_mean(losses)
             else:
@@ -247,15 +255,16 @@ class BasicModel:
 
     def _fg(self, f, x, i):
         fx = f(x, i)
-        g = gradients.gradients(fx, x)[0]
-        return fx, g
+        #g = gradients.gradients(fx, x)[0]
+        g = gradients.gradients(tf.reduce_sum(fx), x)[0]
+        g_norm = tf.reduce_sum(g**2, axis=-1)
+        return fx, g, g_norm
 
 
     def _iter(self, f, i, state):
         x, = state
 
-        fx, g = self._fg(f, x, i)
-        g_norm = tf.reduce_sum(g**2)
+        fx, g, g_norm = self._fg(f, x, i)
 
         x -= tf.exp(self.loglr) * g
         return [x], fx, g_norm

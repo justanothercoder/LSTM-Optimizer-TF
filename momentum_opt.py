@@ -11,8 +11,8 @@ class MomentumOpt(basic_model.BasicModel):
     
     
     def _build_input(self):
-        self.x = tf.placeholder(tf.float32, [None], name='x')
-        self.v = tf.placeholder(tf.float32, [None], name='v')
+        self.x = tf.placeholder(tf.float32, [None, None], name='x')
+        self.v = tf.placeholder(tf.float32, [None, None], name='v')
         self.input_state = [self.x, self.v]
     
     
@@ -29,11 +29,9 @@ class MomentumOpt(basic_model.BasicModel):
     def _iter(self, f, i, state):
         x, v = state
 
-        fx, g = self._fg(f, x, i)
+        fx, g, g_norm = self._fg(f, x, i)
         g = tf.stop_gradient(g)
-
-        g_norm = tf.reduce_sum(g**2)
-
+ 
         v = self.mu * v - self.lr * g
         x += v
 

@@ -11,14 +11,16 @@ class SgdOpt(basic_model.BasicModel):
     def _build_pre(self):
         pass
         
+    def _build_input(self):
+        self.x = tf.placeholder(tf.float32, shape=[None, None])
+        self.input_state = [self.x]
+
 
     def _iter(self, f, i, state):
         x, = state
 
-        fx, g = self._fg(f, x, i)
+        fx, g, g_norm = self._fg(f, x, i)
         g = tf.stop_gradient(g)
-
-        g_norm = tf.reduce_sum(g**2)
 
         x -= self.lr * g
 

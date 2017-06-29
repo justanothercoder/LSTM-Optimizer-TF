@@ -24,10 +24,20 @@ import plotting
 import testing
 
 
-optimizees = {
-    'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
-    'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
-}
+def lstm_opt(optimizees, flags):
+    if type(flags) is not dict:
+        flags = vars(flags)
+
+    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name'}
+
+    flags = {k: v for k, v in flags.items() if k in used_kwargs}
+
+    #opt = LSTMOpt(optimizees, train_lr=flags.train_lr, 
+    #                       n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, stop_grad=flags.stop_grad, add_skip=flags.add_skip,
+    #                       num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
+
+    opt = LSTMOpt(optimizees, **flags)
+    return opt
 
 
 def run_train(flags):
@@ -40,7 +50,8 @@ def run_train(flags):
     graph = tf.Graph()
 
     with graph.as_default():
-        with tf.Session(graph=graph) as session:
+        session = tf.Session(graph=graph)
+        with session.as_default():
                 
             optimizees = {
                 'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
@@ -50,9 +61,7 @@ def run_train(flags):
             if flags.optimizee != 'all':
                 optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 
-            opt = LSTMOpt(optimizees, train_lr=flags.train_lr, 
-                                   n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, stop_grad=flags.stop_grad,
-                                   num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
+            opt = lstm_opt(optimizees, flags)
 
             for optimizee in optimizees.values():
                 optimizee.build()
@@ -60,24 +69,43 @@ def run_train(flags):
             opt.build()
 
             session.run(tf.global_variables_initializer())
-            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps, eid=flags.eid)
+            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid)
             
             util.dump_results(flags.name, (train_rets, test_rets), phase='train')
+
+            for problem, rets in util.split_list(test_rets, lambda ret: ret['optimizee_name'])[0].items():
+                util.dump_results(flags.name, rets, phase='test', problem=problem + '_training', mode='many')
 
 
 def run_test(flags):
     graph = tf.Graph()
+            
+    optimizees = {
+        'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
+        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=1, high=2)
+    }
+
+    optimizee = {flags.problem: optimizees[flags.problem]}
 
     with graph.as_default():
         with tf.Session(graph=graph) as session:
-            optimizee = {flags.problem: optimizees[flags.problem]}
-            opt = LSTMOpt(optimizee, num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
-            
-            if flags.problem == 'quadratic':
-                s_opts = [MomentumOpt(optimizee, lr=16 * 2**(-i), name='momentum_opt_lr_{}'.format(4-i)) for i in range(0, 6)]
-            elif flags.problem == 'rosenbrock':
-                s_opts = [MomentumOpt(optimizee, lr=2**(-i-9), name='momentum_opt_lr_{}'.format(-i-9)) for i in range(1, 3)]
+            tests = {
+                'rosenbrock': {
+                    'sgd': [SgdOpt(optimizee, lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+                    'momentum': [MomentumOpt(optimizee, lr=2**(-i-9), name='momentum_lr_{}'.format(-i-9)) for i in range(1, 3)],
+                },
+                'quadratic': {
+                    'sgd': [SgdOpt(optimizee, lr=16 * 2**(-i), name='sgd_lr_{}'.format(4-i)) for i in range(0, 6)],
+                    'momentum': [MomentumOpt(optimizee, lr=16 * 2**(-i), name='momentum_lr_{}'.format(4-i)) for i in range(0, 6)],
+                }
+            }
 
+
+            #opt = LSTMOpt(optimizee, num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
+            opt = lstm_opt(optimizee, flags)
+
+            s_opts = tests[flags.problem][flags.compare_with]
+            
             optimizees[flags.problem].build()
             opt.build()
 
@@ -133,13 +161,14 @@ def run_plot(flags):
 
 
 def make_parser():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--cpu', action='store_true', help='run model on CPU')
     parser.add_argument('--gpu', type=int, default=2, help='gpu id')
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which train/test optimizer')
     parser.add_argument('--num_units', type=int, default=20, help='number of units in LSTM')
     parser.add_argument('--num_layers', type=int, default=2, help='number of lstm layers')
     parser.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
+    parser.add_argument('--add_skip', action='store_true', help='add adam output to LSTM output')
 
     subparsers = parser.add_subparsers(help='mode: train or test')
 
@@ -150,6 +179,7 @@ def make_parser():
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
     parser_train.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_train.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
+    parser_train.add_argument('--batch_size', type=int, default=100, help='batch size')
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
     parser_train.add_argument('--no_stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
@@ -164,6 +194,7 @@ def make_parser():
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_test.add_argument('--start_eid', type=int, default=100, help='epoch from which start to run cv')
     parser_test.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
+    parser_test.add_argument('--compare_with', type=str, default='momentum', choices=['sgd', 'momentum'], help='baseline for optimizer')
 
     parser_test.set_defaults(func=run_test)
 
@@ -174,6 +205,7 @@ def make_parser():
     parser_plot.add_argument('--mode', type=str, choices=['many', 'cv'], help='mode of testing')
     parser_plot.add_argument('--plot_lr', action='store_true', help='enable plotting of learning rate')
     parser_plot.add_argument('--frac', type=float, default=1.0, help='fraction of data to plot')
+    parser_plot.add_argument('--plot_moving', action='store_true', help='plot moving loss')
 
     parser_plot.set_defaults(func=run_plot)
 
