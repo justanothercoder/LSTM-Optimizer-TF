@@ -135,3 +135,20 @@ def plot_training_results(flags, d):
 
     fig.tight_layout()
     save_figure(fig, filename='models/{model_name}/train/training'.format(**d))
+
+
+def run_plot(flags):
+    if flags.phase == 'train':
+        filename = 'models/{name}/train/results.pkl'
+    elif flags.phase == 'test':
+        filename = 'models/{name}/test/{problem}_{mode}.pkl'
+    else:
+        raise ValueError("Unknown phase: {}".format(flags.phase))
+
+    with open(filename.format(**vars(flags)), 'rb') as f:
+        d = pickle.load(f)
+
+    if flags.phase == 'train':
+        plotting.plot_training_results(flags, d)
+    elif flags.phase == 'test':
+        plotting.plot_test_results(flags, d)
