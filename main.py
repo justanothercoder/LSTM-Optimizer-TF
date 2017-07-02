@@ -91,7 +91,10 @@ def run_test(flags):
     optimizee = {flags.problem: optimizees[flags.problem]}
 
     with graph.as_default():
-        with tf.Session(graph=graph) as session:
+        config = tf.ConfigProto()
+        config.gpu_options.per_process_gpu_memory_fraction = 0.4
+
+        with tf.Session(config=config, graph=graph) as session:
             tests = {
                 'rosenbrock': {
                     'sgd': [SgdOpt(optimizee, lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],

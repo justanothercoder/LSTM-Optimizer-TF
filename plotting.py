@@ -116,8 +116,10 @@ def plot_training_results(flags, d):
 
         s = len(losses_train[l_train:]) // len(losses_test[l_test:])
 
+        lt = list(range(0, len(losses_train[l_train:]), s))
+
         p_train = ax.plot(losses_train[l_train:], label='train', alpha=alpha)
-        p_test  = ax.plot(range(0, len(losses_train[l_train:]), s), losses_test[l_test:], label='test', alpha=alpha)
+        p_test  = ax.plot(lt[:len(losses_test[l_test:])], losses_test[l_test:], label='test', alpha=alpha)
 
         if flags.plot_moving:
             moving_train = util.get_moving(losses_train, mu=0.95)
