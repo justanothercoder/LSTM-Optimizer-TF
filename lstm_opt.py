@@ -27,11 +27,15 @@ class LSTMOpt(basic_model.BasicModel):
 
 
     def _build_pre(self):
-        self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
-        #self.lstm = MultiRNNCell([
-        #    LayerNormBasicLSTMCell(self.num_units, layer_norm=self.layer_norm, dropout_keep_prob=1.0 - self.p_drop) 
-        #    for _ in range(self.num_layers)
-        #])
+        if self.layer_norm:
+            print("With layer norm")
+            self.lstm = MultiRNNCell([
+                LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
+                for _ in range(self.num_layers)
+            ])
+        else:
+            print("Without layer norm")
+            self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
         
 
     def _build_input(self):

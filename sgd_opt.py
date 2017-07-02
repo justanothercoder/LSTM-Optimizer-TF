@@ -26,3 +26,10 @@ class SgdOpt(basic_model.BasicModel):
 
         return [x], fx, g_norm
 
+    
+    def restore(self, eid):
+        pass
+
+
+    def save(self, eid):
+        pass

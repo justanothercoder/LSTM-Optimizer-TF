@@ -28,7 +28,7 @@ def lstm_opt(optimizees, flags):
     if type(flags) is not dict:
         flags = vars(flags)
 
-    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name'}
+    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm'}
 
     flags = {k: v for k, v in flags.items() if k in used_kwargs}
 
@@ -50,7 +50,10 @@ def run_train(flags):
     graph = tf.Graph()
 
     with graph.as_default():
-        session = tf.Session(graph=graph)
+        config = tf.ConfigProto()
+        config.gpu_options.per_process_gpu_memory_fraction = 0.4
+
+        session = tf.Session(config=config, graph=graph)
         with session.as_default():
                 
             optimizees = {
@@ -58,7 +61,7 @@ def run_train(flags):
                 'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
             }
 
-            if flags.optimizee != 'all':
+            if 'all' not in flags.optimizee:
                 optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 
             opt = lstm_opt(optimizees, flags)
@@ -82,7 +85,7 @@ def run_test(flags):
             
     optimizees = {
         'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
-        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=1, high=2)
+        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
     }
 
     optimizee = {flags.problem: optimizees[flags.problem]}

@@ -17,7 +17,10 @@ class Quadratic:
 
     
     def loss(self, x, i):
-        return tf.reduce_mean((tf.matmul(self.W, tf.expand_dims(x, 1)) - self.b)**2)
+        b = tf.expand_dims(self.b, -1)
+        x = tf.expand_dims(x, -1)
+
+        return tf.squeeze(tf.reduce_mean((tf.matmul(self.W, x) - b)**2, axis=1))
 
 
     def get_initial_x(self, batch_size=1):

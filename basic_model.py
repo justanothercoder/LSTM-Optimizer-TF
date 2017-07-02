@@ -72,7 +72,7 @@ class BasicModel:
         #print("\t\tLast function value: {}".format(fx[-1]))
 
         ret['optimizee_name'] = opt_name
-        ret['loss']  = np.sum(losses)
+        ret['loss']  = np.mean(losses)
         ret['fxs']   = np.array(fxs)
         ret['lrs']   = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
@@ -92,9 +92,17 @@ class BasicModel:
         train_rets = []
         test_rets = []
 
+        sample_steps = bool(n_steps == 0)
+
         for epoch in range(eid, n_epochs):
             print("Epoch: {}".format(epoch))
             for batch in range(n_batches):
+                if sample_steps:
+                    #n_steps = int(np.random.exponential(scale=200)) + 50
+                    n_steps = int(np.random.exponential(scale=50)) + 1
+                    n_steps *= self.n_bptt_steps
+                    print('n_steps: {}'.format(n_steps))
+
                 ret = self.train_one_iteration(n_steps, batch_size)
                 train_rets.append(ret)
                 print("\tBatch: {}".format(batch))
@@ -151,7 +159,7 @@ class BasicModel:
         print("\t\tLast function value: {}".format(fx[-1][0]))
 
         ret['optimizee_name'] = opt_name
-        ret['loss'] = np.sum(losses)
+        ret['loss'] = np.mean(losses)
         ret['fxs'] = fxs
 
         for summary_str in summaries_str:
@@ -162,7 +170,7 @@ class BasicModel:
 
 
     def build(self):
-        with tf.variable_scope('{name}'.format(name=self.name)) as scope:
+        with tf.variable_scope('opt_global_vscope'.format(name=self.name)) as scope:
             self.train_writer = tf.summary.FileWriter('models/{name}/tf_data/train'.format(name=self.name), self.session.graph)
             self.test_writer = tf.summary.FileWriter('models/{name}/tf_data/test'.format(name=self.name), self.session.graph)
             self.summaries = {name: [] for name in self.optimizees}

@@ -36,3 +36,11 @@ class MomentumOpt(basic_model.BasicModel):
         x += v
 
         return [x, v], fx, g_norm
+    
+    
+    def restore(self, eid):
+        pass
+
+
+    def save(self, eid):
+        pass
