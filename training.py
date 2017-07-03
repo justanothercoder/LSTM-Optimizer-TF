@@ -4,6 +4,7 @@ import tensorflow as tf
 from sgd_opt import SgdOpt
 from momentum_opt import MomentumOpt
 
+import util
 from util import lstm_opt, get_optimizees
 
 

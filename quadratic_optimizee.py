@@ -20,7 +20,10 @@ class Quadratic:
         b = tf.expand_dims(self.b, -1)
         x = tf.expand_dims(x, -1)
 
-        return tf.squeeze(tf.reduce_mean((tf.matmul(self.W, x) - b)**2, axis=1))
+        f = (tf.matmul(self.W, x) - b)**2
+        return tf.reduce_mean(tf.squeeze(f, axis=-1), axis=-1)
+
+        #return tf.squeeze(tf.reduce_mean(, axis=1), axis=-1)
 
 
     def get_initial_x(self, batch_size=1):
