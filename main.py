@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os
+import os, pathlib
 import pprint
 import subprocess, shlex
 
@@ -22,14 +22,27 @@ def run_plot(flags):
     plotting.run_plot(flags)
 
 
+def run_cv(flags):
+    import cv
+    cv.run_cv(flags)
+
+
 if __name__ == '__main__':
-    parser = cli.make_parser(run_train=run_train, run_test=run_test, run_plot=run_plot)
+    parser = cli.make_parser(run_train=run_train, run_test=run_test, run_plot=run_plot, run_cv=run_cv)
 
     flags = parser.parse_args()
     pprint.pprint(vars(flags))
 
-    subprocess.call(shlex.split('mkdir -p models/{model_name}/train/'.format(model_name=flags.name)))
-    subprocess.call(shlex.split('mkdir -p models/{model_name}/test/'.format(model_name=flags.name)))
+    path = pathlib.Path('models') / flags.name
+    flags.model_path = path
+    
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'train')))
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'test')))
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'cv' / 'snapshots')))
+
+    #subprocess.call(shlex.split('mkdir -p models/{model_name}/train/'.format(model_name=flags.name)))
+    #subprocess.call(shlex.split('mkdir -p models/{model_name}/test/'.format(model_name=flags.name)))
+    #subprocess.call(shlex.split('mkdir -p models/{model_name}/cv/'.format(model_name=flags.name)))
 
     if flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""

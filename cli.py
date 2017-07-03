@@ -2,7 +2,7 @@ import argparse
 
 
 def make_train_parser(parser_train, run_train):
-    parser_train.add_argument('name', type=str, help='name of model')
+    parser_train.add_argument('name', type=str, help='name of the model')
     parser_train.add_argument('--optimizee', type=str, nargs='+', default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
@@ -18,7 +18,7 @@ def make_train_parser(parser_train, run_train):
 
 
 def make_test_parser(parser_test, run_test):
-    parser_test.add_argument('name', type=str, help='name of model')
+    parser_test.add_argument('name', type=str, help='name of the model')
     parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock'], help='problem to run test on')
     parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--n_steps', type=int, default=100, help='number of steps')
@@ -32,8 +32,8 @@ def make_test_parser(parser_test, run_test):
 
 
 def make_plot_parser(parser_plot, run_plot):
-    parser_plot.add_argument('name', type=str, help='name of model')
-    parser_plot.add_argument('phase', type=str, choices=['train', 'test'], help='train or test phase')
+    parser_plot.add_argument('name', type=str, help='name of the model')
+    parser_plot.add_argument('phase', type=str, choices=['train', 'test', 'cv'], help='train or test phase')
     parser_plot.add_argument('--problem', type=str, help='optimizee name')
     parser_plot.add_argument('--mode', type=str, choices=['many', 'cv'], help='mode of testing')
     parser_plot.add_argument('--plot_lr', action='store_true', help='enable plotting of learning rate')
@@ -44,7 +44,23 @@ def make_plot_parser(parser_plot, run_plot):
     return parser_plot
 
 
-def make_parser(run_train, run_test, run_plot):
+def make_cv_parser(parser_cv, run_cv):
+    parser_cv.add_argument('name', type=str, help='name of the model')
+    parser_cv.add_argument('config', type=str, help='path to parameter grid')
+    parser_cv.add_argument('--method', type=str, choices=['grid', 'random', 'bayesian'], default='grid', help='type of tuning')
+    parser_cv.add_argument('--n_steps', type=int, default=100, help='number of steps')
+    parser_cv.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
+    parser_cv.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
+    parser_cv.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
+    parser_cv.add_argument('--batch_size', type=int, default=100, help='batch size')
+    parser_cv.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
+    parser_cv.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
+
+    parser_cv.set_defaults(func=run_cv)
+    return parser_cv
+
+
+def make_parser(*, run_train, run_test, run_plot, run_cv):
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--cpu', action='store_true', help='run model on CPU')
     parser.add_argument('--gpu', type=int, default=2, help='gpu id')
@@ -57,11 +73,15 @@ def make_parser(run_train, run_test, run_plot):
     subparsers = parser.add_subparsers(help='mode: train or test')
 
     parser_train = subparsers.add_parser('train', help='train optimizer on a set of functions')
-    make_train_parser(parser_train, run_train)
+    parser_train = make_train_parser(parser_train, run_train)
     
     parser_test = subparsers.add_parser('test', help='run trained optimizer on some problem')
-    make_test_parser(parser_test, run_test)
+    parser_test = make_test_parser(parser_test, run_test)
 
     parser_plot = subparsers.add_parser('plot', help='plot dumped results')
-    make_plot_parser(parser_plot, run_plot)
+    parser_plot = make_plot_parser(parser_plot, run_plot)
+
+    parser_cv = subparsers.add_parser('cv', help='tune hyperparameters by validation')
+    parser_cv = make_cv_parser(parser_cv, run_cv)
+
     return parser
