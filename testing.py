@@ -1,22 +1,20 @@
 import shutil
 from collections import OrderedDict
+
+import numpy as np
 import tensorflow as tf
 
-import quadratic_optimizee, rosenbrock_optimizee
 from sgd_opt import SgdOpt
 from momentum_opt import MomentumOpt
 
-from util import lstm_opt
+import util
+from util import lstm_opt, get_optimizees
 
 
 def run_test(flags):
     graph = tf.Graph()
             
-    optimizees = {
-        'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
-        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
-    }
-
+    optimizees = get_optimizees()
     optimizee = {flags.problem: optimizees[flags.problem]}
 
     with graph.as_default():
@@ -69,7 +67,7 @@ def run_test(flags):
                     name = '{name}_{eid}'.format(name=flags.name, eid=eid)
                     results[name] = rets
 
-            util.dump_results(flags.name, results, phase='test', problem=flags.problem, mode=flags.mode)
+            util.dump_results(flags.model_path, results, phase='test', problem=flags.problem, mode=flags.mode)
 
             for o in s_opts:
                 try:

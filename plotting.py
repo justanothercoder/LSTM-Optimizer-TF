@@ -1,8 +1,14 @@
 import os
+import math
 import numpy as np
+import pandas as pd
+
+import pickle
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 import util
 from util import split_list
@@ -85,7 +91,8 @@ def plot_test_results(flags, d):
     axes[0].legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
+    #save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
+    save_figure(fig, filename=str(flags.model_path / 'test' / '{problem}_{mode}'.format(**d)))
 
 
 def plot_training_results(flags, d):
@@ -126,7 +133,8 @@ def plot_training_results(flags, d):
             moving_test  = util.get_moving(losses_test,  mu=0.95)
 
             ax.plot(moving_train[l_train:], label='moving train', color=p_train[-1].get_color())
-            ax.plot(range(0, len(moving_train[l_train:]), s), moving_test[l_test:], label='moving test', color=p_test[-1].get_color())
+            #ax.plot(range(0, len(moving_train[l_train:]), s), moving_test[l_test:], label='moving test', color=p_test[-1].get_color())
+            ax.plot(lt[:len(moving_test[l_test:])], moving_test[l_test:], label='moving test', color=p_test[-1].get_color())
             
         ax.set_title(opt_name)
         ax.set_ylabel('loss')
@@ -134,21 +142,54 @@ def plot_training_results(flags, d):
         ax.legend(loc='best')
 
     fig.tight_layout()
-    save_figure(fig, filename='models/{model_name}/train/training'.format(**d))
+    #save_figure(fig, filename='models/{model_name}/train/training'.format(**d))
+    save_figure(fig, filename=str(flags.model_path / 'train' / 'training'))
+
+
+def plot_cv_results(flags, d):
+    d = d['results']
+    keys = d['keys']
+
+    aux_keys = {'keys', 'best_index', 'best_params', 'best_score', 'train_time', 'hash', 'opts', 'params'}
+
+    df = {k: v for k, v in d.items() if k not in aux_keys}
+    df = pd.DataFrame(df)
+
+    n = len(keys) 
+    n = math.ceil(np.sqrt(n))
+
+    fig, axes = plt.subplots(nrows=n, ncols=n, figsize=(15, 12)) 
+
+    for i, key in enumerate(keys):
+        ax = axes[i // n][i % n]
+    
+        #df_i = pd.DataFrame({'score': df['score'], key: df[key]})
+        #print(df_i)
+        #print(df_i.head())
+
+        #sns.barplot(x=key, y='score', data=df_i, ax=ax)
+        sns.barplot(x=key, y='score', data=df, ax=ax)
+
+    save_figure(fig, filename=str(flags.model_path / 'cv' / 'summary'))
 
 
 def run_plot(flags):
-    if flags.phase == 'train':
-        filename = 'models/{name}/train/results.pkl'
+    path = flags.model_path / flags.phase
+
+    if flags.phase in ['train', 'cv']:
+        filename = path / 'results.pkl'
     elif flags.phase == 'test':
-        filename = 'models/{name}/test/{problem}_{mode}.pkl'
+        filename = path / '{problem}_{mode}.pkl'.format(**vars(flags))
     else:
         raise ValueError("Unknown phase: {}".format(flags.phase))
 
-    with open(filename.format(**vars(flags)), 'rb') as f:
+    with filename.open('rb') as f:
         d = pickle.load(f)
 
-    if flags.phase == 'train':
-        plotting.plot_training_results(flags, d)
-    elif flags.phase == 'test':
-        plotting.plot_test_results(flags, d)
+    plot_func = {
+        'train': plot_training_results,
+        'test': plot_test_results,
+        'cv': plot_cv_results
+    }[flags.phase]
+    
+    plot_func(flags, d)

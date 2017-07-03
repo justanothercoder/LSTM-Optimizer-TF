@@ -1,12 +1,13 @@
-import os
+import os, pathlib
 import random
 import numpy as np
 
 import tensorflow as tf
 from tensorflow.python.ops import gradients
 
+
 class BasicModel:
-    def __init__(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None):
+    def __init__(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None, model_path=None, save_path=None):
         self.optimizees = optimizees
         self.train_lr = train_lr
         self.n_bptt_steps = n_bptt_steps
@@ -16,14 +17,23 @@ class BasicModel:
         self.bid = 0
         self.name = name
 
+        self.model_path = model_path or pathlib.Path('models') / name
+        self.save_path = save_path or 'tf_data'
 
-    def test(self, eid, n_batches, n_steps=20):
+
+    def test(self, eid, n_batches, n_steps=20, opt_name=None):
         self.restore(eid)
 
         rets = []
 
+        sample_optimizee = (opt_name is None)
+        opt_names = list(self.optimizees.keys())
+
         for batch in range(n_batches):
-            ret = self.test_one_iteration(n_steps)
+            if sample_optimizee:
+                opt_name = random.choice(opt_names)
+
+            ret = self.test_one_iteration(n_steps, opt_name)
             rets.append(ret)
 
             print("\tBatch: {}".format(batch))
@@ -31,13 +41,13 @@ class BasicModel:
         return rets
 
 
-    def test_one_iteration(self, n_steps):
+    def test_one_iteration(self, n_steps, opt_name):
         self.bid += 1
         session = tf.get_default_session()
 
         ret = {}
 
-        opt_name, optimizee = random.choice(list(self.optimizees.items()))
+        optimizee = self.optimizees[opt_name]
 
         x = optimizee.get_initial_x()
         state = session.run(self.initial_state, feed_dict={self.x: x})
@@ -84,7 +94,7 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, eid=0):
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, eid=0, test=True):
         if eid > 0:
             self.restore(eid)
             self.bid = eid * n_batches 
@@ -107,12 +117,14 @@ class BasicModel:
                 train_rets.append(ret)
                 print("\tBatch: {}".format(batch))
 
-            if (epoch + 1) % 10 == 0:
+            if test and (epoch + 1) % 10 == 0:
                 self.save(epoch + 1)
+        
+                opt_name = random.choice(list(self.optimizees.keys()))
 
                 print("Test epoch: {}".format(epoch))
                 for batch in range(n_batches):
-                    ret = self.test_one_iteration(n_steps)
+                    ret = self.test_one_iteration(n_steps, opt_name)
                     test_rets.append(ret)
                     print("\tTest batch: {}".format(batch))
         
@@ -171,8 +183,11 @@ class BasicModel:
 
     def build(self):
         with tf.variable_scope('opt_global_vscope'.format(name=self.name)) as scope:
-            self.train_writer = tf.summary.FileWriter('models/{name}/tf_data/train'.format(name=self.name), self.session.graph)
-            self.test_writer = tf.summary.FileWriter('models/{name}/tf_data/test'.format(name=self.name), self.session.graph)
+            
+            tf_data_path = self.model_path / 'tf_data'
+
+            self.train_writer = tf.summary.FileWriter(str(tf_data_path / 'train'), self.session.graph)
+            self.test_writer = tf.summary.FileWriter(str(tf_data_path / 'test'), self.session.graph)
             self.summaries = {name: [] for name in self.optimizees}
 
             self._build_pre()
@@ -301,18 +316,21 @@ class BasicModel:
 
 
     def restore(self, eid):
-        self.saver.restore(self.session, 'models/{model_name}/tf_data/epoch-{eid}'.format(model_name=self.name, eid=eid))
+        snapshot_path = self.model_path / self.save_path / 'epoch-{}'.format(eid)
+        self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
 
     def save(self, eid):
-        folder = 'models/{model_name}/tf_data'.format(model_name=self.name)
-        filename = '{}/epoch'.format(folder)
-        sfilename = '{}/epoch-last'.format(folder)
+        folder = self.model_path / self.save_path
+        filename = folder / 'epoch'
+        sfilename = folder / 'epoch-last'
 
-        self.saver.save(self.session, filename, global_step=eid)
+        self.saver.save(self.session, str(filename), global_step=eid)
         os.unlink("{}-{}.meta".format(filename, eid))
-        if os.path.lexists(sfilename):
-            os.unlink(sfilename)
-        os.symlink("epoch-{}".format(eid), sfilename)
+        if os.path.lexists(str(sfilename)):
+        #if sfilename.exists():
+            os.unlink(str(sfilename))
+            #sfilename.unlink()
+        os.symlink("epoch-{}".format(eid), str(sfilename))
         print(self.name, "saved.")

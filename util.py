@@ -1,5 +1,6 @@
 import pickle
 from lstm_opt import LSTMOpt
+import quadratic_optimizee, rosenbrock_optimizee
 
 
 def get_moving(values, mu=0.9):
@@ -24,24 +25,24 @@ def split_list(lst, descr):
     return splits, keys
 
 
-def dump_results(model_name, results, phase='train', **kwargs):
-    filename = 'models/{model_name}/'.format(model_name=model_name)
-
+def dump_results(model_path, results, phase='train', **kwargs):
     if phase == 'train':
-        filename += 'train/results.pkl'
+        results_path = model_path / 'train' / 'results.pkl'
     elif phase == 'test':
-        filename += 'test/{problem}_{mode}.pkl'.format(**kwargs)
+        results_path = model_path / 'test' / '{problem}_{mode}.pkl'.format(**kwargs)
+    elif phase == 'cv':
+        results_path = model_path / 'cv' / 'results.pkl'
     else:
         raise ValueError("Unknown phase: {}".format(phase))
 
     d = {
-        'model_name': model_name,
+        'model_name': model_path.parts[-1],
         'phase': phase,
         'results': results,
     }
     d.update(**kwargs)
 
-    with open(filename, 'wb') as f:
+    with results_path.open('wb') as f:
         pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -61,3 +62,9 @@ def lstm_opt(optimizees, flags):
     return opt
 
 
+def get_optimizees():
+    optimizees = {
+        'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
+        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
+    }
+    return optimizees
