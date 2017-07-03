@@ -14,7 +14,7 @@ from util import lstm_opt, get_optimizees
 def run_test(flags):
     graph = tf.Graph()
             
-    optimizees = get_optimizees()
+    optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
     optimizee = {flags.problem: optimizees[flags.problem]}
 
     with graph.as_default():

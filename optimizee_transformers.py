@@ -40,7 +40,7 @@ class UniformRandomScaling:
         self.optim.build()
 
         with tf.variable_scope('random_scaling'):
-            self.c = tf.placeholder(tf.float32, [None], name='c')
+            self.c = tf.placeholder(tf.float32, [None, None], name='c')
 
 
     def loss(self, x, i):
@@ -49,8 +49,9 @@ class UniformRandomScaling:
 
     
     def get_initial_x(self, batch_size=1):
-        self.coef = np.random.uniform(-self.r, self.r)
-        return self.optim.get_initial_x(batch_size) / self.coef
+        x = self.optim.get_initial_x(batch_size)
+        self.coef = np.random.uniform(-self.r, self.r, size=x.shape)
+        return x / self.coef
 
 
     def get_new_params(self, batch_size=1):

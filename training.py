@@ -25,7 +25,7 @@ def run_train(flags):
         config.gpu_options.per_process_gpu_memory_fraction = 0.4
 
         with tf.Session(config=config, graph=graph) as session:
-            optimizees = get_optimizees()
+            optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
             if 'all' not in flags.optimizee:
                 optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 

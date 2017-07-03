@@ -1,6 +1,8 @@
 import pickle
 from lstm_opt import LSTMOpt
+
 import quadratic_optimizee, rosenbrock_optimizee
+import optimizee_transformers
 
 
 def get_moving(values, mu=0.9):
@@ -62,9 +64,21 @@ def lstm_opt(optimizees, flags):
     return opt
 
 
-def get_optimizees():
+def get_optimizees(clip_by_value=True, random_scale=False):
     optimizees = {
         'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
         'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
     }
+
+    for name in optimizees:
+        opt = optimizees[name]
+
+        if random_scale:
+            opt = optimizee_transformers.UniformRandomScaling(opt, r=3.0)
+
+        if clip_by_value:
+            opt = optimizee_transformers.ClipByValue(opt, clip_low=0, clip_high=10**10)
+
+        optimizees[name] = opt
+
     return optimizees

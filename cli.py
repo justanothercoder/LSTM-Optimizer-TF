@@ -69,6 +69,7 @@ def make_parser(*, run_train, run_test, run_plot, run_cv):
     parser.add_argument('--num_layers', type=int, default=2, help='number of lstm layers')
     parser.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
     parser.add_argument('--add_skip', action='store_true', help='add adam output to LSTM output')
+    parser.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
 
     subparsers = parser.add_subparsers(help='mode: train or test')
 

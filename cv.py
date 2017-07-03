@@ -23,6 +23,7 @@ def get_score(rets):
 
     return scores
 
+
 def grid_cv(session, optimizees, params, flags):
     keys = params.keys()
     values = params.values()
@@ -56,6 +57,8 @@ def grid_cv(session, optimizees, params, flags):
         with tf.variable_scope('cv_scope_{}'.format(h)):
             opt.build()
 
+        print("Running training with parameters: {}".format(d))
+
         train_start_time = time.time()
         session.run(tf.global_variables_initializer())
         train_rets, _ = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, test=False)
@@ -68,7 +71,7 @@ def grid_cv(session, optimizees, params, flags):
         test_rets = []
 
         for opt_name in optimizees.keys():
-            rets = opt.test(eid=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps)
+            rets = opt.test(eid=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps, opt_name=opt_name)
             test_rets.extend(rets)
             
         test_time = time.time() - test_start_time
@@ -116,6 +119,11 @@ def run_cv(flags):
         params = json.load(conf)
         params = OrderedDict(params)
 
+    with (flags.model_path / 'cv' / 'run_config.json').open('w') as f:
+        d = vars(flags).copy()
+        del d['model_path'], d['func']
+        json.dump(d, f)
+
     graph = tf.Graph()
 
     cv_func = {
@@ -129,7 +137,7 @@ def run_cv(flags):
         config.gpu_options.per_process_gpu_memory_fraction = 0.4
 
         with tf.Session(config=config, graph=graph) as session:
-            optimizees = get_optimizees()
+            optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
 
             for optimizee in optimizees.values():
                 optimizee.build()
