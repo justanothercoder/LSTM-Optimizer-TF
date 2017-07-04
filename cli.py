@@ -12,6 +12,7 @@ def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
     parser_train.add_argument('--no_stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
+    parser_train.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
 
     parser_train.set_defaults(func=run_train)
     return parser_train

@@ -14,7 +14,7 @@ def run_train(flags):
     conf_path = flags.model_path / 'train'/ 'config'
     with conf_path.open('w') as conf:
         d = vars(flags).copy()
-        del d['eid'], d['gpu'], d['cpu'], d['func'], d['model_path']
+        del d['eid'], d['gpu'], d['cpu'], d['func'], d['model_path'], d['verbose']
         print(d)
         json.dump(d, conf, sort_keys=True, indent=4)
 
@@ -37,7 +37,7 @@ def run_train(flags):
             opt.build()
 
             session.run(tf.global_variables_initializer())
-            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid)
+            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid, verbose=flags.verbose)
             
             util.dump_results(flags.model_path, (train_rets, test_rets), phase='train')
 

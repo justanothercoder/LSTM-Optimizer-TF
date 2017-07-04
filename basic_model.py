@@ -7,7 +7,7 @@ from tensorflow.python.ops import gradients
 
 
 class BasicModel:
-    def __init__(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None, model_path=None, save_path=None):
+    def __init__(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None, model_path=None, save_path=None, verbose=1):
         self.optimizees = optimizees
         self.train_lr = train_lr
         self.n_bptt_steps = n_bptt_steps
@@ -19,6 +19,13 @@ class BasicModel:
 
         self.model_path = model_path or pathlib.Path('models') / name
         self.save_path = save_path or 'tf_data'
+        self.verbose = verbose
+
+
+    def log(self, message, verbosity, level=0):
+        if verbosity <= self.verbose:
+            s = '\t' * level + message
+            print(s)
 
 
     def test(self, eid, n_batches, n_steps=20, opt_name=None):
@@ -30,13 +37,12 @@ class BasicModel:
         opt_names = list(self.optimizees.keys())
 
         for batch in range(n_batches):
+            self.log("Batch: {}".format(batch), verbosity=2, level=1)
             if sample_optimizee:
                 opt_name = random.choice(opt_names)
 
             ret = self.test_one_iteration(n_steps, opt_name)
             rets.append(ret)
-
-            print("\tBatch: {}".format(batch))
 
         return rets
 
@@ -78,7 +84,7 @@ class BasicModel:
             lrs.extend([s[-1] for s in states])
             norms.extend(g_norm)
 
-        print("\t\tLoss: {}".format(np.mean(losses / np.log(10))))
+        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
         #print("\t\tLast function value: {}".format(fx[-1]))
 
         ret['optimizee_name'] = opt_name
@@ -105,28 +111,30 @@ class BasicModel:
         sample_steps = bool(n_steps == 0)
 
         for epoch in range(eid, n_epochs):
-            print("Epoch: {}".format(epoch))
+            self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
             for batch in range(n_batches):
+                self.log("Batch: {}".format(batch), verbosity=2, level=1)
                 if sample_steps:
                     #n_steps = int(np.random.exponential(scale=200)) + 50
-                    n_steps = int(np.random.exponential(scale=50)) + 1
+
+                    exp_scale = min(50, epoch)
+                    n_steps = int(np.random.exponential(scale=exp_scale)) + 1
                     n_steps *= self.n_bptt_steps
-                    print('n_steps: {}'.format(n_steps))
+                    self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
 
                 ret = self.train_one_iteration(n_steps, batch_size)
                 train_rets.append(ret)
-                print("\tBatch: {}".format(batch))
 
             if test and (epoch + 1) % 10 == 0:
                 self.save(epoch + 1)
         
                 opt_name = random.choice(list(self.optimizees.keys()))
 
-                print("Test epoch: {}".format(epoch))
+                self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
                 for batch in range(n_batches):
+                    self.log("Test batch: {}".format(batch), verbosity=2, level=1)
                     ret = self.test_one_iteration(n_steps, opt_name)
                     test_rets.append(ret)
-                    print("\tTest batch: {}".format(batch))
         
         return train_rets, test_rets
 
@@ -147,7 +155,7 @@ class BasicModel:
         losses = []
         fxs = []
                 
-        print("Optimizee: {}".format(opt_name))
+        self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
 
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
@@ -160,15 +168,15 @@ class BasicModel:
 
             if i == 0:
                 #print("\t\tFirst function value: {}".format(fx[0]))
-                print("\t\tfx shape: {}".format(np.array(fx).shape))
-                print("\t\tFirst function value: {}".format(fx[0][0]))
+                self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
+                self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
 
             losses.append(loss)
             fxs.extend(fx)
 
-        print("\t\tLoss: {}".format(np.mean(losses / np.log(10))))
+        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
         #print("\t\tLast function value: {}".format(fx[-1]))
-        print("\t\tLast function value: {}".format(fx[-1][0]))
+        self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
         ret['loss'] = np.mean(losses)
