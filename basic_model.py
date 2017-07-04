@@ -1,3 +1,4 @@
+import time
 import os, pathlib
 import random
 import numpy as np
@@ -41,7 +42,9 @@ class BasicModel:
             if sample_optimizee:
                 opt_name = random.choice(opt_names)
 
+            t = time.time()
             ret = self.test_one_iteration(n_steps, opt_name)
+            self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
             rets.append(ret)
 
         return rets
@@ -122,7 +125,10 @@ class BasicModel:
                     n_steps *= self.n_bptt_steps
                     self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
 
+                t = time.time()
                 ret = self.train_one_iteration(n_steps, batch_size)
+                self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
+
                 train_rets.append(ret)
 
             if test and (epoch + 1) % 10 == 0:
@@ -133,7 +139,11 @@ class BasicModel:
                 self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
                 for batch in range(n_batches):
                     self.log("Test batch: {}".format(batch), verbosity=2, level=1)
+
+                    t = time.time()
                     ret = self.test_one_iteration(n_steps, opt_name)
+                    self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
+
                     test_rets.append(ret)
         
         return train_rets, test_rets
@@ -167,7 +177,6 @@ class BasicModel:
             ], feed_dict=feed_dict)
 
             if i == 0:
-                #print("\t\tFirst function value: {}".format(fx[0]))
                 self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
                 self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
 
@@ -175,7 +184,6 @@ class BasicModel:
             fxs.extend(fx)
 
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
-        #print("\t\tLast function value: {}".format(fx[-1]))
         self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
@@ -337,8 +345,6 @@ class BasicModel:
         self.saver.save(self.session, str(filename), global_step=eid)
         os.unlink("{}-{}.meta".format(filename, eid))
         if os.path.lexists(str(sfilename)):
-        #if sfilename.exists():
             os.unlink(str(sfilename))
-            #sfilename.unlink()
         os.symlink("epoch-{}".format(eid), str(sfilename))
         print(self.name, "saved.")
