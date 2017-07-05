@@ -48,7 +48,7 @@ def grid_cv(session, optimizees, params, flags):
 
         local_path = pathlib.Path('cv') / 'snapshots' / '{}.snapshot'.format(h)
 
-        d['model_path'] = flags.model_path / local_path
+        d['model_path'] = util.get_model_path(flags.name) / local_path
         d['save_path'] = str(local_path)
 
         subprocess.call(shlex.split('mkdir -p {}'.format(d['model_path'])))
@@ -119,7 +119,9 @@ def run_cv(flags):
         params = json.load(conf)
         params = OrderedDict(params)
 
-    with (flags.model_path / 'cv' / 'run_config.json').open('w') as f:
+    model_path = util.get_model_path(flags.name) 
+
+    with (model_path / 'cv' / 'run_config.json').open('w') as f:
         d = vars(flags).copy()
         del d['model_path'], d['func']
         json.dump(d, f)
@@ -144,4 +146,4 @@ def run_cv(flags):
 
             results = cv_func(session, optimizees, params, flags)
 
-    util.dump_results(flags.model_path, results, phase='cv')
+    util.dump_results(model_path, results, phase='cv')

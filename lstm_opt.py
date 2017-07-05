@@ -10,8 +10,8 @@ def normalize(d, gamma):
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, optimizee, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, p_drop=0.0, layer_norm=True, stop_grad=True, add_skip=False, **kwargs):
-        super(LSTMOpt, self).__init__(optimizee, **kwargs)
+    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, **kwargs):
+        super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
         self.num_layers = num_layers
@@ -20,7 +20,6 @@ class LSTMOpt(basic_model.BasicModel):
         self.beta2 = beta2
         self.eps = 1e-8
 
-        self.p_drop = p_drop
         self.stop_grad = stop_grad
         self.add_skip = add_skip
         self.layer_norm = layer_norm
@@ -30,7 +29,7 @@ class LSTMOpt(basic_model.BasicModel):
         if self.layer_norm:
             print("With layer norm")
             self.lstm = MultiRNNCell([
-                LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0 - self.p_drop) 
+                LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0) 
                 for _ in range(self.num_layers)
             ])
         else:

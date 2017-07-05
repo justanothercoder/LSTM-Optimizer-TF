@@ -1,8 +1,14 @@
-import pickle
-from lstm_opt import LSTMOpt
+import pathlib
+import subprocess, shlex
+import json, pickle
 
-import quadratic_optimizee, rosenbrock_optimizee, logistic_regression_optimizee
-import optimizee_transformers
+
+def get_tf_config():
+    import tensorflow as tf
+    
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.4
+    return config
 
 
 def get_moving(values, mu=0.9):
@@ -48,11 +54,24 @@ def dump_results(model_path, results, phase='train', **kwargs):
         pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+def load_opt(name):
+    conf_path = get_model_path(name) / 'model_config.json'
+    with conf_path.open('r') as conf:
+        flags = json.load(conf)
+
+    from lstm_opt import LSTMOpt
+    opt = LSTMOpt(**flags)
+    return opt
+
+
 def lstm_opt(optimizees, flags):
+    from lstm_opt import LSTMOpt
+
     if type(flags) is not dict:
         flags = vars(flags)
 
-    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm', 'verbose'}
+    #used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm', 'verbose'}
+    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad'}
 
     flags = {k: v for k, v in flags.items() if k in used_kwargs}
 
@@ -65,6 +84,9 @@ def lstm_opt(optimizees, flags):
 
 
 def get_optimizees(clip_by_value=True, random_scale=False):
+    import quadratic_optimizee, rosenbrock_optimizee, logistic_regression_optimizee
+    import optimizee_transformers
+
     optimizees = {
         'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
         'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10),
@@ -89,3 +111,27 @@ def get_optimizees(clip_by_value=True, random_scale=False):
         optimizees[name] = opt
 
     return optimizees
+
+
+def get_model_path(name):
+    path = pathlib.Path('models') / name
+    return path
+
+
+def run_new(flags):
+    path = get_model_path(flags.name)
+
+    if path.exists():
+        print('Model already exists')
+        return
+    
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'train')))
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'tf_data')))
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'test')))
+    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'cv' / 'snapshots')))
+
+    model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad'}
+
+    with (path / 'model_config.json').open('w') as conf:
+        d = {k: v for k, v in vars(flags).items() if k in model_parameters}
+        json.dump(d, conf, sort_keys=True, indent=4)

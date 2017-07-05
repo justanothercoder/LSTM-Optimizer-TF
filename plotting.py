@@ -92,7 +92,9 @@ def plot_test_results(flags, d):
 
     fig.tight_layout()
     #save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
-    save_figure(fig, filename=str(flags.model_path / 'test' / '{problem}_{mode}'.format(**d)))
+
+    model_path = util.get_model_path(flags.name)
+    save_figure(fig, filename=str(model_path / 'test' / '{problem}_{mode}'.format(**d)))
 
 
 def plot_training_results(flags, d):
@@ -143,7 +145,8 @@ def plot_training_results(flags, d):
 
     fig.tight_layout()
     #save_figure(fig, filename='models/{model_name}/train/training'.format(**d))
-    save_figure(fig, filename=str(flags.model_path / 'train' / 'training'))
+    model_path = util.get_model_path(flags.name)
+    save_figure(fig, filename=str(model_path / 'train' / 'training'))
 
 
 def plot_cv_results(flags, d):
@@ -170,11 +173,13 @@ def plot_cv_results(flags, d):
         #sns.barplot(x=key, y='score', data=df_i, ax=ax)
         sns.barplot(x=key, y='score', data=df, ax=ax)
 
-    save_figure(fig, filename=str(flags.model_path / 'cv' / 'summary'))
+    model_path = util.get_model_path(flags.name)
+    save_figure(fig, filename=str(model_path / 'cv' / 'summary'))
 
 
 def run_plot(flags):
-    path = flags.model_path / flags.phase
+    model_path = util.get_model_path(flags.name)
+    path = model_path / flags.phase
 
     if flags.phase in ['train', 'cv']:
         filename = path / 'results.pkl'

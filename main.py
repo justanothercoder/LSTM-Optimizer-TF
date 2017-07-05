@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-import os, pathlib
+import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import pprint
-import subprocess, shlex
 
 import cli
 
@@ -28,26 +27,29 @@ def run_cv(flags):
     cv.run_cv(flags)
 
 
+def run_new(flags):
+    import util
+    util.run_new(flags)
+
+
 if __name__ == '__main__':
-    parser = cli.make_parser(run_train=run_train, run_test=run_test, run_plot=run_plot, run_cv=run_cv)
+    commands = {
+        'train': run_train,
+        'test' : run_test,
+        'cv'   : run_cv,
+        'plot' : run_plot,
+        'new'  : run_new
+    }
+    parser = cli.make_parser(commands)
 
     flags = parser.parse_args()
     pprint.pprint(vars(flags))
 
-    path = pathlib.Path('models') / flags.name
-    flags.model_path = path
-    
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'train')))
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'test')))
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'cv' / 'snapshots')))
-
-    #subprocess.call(shlex.split('mkdir -p models/{model_name}/train/'.format(model_name=flags.name)))
-    #subprocess.call(shlex.split('mkdir -p models/{model_name}/test/'.format(model_name=flags.name)))
-    #subprocess.call(shlex.split('mkdir -p models/{model_name}/cv/'.format(model_name=flags.name)))
-
-    if flags.cpu:
+    if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    else:
+        print("CUDA_VISIBLE_DEVICES={}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
+    elif hasattr(flags, 'gpu') and flags.gpu is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(flags.gpu)
+        print("CUDA_VISIBLE_DEVICES={}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
 
     flags.func(flags)

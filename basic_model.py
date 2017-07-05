@@ -6,21 +6,17 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.ops import gradients
 
+import util
+
 
 class BasicModel:
-    def __init__(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log', name=None, model_path=None, save_path=None, verbose=1):
-        self.optimizees = optimizees
-        self.train_lr = train_lr
-        self.n_bptt_steps = n_bptt_steps
-        self.loss_type = loss_type
-
-        self.session = tf.get_default_session()
+    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=False):
         self.bid = 0
         self.name = name
 
         self.model_path = model_path or pathlib.Path('models') / name
         self.save_path = save_path or 'tf_data'
-        self.verbose = verbose
+        self.save_tf_data = save_tf_data
 
 
     def log(self, message, verbosity, level=0):
@@ -29,8 +25,9 @@ class BasicModel:
             print(s)
 
 
-    def test(self, eid, n_batches, n_steps=20, opt_name=None):
+    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
         self.restore(eid)
+        self.verbose = verbose
 
         rets = []
 
@@ -79,16 +76,12 @@ class BasicModel:
 
             state = states[-1]
             
-            #if i == 0:
-            #    print("\t\tFirst function value: {}".format(fx[0]))
-
             losses.append(loss)
             fxs.extend(fx)
             lrs.extend([s[-1] for s in states])
             norms.extend(g_norm)
 
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
-        #print("\t\tLast function value: {}".format(fx[-1]))
 
         ret['optimizee_name'] = opt_name
         ret['loss']  = np.mean(losses)
@@ -96,14 +89,18 @@ class BasicModel:
         ret['lrs']   = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
 
-        for summary_str in summaries_str:
-            self.test_writer.add_summary(summary_str, self.bid)
-        self.test_writer.flush()
+        if self.save_tf_data:
+            for summary_str in summaries_str:
+                self.test_writer.add_summary(summary_str, self.bid)
+            self.test_writer.flush()
 
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, eid=0, test=True):
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, eid=0, test=True, verbose=1):
+        self.verbose = verbose
+        self.lr = train_lr
+
         if eid > 0:
             self.restore(eid)
             self.bid = eid * n_batches 
@@ -179,6 +176,7 @@ class BasicModel:
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
+            feed_dict[self.train_lr] = self.lr
 
             _, state, loss, fx, summaries_str = session.run([
                 self.apply_gradients[opt_name], self.states[opt_name][-1], self.loss[opt_name], self.losses[opt_name], self.summaries[opt_name]
@@ -198,20 +196,29 @@ class BasicModel:
         ret['loss'] = np.mean(losses)
         ret['fxs'] = fxs
 
-        for summary_str in summaries_str:
-            self.train_writer.add_summary(summary_str, self.bid)
-        self.train_writer.flush()
+        if self.save_tf_data:
+            for summary_str in summaries_str:
+                self.train_writer.add_summary(summary_str, self.bid)
+            self.train_writer.flush()
 
         return ret
 
 
-    def build(self):
+    def build(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log'):
+        self.optimizees = optimizees
+        self.train_lr = train_lr
+        self.n_bptt_steps = n_bptt_steps
+        self.loss_type = loss_type
+
+        self.session = tf.get_default_session()
+
         with tf.variable_scope('opt_global_vscope'.format(name=self.name)) as scope:
             
-            tf_data_path = self.model_path / 'tf_data'
+            if self.save_tf_data:
+                tf_data_path = self.model_path / 'tf_data'
 
-            self.train_writer = tf.summary.FileWriter(str(tf_data_path / 'train'), self.session.graph)
-            self.test_writer = tf.summary.FileWriter(str(tf_data_path / 'test'), self.session.graph)
+                self.train_writer = tf.summary.FileWriter(str(tf_data_path / 'train'), self.session.graph)
+                self.test_writer = tf.summary.FileWriter(str(tf_data_path / 'test'), self.session.graph)
             self.summaries = {name: [] for name in self.optimizees}
 
             self._build_pre()
@@ -330,6 +337,7 @@ class BasicModel:
         try:
             self.apply_gradients = {}
 
+            self.train_lr = tf.placeholder(tf.float32, shape=[])
             self.optimizer = tf.train.AdamOptimizer(self.train_lr)
 
             for opt_name in self.optimizees:

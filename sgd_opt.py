@@ -3,8 +3,8 @@ import basic_model
 
 
 class SgdOpt(basic_model.BasicModel):
-    def __init__(self, optimizee, lr, beta1=0.9, beta2=0.999, **kwargs):
-        super(SgdOpt, self).__init__(optimizee, **kwargs)
+    def __init__(self, lr, beta1=0.9, beta2=0.999, **kwargs):
+        super(SgdOpt, self).__init__(**kwargs)
         self.lr = lr
 
 

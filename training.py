@@ -5,41 +5,62 @@ from sgd_opt import SgdOpt
 from momentum_opt import MomentumOpt
 
 import util
-from util import lstm_opt, get_optimizees
+    
+training_options = {
+    'batch_size', 'enable_random_scaling', 'loss_type', 
+    'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
+    'optimizee', 'train_lr',
+}
+
+def save_train_config(flags):
+
+    d = {k: v for k, v in vars(flags).items() if k in training_options}
+    print('Training config: ', d)
+
+    conf_path = util.get_model_path(flags.name) / 'train'/ 'config'
+    with conf_path.open('w') as conf:
+        json.dump(d, conf, sort_keys=True, indent=4)
+
+
+def select_optimizees(flags):
+    optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
+    if 'all' not in flags.optimizee:
+        optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
+
+    return optimizees
+
+
+def train_opt(opt, flags):
+    train_options = {
+        'n_epochs': flags.n_epochs,
+        'n_batches': flags.n_batches,
+        'batch_size': flags.batch_size,
+        'n_steps': flags.n_steps,
+        'eid': flags.eid,
+        'train_lr': flags.train_lr
+    }
+    return opt.train(**train_options)
 
 
 def run_train(flags):
-    #with open('models/{model_name}/train/config'.format(model_name=flags.name), 'w') as conf:
-    
-    conf_path = flags.model_path / 'train'/ 'config'
-    with conf_path.open('w') as conf:
-        d = vars(flags).copy()
-        del d['eid'], d['gpu'], d['cpu'], d['func'], d['model_path'], d['verbose']
-        print(d)
-        json.dump(d, conf, sort_keys=True, indent=4)
+    save_train_config(flags)
+            
+    opt = util.load_opt(flags.name)
+    optimizees = select_optimizees(flags)
 
     graph = tf.Graph()
-
     with graph.as_default():
-        config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = 0.4
-
-        with tf.Session(config=config, graph=graph) as session:
-            optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
-            if 'all' not in flags.optimizee:
-                optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
-
-            opt = lstm_opt(optimizees, flags)
-
+        with tf.Session(config=util.get_tf_config(), graph=graph) as session:
             for optimizee in optimizees.values():
                 optimizee.build()
 
-            opt.build()
+            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type)
 
             session.run(tf.global_variables_initializer())
-            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid)
+            train_rets, test_rets = train_opt(opt, flags)
             
-            util.dump_results(flags.model_path, (train_rets, test_rets), phase='train')
+            model_path = util.get_model_path(flags.name)
+            util.dump_results(model_path, (train_rets, test_rets), phase='train')
 
-            for problem, rets in util.split_list(test_rets, lambda ret: ret['optimizee_name'])[0].items():
-                util.dump_results(flags.model_path, rets, phase='test', problem=problem + '_training', mode='many')
+            #for problem, rets in util.split_list(test_rets, lambda ret: ret['optimizee_name'])[0].items():
+            #    util.dump_results(util.get_model_path(flags.name), rets, phase='test', problem=problem + '_training', mode='many')
