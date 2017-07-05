@@ -74,11 +74,12 @@ def run_test(flags):
             for s_opt in s_opts:
                 s_opt.build(optimizee)
 
-            session.run(tf.global_variables_initializer())
+            #session.run(tf.global_variables_initializer())
+            session.run(tf.global_variables_initializer(), feed_dict={opt.train_lr: 0., opt.momentum: 0.})
 
             if flags.mode == 'many':
                 results = run_many_testing(opt, s_opts, flags)
             else:
                 results = run_cv_testing(opt, flags)
 
-            util.dump_results(util.get_model_path(flags.name), results, phase='test', problem=flags.problem, mode=flags.mode)
+            util.dump_results(util.get_model_path(flags.name), results, phase='test', problem=flags.problem, mode=flags.mode, tag=flags.tag)

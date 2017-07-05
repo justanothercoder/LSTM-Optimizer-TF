@@ -47,9 +47,7 @@ if __name__ == '__main__':
 
     if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        print("CUDA_VISIBLE_DEVICES={}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
     elif hasattr(flags, 'gpu') and flags.gpu is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(flags.gpu)
-        print("CUDA_VISIBLE_DEVICES={}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
 
     flags.func(flags)

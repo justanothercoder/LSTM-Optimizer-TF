@@ -94,7 +94,13 @@ def plot_test_results(flags, d):
     #save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
 
     model_path = util.get_model_path(flags.name)
-    save_figure(fig, filename=str(model_path / 'test' / '{problem}_{mode}'.format(**d)))
+
+    filename = '{problem}_{mode}'
+    if flags.tag:
+        filename += '_{tag}'
+    filename = filename.format(**d)
+
+    save_figure(fig, filename=str(model_path / 'test' / filename))
 
 
 def plot_training_results(flags, d):
@@ -182,13 +188,17 @@ def run_plot(flags):
     path = model_path / flags.phase
 
     if flags.phase in ['train', 'cv']:
-        filename = path / 'results.pkl'
+        filename = 'results'
     elif flags.phase == 'test':
-        filename = path / '{problem}_{mode}.pkl'.format(**vars(flags))
+        filename = '{problem}_{mode}'
     else:
         raise ValueError("Unknown phase: {}".format(flags.phase))
 
-    with filename.open('rb') as f:
+    if flags.tag:
+        filename += '_{tag}'
+    filename = (filename + '.pkl').format(**vars(flags))
+
+    with (path / filename).open('rb') as f:
         d = pickle.load(f)
 
     plot_func = {

@@ -9,7 +9,7 @@ import util
 training_options = {
     'batch_size', 'enable_random_scaling', 'loss_type', 
     'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
-    'optimizee', 'train_lr',
+    'optimizee', 'train_lr', 'momentum', 'optimizer'
 }
 
 def save_train_config(flags):
@@ -37,7 +37,8 @@ def train_opt(opt, flags):
         'batch_size': flags.batch_size,
         'n_steps': flags.n_steps,
         'eid': flags.eid,
-        'train_lr': flags.train_lr
+        'train_lr': flags.train_lr,
+        'momentum': flags.momentum,
     }
     return opt.train(**train_options)
 
@@ -54,7 +55,7 @@ def run_train(flags):
             for optimizee in optimizees.values():
                 optimizee.build()
 
-            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type)
+            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer)
 
             session.run(tf.global_variables_initializer())
             train_rets, test_rets = train_opt(opt, flags)

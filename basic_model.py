@@ -97,9 +97,10 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, eid=0, test=True, verbose=1):
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
         self.verbose = verbose
         self.lr = train_lr
+        self.mu = momentum
 
         if eid > 0:
             self.restore(eid)
@@ -176,7 +177,10 @@ class BasicModel:
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
-            feed_dict[self.train_lr] = self.lr
+            feed_dict.update({
+                self.train_lr: self.lr,
+                self.momentum: self.mu,
+            })
 
             _, state, loss, fx, summaries_str = session.run([
                 self.apply_gradients[opt_name], self.states[opt_name][-1], self.loss[opt_name], self.losses[opt_name], self.summaries[opt_name]
@@ -204,11 +208,11 @@ class BasicModel:
         return ret
 
 
-    def build(self, optimizees, train_lr=1e-2, n_bptt_steps=20, loss_type='log'):
+    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam'):
         self.optimizees = optimizees
-        self.train_lr = train_lr
         self.n_bptt_steps = n_bptt_steps
         self.loss_type = loss_type
+        self.optimizer_type = optimizer
 
         self.session = tf.get_default_session()
 
@@ -325,7 +329,7 @@ class BasicModel:
 
 
     def _build_input(self):
-        self.x = tf.placeholder(tf.float32, shape=[None])
+        self.x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
         self.input_state = [self.x]
 
 
@@ -337,8 +341,15 @@ class BasicModel:
         try:
             self.apply_gradients = {}
 
-            self.train_lr = tf.placeholder(tf.float32, shape=[])
-            self.optimizer = tf.train.AdamOptimizer(self.train_lr)
+            self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
+            self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
+
+            if self.optimizer_type == 'adam':
+                self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
+            elif self.optimizer_type == 'momentum':
+                self.optimizer = tf.train.MomentumOptimizer(self.train_lr, self.momentum, use_nesterov=True)
+            elif self.optimizer_type == 'yellowfin':
+                self.optimizer = yellowfin.YFOptimizer(self.train_lr)
 
             for opt_name in self.optimizees:
                 gradients = self.optimizer.compute_gradients(self.loss[opt_name], var_list=self.all_vars)

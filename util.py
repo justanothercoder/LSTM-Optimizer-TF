@@ -34,12 +34,12 @@ def split_list(lst, descr):
 
 
 def dump_results(model_path, results, phase='train', **kwargs):
-    if phase == 'train':
-        results_path = model_path / 'train' / 'results.pkl'
+    results_path = model_path / phase
+
+    if phase in ['train', 'cv']:
+        filename = 'results_{tag}.pkl'
     elif phase == 'test':
-        results_path = model_path / 'test' / '{problem}_{mode}.pkl'.format(**kwargs)
-    elif phase == 'cv':
-        results_path = model_path / 'cv' / 'results.pkl'
+        filename = '{problem}_{mode}_{tag}.pkl'.format(**kwargs)
     else:
         raise ValueError("Unknown phase: {}".format(phase))
 
@@ -50,7 +50,7 @@ def dump_results(model_path, results, phase='train', **kwargs):
     }
     d.update(**kwargs)
 
-    with results_path.open('wb') as f:
+    with (results_path / filename).open('wb') as f:
         pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
