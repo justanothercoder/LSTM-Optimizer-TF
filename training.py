@@ -37,7 +37,7 @@ def run_train(flags):
             opt.build()
 
             session.run(tf.global_variables_initializer())
-            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid, verbose=flags.verbose)
+            train_rets, test_rets = opt.train(n_epochs=flags.n_epochs, n_batches=flags.n_batches, batch_size=flags.batch_size, n_steps=flags.n_steps, eid=flags.eid)
             
             util.dump_results(flags.model_path, (train_rets, test_rets), phase='train')
 

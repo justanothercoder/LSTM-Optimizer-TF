@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, pathlib
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import pprint
 import subprocess, shlex
 

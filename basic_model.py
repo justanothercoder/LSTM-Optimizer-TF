@@ -38,13 +38,13 @@ class BasicModel:
         opt_names = list(self.optimizees.keys())
 
         for batch in range(n_batches):
-            self.log("Batch: {}".format(batch), verbosity=2, level=1)
+            self.log("Batch: {}".format(batch), verbosity=1, level=0)
             if sample_optimizee:
                 opt_name = random.choice(opt_names)
 
             t = time.time()
             ret = self.test_one_iteration(n_steps, opt_name)
-            self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
+            self.log("Time: {}".format(time.time() - t), verbosity=1, level=1)
             rets.append(ret)
 
         return rets
@@ -115,6 +115,8 @@ class BasicModel:
 
         for epoch in range(eid, n_epochs):
             self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
+            epoch_time = time.time()
+
             for batch in range(n_batches):
                 self.log("Batch: {}".format(batch), verbosity=2, level=1)
                 if sample_steps:
@@ -125,11 +127,13 @@ class BasicModel:
                     n_steps *= self.n_bptt_steps
                     self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
 
-                t = time.time()
+                batch_time = time.time()
                 ret = self.train_one_iteration(n_steps, batch_size)
-                self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
+                self.log("Batch time: {}".format(time.time() - batch_time), verbosity=2, level=2)
 
                 train_rets.append(ret)
+            
+            self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
 
             if test and (epoch + 1) % 10 == 0:
                 self.save(epoch + 1)
@@ -137,14 +141,18 @@ class BasicModel:
                 opt_name = random.choice(list(self.optimizees.keys()))
 
                 self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
+                test_epoch_time = time.time()
+
                 for batch in range(n_batches):
                     self.log("Test batch: {}".format(batch), verbosity=2, level=1)
 
-                    t = time.time()
+                    batch_time = time.time()
                     ret = self.test_one_iteration(n_steps, opt_name)
-                    self.log("Time: {}".format(time.time() - t), verbosity=2, level=2)
+                    self.log("Batch time: {}".format(time.time() - batch_time), verbosity=2, level=2)
 
                     test_rets.append(ret)
+
+                self.log("Epoch time: {}".format(time.time() - test_epoch_time), verbosity=1, level=1)
         
         return train_rets, test_rets
 
@@ -177,14 +185,14 @@ class BasicModel:
             ], feed_dict=feed_dict)
 
             if i == 0:
-                self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
+                #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
                 self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
 
             losses.append(loss)
             fxs.extend(fx)
 
-        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
         self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
+        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
         ret['loss'] = np.mean(losses)
