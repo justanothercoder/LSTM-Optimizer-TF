@@ -12,7 +12,6 @@ def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
     parser_train.add_argument('--no_stop_grad', action='store_false', dest='stop_grad', help='whether to count second derivatives')
-    parser_train.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
 
     parser_train.set_defaults(func=run_train)
     return parser_train
@@ -20,7 +19,7 @@ def make_train_parser(parser_train, run_train):
 
 def make_test_parser(parser_test, run_test):
     parser_test.add_argument('name', type=str, help='name of the model')
-    parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock'], help='problem to run test on')
+    parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock', 'mixed', 'logreg'], help='problem to run test on')
     parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
@@ -71,6 +70,7 @@ def make_parser(*, run_train, run_test, run_plot, run_cv):
     parser.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
     parser.add_argument('--add_skip', action='store_true', help='add adam output to LSTM output')
     parser.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
+    parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
 
     subparsers = parser.add_subparsers(help='mode: train or test')
 

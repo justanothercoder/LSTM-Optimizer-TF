@@ -11,6 +11,25 @@ import util
 from util import lstm_opt, get_optimizees
 
 
+def get_tests(optimizee):
+    tests = {
+        'rosenbrock': {
+            'sgd': [SgdOpt(optimizee, lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'momentum': [MomentumOpt(optimizee, lr=2**(-i-9), name='momentum_lr_{}'.format(-i-9)) for i in range(1, 3)],
+        },
+        'quadratic': {
+            'sgd': [SgdOpt(optimizee, lr=16 * 2**(-i), name='sgd_lr_{}'.format(4-i)) for i in range(0, 6)],
+            'momentum': [MomentumOpt(optimizee, lr=16 * 2**(-i), name='momentum_lr_{}'.format(4-i)) for i in range(0, 6)],
+        },
+        'logreg': {
+            'sgd': [SgdOpt(optimizee, lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'momentum': [MomentumOpt(optimizee, lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)],
+        }
+    }
+
+    return tests
+
+
 def run_test(flags):
     graph = tf.Graph()
             
@@ -22,22 +41,8 @@ def run_test(flags):
         config.gpu_options.per_process_gpu_memory_fraction = 0.4
 
         with tf.Session(config=config, graph=graph) as session:
-            tests = {
-                'rosenbrock': {
-                    'sgd': [SgdOpt(optimizee, lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
-                    'momentum': [MomentumOpt(optimizee, lr=2**(-i-9), name='momentum_lr_{}'.format(-i-9)) for i in range(1, 3)],
-                },
-                'quadratic': {
-                    'sgd': [SgdOpt(optimizee, lr=16 * 2**(-i), name='sgd_lr_{}'.format(4-i)) for i in range(0, 6)],
-                    'momentum': [MomentumOpt(optimizee, lr=16 * 2**(-i), name='momentum_lr_{}'.format(4-i)) for i in range(0, 6)],
-                }
-            }
-
-
-            #opt = LSTMOpt(optimizee, num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
             opt = lstm_opt(optimizee, flags)
-
-            s_opts = tests[flags.problem][flags.compare_with]
+            s_opts = get_tests(optimizee)[flags.problem][flags.compare_with]
             
             optimizees[flags.problem].build()
             opt.build()

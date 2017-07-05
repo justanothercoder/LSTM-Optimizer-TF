@@ -10,10 +10,15 @@ class Rosenbrock:
         self.high = high
 
 
+    def get_x_dim(self):
+        return self.dim
+
+
     def build(self):
         with tf.variable_scope('rosenbrock'):
             #self.a = tf.placeholder(tf.float32, [None], name='a')
             #self.b = tf.placeholder(tf.float32, [None], name='b')
+            self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.a = tf.placeholder(tf.float32, [None, None], name='a')
             self.b = tf.placeholder(tf.float32, [None, None], name='b')
 
@@ -46,6 +51,7 @@ class Rosenbrock:
             
             self.a: np.random.normal(self.t[..., ::2], 0.1, size=(batch_size, self.D)),
             self.b: np.random.uniform(10, 100, size=(batch_size, self.D)),
+            self.dim: self.D * 2
         }
                 
         

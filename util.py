@@ -1,7 +1,7 @@
 import pickle
 from lstm_opt import LSTMOpt
 
-import quadratic_optimizee, rosenbrock_optimizee
+import quadratic_optimizee, rosenbrock_optimizee, logistic_regression_optimizee
 import optimizee_transformers
 
 
@@ -52,7 +52,7 @@ def lstm_opt(optimizees, flags):
     if type(flags) is not dict:
         flags = vars(flags)
 
-    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm'}
+    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm', 'verbose'}
 
     flags = {k: v for k, v in flags.items() if k in used_kwargs}
 
@@ -67,8 +67,15 @@ def lstm_opt(optimizees, flags):
 def get_optimizees(clip_by_value=True, random_scale=False):
     optimizees = {
         'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
-        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10)
+        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10),
+        'logreg': logistic_regression_optimizee.LogisticRegression(max_data_size=1000, max_features=100),
     }
+
+    optimizees['mixed'] = optimizee_transformers.ConcatAndSum([
+        optimizees['quadratic'],
+        optimizees['rosenbrock'],
+        #optimizees['logreg']
+    ])
 
     for name in optimizees:
         opt = optimizees[name]

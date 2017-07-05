@@ -62,3 +62,54 @@ class UniformRandomScaling:
 
     def get_next_dict(self, n_bptt_steps):
         return self.optim.get_next_dict(n_bptt_steps)
+
+
+class ConcatAndSum:
+    def __init__(self, optimizee_list):
+        self.optim_list = optimizee_list
+
+
+    def build(self):
+        for opt in self.optim_list:
+            opt.build()
+
+
+    def loss(self, x, i):
+        batch_size = tf.shape(x)[0]
+
+        fs = []
+        s = tf.constant(0, tf.int32)
+
+        for opt in self.optim_list:
+            dim = opt.get_x_dim()
+
+            begin = [0, s]
+            size = [batch_size, dim]
+            t = tf.slice(x, begin, size)
+
+            f = opt.loss(t, i)
+            fs.append(f)
+
+            s += dim
+
+        return tf.add_n(fs)
+
+
+    def get_initial_x(self, batch_size=1):
+        inits = [opt.get_initial_x(batch_size) for opt in self.optim_list]
+        init = np.concatenate(inits, axis=-1)
+        return init
+
+
+    def get_new_params(self, batch_size=1):
+        params = { }
+        for opt in self.optim_list:
+            params.update(opt.get_new_params(batch_size))
+        return params
+
+
+    def get_next_dict(self, n_bptt_steps):
+        d = { }
+        for opt in self.optim_list:
+            d.update(opt.get_next_dict(n_bptt_steps))
+        return d

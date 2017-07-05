@@ -10,10 +10,15 @@ class Quadratic:
         self.high = high
 
 
+    def get_x_dim(self):
+        return self.dim
+
+
     def build(self):
         with tf.variable_scope('quadratic'):
             self.W = tf.placeholder(tf.float32, [None, None, None], name='W')
             self.b = tf.placeholder(tf.float32, [None, None], name='b')
+            self.dim = tf.placeholder(tf.int32, [], name='dim')
 
     
     def loss(self, x, i):
@@ -40,6 +45,7 @@ class Quadratic:
 
             self.W: np.random.normal(0, 0.1, size=(batch_size, self.D, self.D)),
             self.b: np.random.normal(0, 0.1, size=(batch_size, self.D)),
+            self.dim: self.D
         }
                 
         
