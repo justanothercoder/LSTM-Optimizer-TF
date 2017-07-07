@@ -4,7 +4,7 @@ import basic_model
 
 class SgdOpt(basic_model.BasicModel):
     def __init__(self, lr, beta1=0.9, beta2=0.999, **kwargs):
-        super(SgdOpt, self).__init__(**kwargs)
+        super(SgdOpt, self).__init__(save_tf_data=False, **kwargs)
         self.lr = lr
 
 

@@ -4,7 +4,7 @@ import basic_model
 
 class MomentumOpt(basic_model.BasicModel):
     def __init__(self, lr, mu=0.9, **kwargs):
-        super(MomentumOpt, self).__init__(**kwargs)
+        super(MomentumOpt, self).__init__(save_tf_data=False, **kwargs)
 
         self.lr = lr
         self.mu = mu
