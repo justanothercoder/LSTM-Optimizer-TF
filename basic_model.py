@@ -177,7 +177,7 @@ class BasicModel:
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
-            feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
+            feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps, batch_size))
             feed_dict.update({
                 self.train_lr: self.lr,
                 self.momentum: self.mu,

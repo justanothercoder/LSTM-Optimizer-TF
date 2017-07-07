@@ -15,7 +15,7 @@ class StochasticLogisticRegression:
 
 
     def build(self):
-        with tf.variable_scope('rosenbrock'):
+        with tf.variable_scope('stochastic_logistic_regression'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X')
             self.y = tf.placeholder(tf.int32, [None, None, None], name='y')
@@ -28,6 +28,8 @@ class StochasticLogisticRegression:
         w0 = tf.expand_dims(x[:,  -1], axis=-1)
 
         score = tf.matmul(w, tf.transpose(self.x[i], perm=[0, 2, 1])) + w0
+        score = tf.squeeze(score, axis=-2)
+
         p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
 
         y = tf.cast(self.y[i], tf.float32)
@@ -42,8 +44,10 @@ class StochasticLogisticRegression:
         self.w  = np.random.normal(size=(batch_size, self.num_features))
         self.w0 = np.random.normal(size=(batch_size, 1))
             
-        self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features)),
-        self.Y = np.random.randint(0, 2, size=(batch_size, self.data_size)),
+        self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
+        #self.Y = np.random.randint(0, 2, size=(batch_size, self.data_size))
+        self.Y = (np.dot(self.w, self.X.transpose(0, 2, 1)) + self.w0) > 0
+        self.Y = self.Y[:, 0]
         self.s = 0
 
         return np.concatenate([self.w, self.w0], axis=-1)
@@ -59,7 +63,7 @@ class StochasticLogisticRegression:
         x = np.zeros((n_bptt_steps, batch_size, self.batch_size, self.num_features)) 
         y = np.zeros((n_bptt_steps, batch_size, self.batch_size)) 
 
-        for _ in range(n_bptt_steps):
+        for i in range(n_bptt_steps):
             if self.s + self.batch_size > self.data_size:
                 self.s = 0
             pos_cur, pos_next = self.s, self.s + self.batch_size

@@ -49,5 +49,5 @@ class Quadratic:
         }
                 
         
-    def get_next_dict(self, n_bptt_steps):
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
         return { } 

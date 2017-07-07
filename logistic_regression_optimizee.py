@@ -15,7 +15,7 @@ class LogisticRegression:
 
 
     def build(self):
-        with tf.variable_scope('rosenbrock'):
+        with tf.variable_scope('logistic_regression'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.X = tf.placeholder(tf.float32, [None, None, None], name='X')
             self.y = tf.placeholder(tf.int32, [None, None], name='y')
@@ -48,13 +48,17 @@ class LogisticRegression:
         
 
     def get_new_params(self, batch_size=1):
+        X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
+        #y = np.random.randint(0, 2, size=(batch_size, self.data_size))
+        y = (np.dot(self.w, X.transpose(0, 2, 1)) + self.w0) > 0
+
         return {
-            self.X: np.random.normal(size=(batch_size, self.data_size, self.num_features)),
-            self.y: np.random.randint(0, 2, size=(batch_size, self.data_size)),
+            self.X: X,
+            self.y: y[:, 0],
             self.dim: self.num_features + 1
         }
                 
         
-    def get_next_dict(self, n_bptt_steps):
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
         return { } 
 
