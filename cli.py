@@ -2,13 +2,13 @@ import argparse
 
 
 def make_train_parser(parser_train, run_train):
-    parser_train.add_argument('name', type=str, help='name of the model')
-
-    parser_train.add_argument('--optimizer', type=str, choices=['adam', 'momentum', 'yellowfin'], help='optimizer to train LSTM')
+    parser_train.add_argument('--eid', type=int, default=0, help='epoch id from which train optimizer')
+    parser_train.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'momentum', 'yellowfin'], help='optimizer to train LSTM')
     parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
     parser_train.add_argument('--momentum', type=float, default=0.9, help='momentum')
 
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
+    parser_train.add_argument('--lambd', type=float, default=1e-5)
 
     parser_train.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
@@ -20,19 +20,11 @@ def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--optimizee', type=str, nargs='+', default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
 
-    parser_train.add_argument('--eid', type=int, default=0, help='epoch id from which train optimizer')
-    parser_train.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
-
-    group = parser_train.add_mutually_exclusive_group(required=True)
-    group.add_argument('--cpu', action='store_true', help='run model on CPU')
-    group.add_argument('--gpu', type=int, help='gpu id')
-
     parser_train.set_defaults(func=run_train)
     return parser_train
 
 
 def make_test_parser(parser_test, run_test):
-    parser_test.add_argument('name', type=str, help='name of the model')
     parser_test.add_argument('eid', type=int, help='epoch id from which test optimizer')
     parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock', 'mixed', 'logreg'], help='problem to run test on')
     parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
@@ -42,16 +34,9 @@ def make_test_parser(parser_test, run_test):
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
 
     parser_test.add_argument('--compare_with', type=str, default='momentum', choices=['sgd', 'momentum'], help='baseline for optimizer')
-    parser_test.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
     
     parser_test.add_argument('--start_eid', type=int, default=100, help='epoch from which start to run cv')
     parser_test.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
-
-    parser_test.add_argument('--tag', type=str, help='tag denoting run purpose/parameters')
-    
-    group = parser_test.add_mutually_exclusive_group(required=True)
-    group.add_argument('--cpu', action='store_true', help='run model on CPU')
-    group.add_argument('--gpu', type=int, help='gpu id')
 
     parser_test.set_defaults(func=run_test)
     return parser_test
@@ -72,26 +57,9 @@ def make_plot_parser(parser_plot, run_plot):
 
 
 def make_cv_parser(parser_cv, run_cv):
-    parser_cv.add_argument('name', type=str, help='name of the model')
     parser_cv.add_argument('config', type=str, help='path to parameter grid')
     parser_cv.add_argument('--method', type=str, choices=['grid', 'random', 'bayesian'], default='grid', help='type of tuning')
-
-    parser_cv.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
-
-    parser_cv.add_argument('--n_steps', type=int, default=100, help='number of steps')
-    parser_cv.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
-    
-    parser_cv.add_argument('--optimizer', type=str, choices=['adam', 'momentum'], help='optimizer')
-    parser_cv.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
-    parser_cv.add_argument('--momentum', type=float, default=0.9, help='momentum value')
-
-    parser_cv.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
-    parser_cv.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
-    parser_cv.add_argument('--batch_size', type=int, default=100, help='batch size')
-    
-    group = parser_cv.add_mutually_exclusive_group(required=True)
-    group.add_argument('--cpu', action='store_true', help='run model on CPU')
-    group.add_argument('--gpu', type=int, help='gpu id')
+    parser_cv.add_argument('--num_tries', type=int, default=5, help='number of tries for random cv')
 
     parser_cv.set_defaults(func=run_cv)
     return parser_cv
@@ -109,23 +77,38 @@ def make_new_parser(parser_new, run_new):
     return parser_new
 
 
+def make_parser_for_command_with_run():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('name', type=str, help='name of the model')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--cpu', action='store_true', help='run model on CPU')
+    group.add_argument('--gpu', type=int, help='gpu id')
+
+    parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
+    parser.add_argument('--tag', type=str, help='tag denoting run purpose/parameters')
+    return parser
+    
+
 def make_parser(commands):
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers(help='command to run')
 
+    run_parser = make_parser_for_command_with_run()
+
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_new = make_new_parser(parser_new, commands['new'])
 
-    parser_train = subparsers.add_parser('train', help='train optimizer on a set of functions')
+    parser_train = subparsers.add_parser('train', parents=[run_parser], help='train optimizer on a set of functions')
     parser_train = make_train_parser(parser_train, commands['train'])
     
-    parser_test = subparsers.add_parser('test', help='run trained optimizer on some problem')
+    parser_test = subparsers.add_parser('test', parents=[run_parser], help='run trained optimizer on some problem')
     parser_test = make_test_parser(parser_test, commands['test'])
 
+    parser_cv = subparsers.add_parser('cv', parents=[parser_train], add_help=False, help='tune hyperparameters by validation')
+    parser_cv = make_cv_parser(parser_cv, commands['cv'])
+    
     parser_plot = subparsers.add_parser('plot', help='plot dumped results')
     parser_plot = make_plot_parser(parser_plot, commands['plot'])
 
-    parser_cv = subparsers.add_parser('cv', help='tune hyperparameters by validation')
-    parser_cv = make_cv_parser(parser_cv, commands['cv'])
-    
     return parser
