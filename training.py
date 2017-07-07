@@ -9,7 +9,7 @@ import util
 training_options = {
     'batch_size', 'enable_random_scaling', 'loss_type', 
     'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
-    'optimizee', 'train_lr', 'momentum', 'optimizer'
+    'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
 }
 
 def save_train_config(flags):
@@ -39,6 +39,7 @@ def train_opt(opt, flags):
         'eid': flags.eid,
         'train_lr': flags.train_lr,
         'momentum': flags.momentum,
+        'verbose': flags.verbose,
     }
     return opt.train(**train_options)
 
@@ -55,13 +56,13 @@ def run_train(flags):
             for optimizee in optimizees.values():
                 optimizee.build()
 
-            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer)
+            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer, lambd=flags.lambd)
 
-            session.run(tf.global_variables_initializer())
+            session.run(tf.global_variables_initializer(), {self.train_lr: flags.train_lr, self.momentum: flags.momentum})
             train_rets, test_rets = train_opt(opt, flags)
             
             model_path = util.get_model_path(flags.name)
-            util.dump_results(model_path, (train_rets, test_rets), phase='train')
+            util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)
 
             #for problem, rets in util.split_list(test_rets, lambda ret: ret['optimizee_name'])[0].items():
             #    util.dump_results(util.get_model_path(flags.name), rets, phase='test', problem=problem + '_training', mode='many')

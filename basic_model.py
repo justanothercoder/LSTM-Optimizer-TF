@@ -7,10 +7,11 @@ import tensorflow as tf
 from tensorflow.python.ops import gradients
 
 import util
+import yellowfin
 
 
 class BasicModel:
-    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=False):
+    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=True):
         self.bid = 0
         self.name = name
 
@@ -208,15 +209,16 @@ class BasicModel:
         return ret
 
 
-    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam'):
+    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam', lambd=0, inference_only=False):
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps
         self.loss_type = loss_type
         self.optimizer_type = optimizer
+        self.lambd = lambd
 
         self.session = tf.get_default_session()
 
-        with tf.variable_scope('opt_global_vscope'.format(name=self.name)) as scope:
+        with tf.variable_scope('opt_global_vscope') as scope:
             
             if self.save_tf_data:
                 tf_data_path = self.model_path / 'tf_data'
@@ -233,22 +235,25 @@ class BasicModel:
             self._build_loss()
 
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
-            self._build_optimizer()
+
+            if not inference_only:
+                self._build_optimizer()
 
             # loglr_mean, loglr_std = tf.nn.moments(self.loglr, axes=[0])
             # lr_mean, lr_std = tf.nn.moments(tf.exp(self.loglr), axes=[0])
 
-            #for opt_name in self.optimizees:
+            for opt_name in self.optimizees:
 
-            #    loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
-            #    lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
-            #     
-            #    self.summaries[opt_name].append(tf.summary.scalar('train_loss', self.loss[opt_name]))
-            #    self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_mean', loglr_mean))
-            #    self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_std', loglr_std))
-            #    self.summaries[opt_name].append(tf.summary.scalar('learning_rate_mean', lr_mean))
-            #    self.summaries[opt_name].append(tf.summary.scalar('learning_rate_std', lr_std))
-            #    self.summaries[opt_name].append(tf.summary.scalar('function_value', self.losses[opt_name][-1]))
+                self.summaries[opt_name].append(tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
+                self.summaries[opt_name].append(tf.summary.scalar('function_value', tf.reduce_mean(self.losses[opt_name][-1])))
+
+                #loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
+                #lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
+                 
+                #self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_mean', loglr_mean))
+                #self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_std', loglr_std))
+                #self.summaries[opt_name].append(tf.summary.scalar('learning_rate_mean', lr_mean))
+                #self.summaries[opt_name].append(tf.summary.scalar('learning_rate_std', lr_std))
 
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
@@ -293,9 +298,11 @@ class BasicModel:
         self.loss = {}
 
         for opt_name in self.optimizees:
-            losses = self.losses[opt_name] # losses shape = (n_bptt_steps, n_functions)
+            losses = self.losses[opt_name] 
+            states = self.states[opt_name]
 
             losses = tf.stack(losses)
+            states = tf.stack([s[-1] for s in states])
 
             if self.loss_type == 'log':
                 #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[0]))
@@ -303,6 +310,9 @@ class BasicModel:
                 
                 #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[:1]))
                 loss = tf.reduce_mean(tf.reduce_sum(tf.log(losses) - tf.log(losses[:1]), axis=0))
+                lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
+
+                loss += lr_loss
             elif self.loss_type == 'sum':
                 loss = tf.reduce_mean(losses)
             else:
@@ -338,24 +348,42 @@ class BasicModel:
 
 
     def _build_optimizer(self):
-        try:
-            self.apply_gradients = {}
+        self.apply_gradients = {}
 
-            self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
-            self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
+        self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
+        self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
 
-            if self.optimizer_type == 'adam':
-                self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
-            elif self.optimizer_type == 'momentum':
-                self.optimizer = tf.train.MomentumOptimizer(self.train_lr, self.momentum, use_nesterov=True)
-            elif self.optimizer_type == 'yellowfin':
-                self.optimizer = yellowfin.YFOptimizer(self.train_lr)
+        if self.optimizer_type == 'adam':
+            self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
+        elif self.optimizer_type == 'momentum':
+            self.optimizer = tf.train.MomentumOptimizer(self.train_lr, self.momentum, use_nesterov=True)
+        elif self.optimizer_type == 'yellowfin':
+            self.optimizer = yellowfin.YFOptimizer(self.train_lr)
+        else:
+            raise ValueError("Unknown optimizer: {}".format(self.optimizer_type))
 
-            for opt_name in self.optimizees:
+        for opt_name in self.optimizees:
+            print(opt_name, self.loss[opt_name])
+
+            if self.all_vars:
                 gradients = self.optimizer.compute_gradients(self.loss[opt_name], var_list=self.all_vars)
+
+            #for grad, var in gradients:
+            #    if grad is not None:
+            #        self.summaries[opt_name].append(tf.summary.histogram(var.op.name + '/{}/gradients'.format(opt_name), grad))
+
+            #        ratio_name = '/{}/grad_to_var_ratio'.format(opt_name)
+            #        ratio = tf.norm(grad) / (tf.norm(var) + 1e-8)
+            #        self.summaries[opt_name].append(tf.summary.histogram(var.op.name + ratio_name, ratio))
+
                 self.apply_gradients[opt_name] = self.optimizer.apply_gradients(gradients)
-        except:
-            self.apply_gradients = None
+
+        #for var in tf.trainable_variables():
+        #    self.summaries[opt_name].append(tf.summary.histogram(var.op.name, var))
+
+        #except Exception as e:
+        #    print("Caught exception: {}".format(e))
+        #    self.apply_gradients = None
 
 
     def restore(self, eid):

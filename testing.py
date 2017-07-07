@@ -70,12 +70,12 @@ def run_test(flags):
         with tf.Session(config=util.get_tf_config(), graph=graph) as session:
 
             optimizees[flags.problem].build()
-            opt.build(optimizee)
+            opt.build(optimizee, inference_only=True)
             for s_opt in s_opts:
-                s_opt.build(optimizee)
+                s_opt.build(optimizee, inference_only=True)
 
             #session.run(tf.global_variables_initializer())
-            session.run(tf.global_variables_initializer(), feed_dict={opt.train_lr: 0., opt.momentum: 0.})
+            session.run(tf.global_variables_initializer())
 
             if flags.mode == 'many':
                 results = run_many_testing(opt, s_opts, flags)
