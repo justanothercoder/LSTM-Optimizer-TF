@@ -37,11 +37,16 @@ def dump_results(model_path, results, phase='train', **kwargs):
     results_path = model_path / phase
 
     if phase in ['train', 'cv']:
-        filename = 'results_{tag}.pkl'
+        filename = 'results'
     elif phase == 'test':
-        filename = '{problem}_{mode}_{tag}.pkl'.format(**kwargs)
+        filename = '{problem}_{mode}'
     else:
         raise ValueError("Unknown phase: {}".format(phase))
+
+    if kwargs.get('tag'):
+        filename += '_{tag}'
+
+    filename = (filename + '.pkl').format(**kwargs)
 
     d = {
         'model_name': model_path.parts[-1],
@@ -84,19 +89,25 @@ def lstm_opt(optimizees, flags):
 
 
 def get_optimizees(clip_by_value=True, random_scale=False):
-    import quadratic_optimizee, rosenbrock_optimizee, logistic_regression_optimizee
+    from quadratic_optimizee import Quadratic
+    from rosenbrock_optimizee import Rosenbrock
+    from logistic_regression_optimizee import LogisticRegression
+    from stochastic_logistic_regression_optimizee import StochasticLogisticRegression
+
     import optimizee_transformers
 
     optimizees = {
-        'quadratic': quadratic_optimizee.Quadratic(low=50, high=100),
-        'rosenbrock': rosenbrock_optimizee.Rosenbrock(low=2, high=10),
-        'logreg': logistic_regression_optimizee.LogisticRegression(max_data_size=1000, max_features=100),
+        'quadratic'   : Quadratic(low=50, high=100),
+        'rosenbrock'  : Rosenbrock(low=2, high=10),
+        'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
+        'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100)
     }
 
     optimizees['mixed'] = optimizee_transformers.ConcatAndSum([
         optimizees['quadratic'],
         optimizees['rosenbrock'],
-        #optimizees['logreg']
+        #optimizees['logreg'],
+        #optimizees['stoch_logreg'],
     ])
 
     for name in optimizees:
