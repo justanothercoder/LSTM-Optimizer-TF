@@ -17,8 +17,8 @@ class StochasticLogisticRegression:
     def build(self):
         with tf.variable_scope('rosenbrock'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
-            self.x = tf.placeholder(tf.float32, [None, None, None], name='X')
-            self.y = tf.placeholder(tf.int32, [None, None], name='y')
+            self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X')
+            self.y = tf.placeholder(tf.int32, [None, None, None], name='y')
 
     
     def loss(self, x, i):

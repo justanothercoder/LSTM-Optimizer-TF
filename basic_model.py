@@ -363,8 +363,6 @@ class BasicModel:
             raise ValueError("Unknown optimizer: {}".format(self.optimizer_type))
 
         for opt_name in self.optimizees:
-            print(opt_name, self.loss[opt_name])
-
             if self.all_vars:
                 gradients = self.optimizer.compute_gradients(self.loss[opt_name], var_list=self.all_vars)
 

@@ -58,7 +58,7 @@ def run_train(flags):
 
             opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer, lambd=flags.lambd)
 
-            session.run(tf.global_variables_initializer(), {self.train_lr: flags.train_lr, self.momentum: flags.momentum})
+            session.run(tf.global_variables_initializer(), {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum})
             train_rets, test_rets = train_opt(opt, flags)
             
             model_path = util.get_model_path(flags.name)
