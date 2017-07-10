@@ -1,3 +1,4 @@
+import re
 import json
 import tensorflow as tf
 
@@ -46,6 +47,14 @@ def train_opt(opt, flags):
 
 def run_train(flags):
     save_train_config(flags)
+
+    model_path = util.get_model_path(flags.name)
+
+    r = re.compile('epoch-(?P<eid>\d+).index')
+    max_eid = max([re.match(p).group('eid') for p in (model_path / 'tf_data').iterdir() if re.match(p)])
+
+    if not flags.force and flags.eid < max_eid:
+        print("You will overwrite existing checkpoints. Add -f to force it.")
             
     opt = util.load_opt(flags.name)
     optimizees = select_optimizees(flags)

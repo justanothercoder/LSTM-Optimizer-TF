@@ -20,66 +20,34 @@ def save_figure(fig, filename):
     print("Plotted to {filename}.svg and {filename}.png".format(**locals()))
 
 
-def plot_test_results(flags, d):
+def extract_test_run_info(rets, flags, key, normalize):
+    vals = []
+    for ret in rets:
+        v = ret[key]
+        if key == 'lrs':
+            v = np.mean(v, axis=1)
+        if normalize:
+            v = v / ret[key][:1]
+        vals.append(v.reshape(-1, 1))
+    vals = np.concatenate(vals, axis=-1).T
+
+    l_test = int((1. - flags.frac) * vals.shape[1])
+    vals = vals[:, l_test:]
+
+    mean = np.mean(vals, axis=0)
+    std  = np.std(vals, axis=0)
+
+    return vals, mean, std
+
+
+def setup_test_plot(flags, d):
     if flags.plot_lr:
         fig, axes = plt.subplots(nrows=3, figsize=(15, 12), sharex=True)
         (ax_f, ax_g, ax_lr) = axes
     else:
         fig, axes = plt.subplots(nrows=2, figsize=(15, 12), sharex=True)
         (ax_f, ax_g) = axes
-
-
-    for name, rets in d['results'].items():
-        #fxs = np.array([ret['fxs'] / ret['fxs'][0] for ret in rets])
-        #norms = np.array([ret['norms'] / ret['norms'][0] for ret in rets])
-        #lrs = np.array([ret['lrs'] for ret in rets])
-
-        fxs = np.concatenate([
-            np.reshape(ret['fxs'] / ret['fxs'][:1], (-1, 1))
-            for ret in rets
-        ], axis=-1).T
-
-        norms = np.concatenate([
-            np.reshape(ret['norms'] / ret['norms'][:1], (-1, 1))
-            for ret in rets
-        ], axis=-1).T
-
-        lrs = np.concatenate([ret['lrs'] for ret in rets], axis=-1).T
-
-        #if np.mean(lrs, axis=0)[-1] < -500:
-        #    print("Skipping {}".format(name))
-        #    continue
-
-        #if fxs.max() > 1e5 or norms.max() > 1e5 or lrs.max() > 1e3:
-        #    print("Skipped {}".format(name))
-        #    continue
-
-        l_test = int((1. - flags.frac) * fxs.shape[1])
-
-        fxs   = fxs[:, l_test:]
-        norms = norms[:, l_test:]
-        lrs   = lrs[:, l_test:]
-
-        mean_trajectory = np.mean(fxs, axis=0)
-        std = np.std(fxs, axis=0)
-
-        mean_norm = np.mean(norms, axis=0)
-        std_norm = np.std(norms, axis=0)
-
-        ax_f.semilogy(mean_trajectory, label=name)
-        ax_g.semilogy(mean_norm, label=name)
-
-        if flags.plot_lr:
-            mean_lr = np.mean(lrs, axis=0)
-            std_lr = np.std(lrs, axis=0)
-
-            #p = ax_lr.plot(mean_lr, label=name)
-            #ax_lr.fill_between(np.arange(mean_lr.shape[0]), mean_lr + std_lr, mean_lr - std_lr, alpha=0.3, facecolor=p[-1].get_color())
-
-            p = ax_lr.semilogy(np.exp(mean_lr), label=name)
-            ax_lr.fill_between(np.arange(mean_lr.shape[0]), np.exp(mean_lr + std_lr), np.exp(mean_lr - std_lr), alpha=0.3, facecolor=p[-1].get_color())
-
-    axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(n_steps=fxs.shape[1], n_functions=fxs.shape[0], **d))
+    
 
     ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
     ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
@@ -88,10 +56,43 @@ def plot_test_results(flags, d):
         ax_lr.set_ylabel('mean learning rate')
 
     axes[-1].set_xlabel('iteration number')
-    axes[0].legend(loc='best')
 
     fig.tight_layout()
-    #save_figure(fig, filename='models/{model_name}/test/{problem}_{mode}'.format(**d))
+    return fig, axes
+
+
+def plot(ax, vals, name, logscale=True, with_moving=False):
+    alpha = 1.0
+    if with_moving:
+        alpha = 0.5
+
+    plot_func = ax.semilogy if logscale else ax.plot
+
+    p = plot_func(vals, label=name, alpha=alpha)
+
+    if with_moving:
+        moving_vals = util.get_moving(vals, mu=0.95)
+        plot_func(moving_vals, label='moving {}'.format(name), color=p[-1].get_color())
+
+
+def plot_test_results(flags, d):
+    fig, axes = setup_test_plot(flags, d)
+    ax_f, ax_g, ax_lr = axes
+
+    for name, rets in d['results'].items():
+        fxs, fxs_mean, fxs_std       = extract_test_run_info(rets, flags, 'fxs', not flags.stochastic)
+        norms, norms_mean, norms_std = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
+        lrs, lrs_mean, lrs_std       = extract_test_run_info(rets, flags, 'lrs', False)
+
+        plot(ax_f, fxs_mean, name, with_moving=flags.stochastic)
+        plot(ax_g, norms_mean, name, with_moving=flags.stochastic)
+
+        if flags.plot_lr:
+            p = ax_lr.plot(lrs_mean, label=name)
+            ax_lr.fill_between(np.arange(lrs_mean.shape[0]), lrs_mean + lrs_std, lrs_mean  - lrs_std, alpha=0.3, facecolor=p[-1].get_color())
+    
+    axes[0].set_title(r'{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {n_functions} functions for {n_steps} steps'.format(n_steps=fxs.shape[1], n_functions=fxs.shape[0], **d))
+    axes[0].legend(loc='best')
 
     model_path = util.get_model_path(flags.name)
 
@@ -110,6 +111,9 @@ def plot_training_results(flags, d):
 
     train_results_splits, opts = split_list(train_results, by_opt)
     test_results_splits , _    = split_list(test_results, by_opt)
+
+    for opt_name, rets in train_results_splits.items():
+        print("{}: {} iterations".format(opt_name, len(rets)))
 
     fig, axes = plt.subplots(nrows=len(opts), figsize=(15, 12)) 
 
@@ -171,12 +175,6 @@ def plot_cv_results(flags, d):
 
     for i, key in enumerate(keys):
         ax = axes[i // n][i % n]
-    
-        #df_i = pd.DataFrame({'score': df['score'], key: df[key]})
-        #print(df_i)
-        #print(df_i.head())
-
-        #sns.barplot(x=key, y='score', data=df_i, ax=ax)
         sns.barplot(x=key, y='score', data=df, ax=ax)
 
     model_path = util.get_model_path(flags.name)
@@ -187,19 +185,10 @@ def run_plot(flags):
     model_path = util.get_model_path(flags.name)
     path = model_path / flags.phase
 
-    if flags.phase in ['train', 'cv']:
-        filename = 'results'
-    elif flags.phase == 'test':
-        filename = '{problem}_{mode}'
-    else:
-        raise ValueError("Unknown phase: {}".format(flags.phase))
+    accepted_keys = {'phase', 'problem', 'mode', 'tag'}
+    kwargs = {k: v for k, v in vars(flags).items() if k in accepted_keys and v is not None}
 
-    if flags.tag:
-        filename += '_{tag}'
-    filename = (filename + '.pkl').format(**vars(flags))
-
-    with (path / filename).open('rb') as f:
-        d = pickle.load(f)
+    d = util.load_results(model_path, **kwargs)
 
     plot_func = {
         'train': plot_training_results,

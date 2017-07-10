@@ -39,7 +39,7 @@ class StochasticLogisticRegression:
     def get_initial_x(self, batch_size=1):
         self.num_features = np.random.randint(low=1, high=self.max_features)
         self.data_size    = np.random.randint(low=1, high=self.max_data_size)
-        self.batch_size   = np.random.randint(low=1, high=self.data_size)
+        self.batch_size   = np.random.randint(low=1, high=self.data_size + 1)
     
         self.w  = np.random.normal(size=(batch_size, self.num_features))
         self.w0 = np.random.normal(size=(batch_size, 1))

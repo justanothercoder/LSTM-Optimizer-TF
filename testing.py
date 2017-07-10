@@ -22,8 +22,14 @@ def get_tests():
         },
         'logreg': {
             'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
-            'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)],
+            'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
+                        [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
+        },
+        'stoch_logreg': {
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'momentum': [MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(i)) for i in range(-5, 5)]
         }
+
     }
 
     return tests
@@ -82,4 +88,5 @@ def run_test(flags):
             else:
                 results = run_cv_testing(opt, flags)
 
-            util.dump_results(util.get_model_path(flags.name), results, phase='test', problem=flags.problem, mode=flags.mode, tag=flags.tag)
+            model_path = util.get_model_path(flags.name)
+            util.dump_results(model_path, results, phase='test', problem=flags.problem, mode=flags.mode, tag=flags.tag)

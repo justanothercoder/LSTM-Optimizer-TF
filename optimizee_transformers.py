@@ -26,8 +26,8 @@ class ClipByValue:
         return self.optim.get_new_params(batch_size)
 
 
-    def get_next_dict(self, n_bptt_steps):
-        return self.optim.get_next_dict(n_bptt_steps)
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
+        return self.optim.get_next_dict(n_bptt_steps, batch_size)
 
 
 class UniformRandomScaling:
@@ -60,8 +60,8 @@ class UniformRandomScaling:
         return d
 
 
-    def get_next_dict(self, n_bptt_steps):
-        return self.optim.get_next_dict(n_bptt_steps)
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
+        return self.optim.get_next_dict(n_bptt_steps, batch_size)
 
 
 class ConcatAndSum:
@@ -108,8 +108,8 @@ class ConcatAndSum:
         return params
 
 
-    def get_next_dict(self, n_bptt_steps):
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
         d = { }
         for opt in self.optim_list:
-            d.update(opt.get_next_dict(n_bptt_steps))
+            d.update(opt.get_next_dict(n_bptt_steps, batch_size))
         return d

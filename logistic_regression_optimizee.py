@@ -31,6 +31,8 @@ class LogisticRegression:
         w0 = tf.expand_dims(w0, axis=-1)
 
         score = tf.matmul(w, tf.transpose(self.X, perm=[0, 2, 1])) + w0
+        score = tf.squeeze(score, axis=-2)
+
         p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
 
         y = tf.cast(self.y, tf.float32)

@@ -7,7 +7,8 @@ def get_tf_config():
     import tensorflow as tf
     
     config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.4
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.4
+    config.gpu_options.allow_growth = True
     return config
 
 
@@ -33,30 +34,38 @@ def split_list(lst, descr):
     return splits, keys
 
 
-def dump_results(model_path, results, phase='train', **kwargs):
-    results_path = model_path / phase
-
-    if phase in ['train', 'cv']:
-        filename = 'results'
-    elif phase == 'test':
-        filename = '{problem}_{mode}'
-    else:
-        raise ValueError("Unknown phase: {}".format(phase))
-
-    if kwargs.get('tag'):
-        filename += '_{tag}'
-
-    filename = (filename + '.pkl').format(**kwargs)
+def dump_results(model_path, results, **kwargs):
+    assert kwargs.get('phase') in ['train', 'test', 'cv']
+    results_path = model_path / kwargs['phase']
+    
+    tags = [kwargs[k] for k in sorted(kwargs) if k != 'phase' and kwargs[k] is not None]
+    filename = 'results' + '_{}' * len(tags)
+    filename = (filename + '.pkl').format(*tags)
 
     d = {
         'model_name': model_path.parts[-1],
-        'phase': phase,
         'results': results,
     }
     d.update(**kwargs)
 
+
     with (results_path / filename).open('wb') as f:
         pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_results(model_path, **kwargs):
+    assert kwargs.get('phase') in ['train', 'test', 'cv']
+    results_path = model_path / kwargs['phase']
+
+    tags = [kwargs[k] for k in sorted(kwargs) if k != 'phase' and kwargs[k] is not None]
+
+    filename = 'results' + '_{}' * len(tags)
+    filename = (filename + '.pkl').format(*tags)
+
+    with (results_path / filename).open('rb') as f:
+        d = pickle.load(f)
+
+    return d
 
 
 def load_opt(name):

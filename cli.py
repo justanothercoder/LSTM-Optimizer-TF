@@ -1,5 +1,7 @@
 import argparse
 
+problems = ['quadratic', 'rosenbrock', 'mixed', 'logreg', 'stoch_logreg']
+
 
 def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--eid', type=int, default=0, help='epoch id from which train optimizer')
@@ -17,8 +19,9 @@ def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_train.add_argument('--batch_size', type=int, default=100, help='batch size')
     
-    parser_train.add_argument('--optimizee', type=str, nargs='+', default='all', help='space separated list of optimizees or all')
+    parser_train.add_argument('--optimizee', type=str, nargs='+', choices=problems, default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
+    parser_train.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
 
     parser_train.set_defaults(func=run_train)
     return parser_train
@@ -26,7 +29,7 @@ def make_train_parser(parser_train, run_train):
 
 def make_test_parser(parser_test, run_test):
     parser_test.add_argument('eid', type=int, help='epoch id from which test optimizer')
-    parser_test.add_argument('problem', choices=['quadratic', 'rosenbrock', 'mixed', 'logreg'], help='problem to run test on')
+    parser_test.add_argument('problem', choices=problems, help='problem to run test on')
     parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
 
@@ -47,10 +50,11 @@ def make_plot_parser(parser_plot, run_plot):
     parser_plot.add_argument('phase', type=str, choices=['train', 'test', 'cv'], help='train or test phase')
     parser_plot.add_argument('--plot_lr', action='store_true', help='plot learning rate')
     parser_plot.add_argument('--plot_moving', action='store_true', help='plot moving loss')
-    parser_plot.add_argument('--problem', type=str, help='optimizee name')
-    parser_plot.add_argument('--mode', type=str, choices=['many', 'cv'], help='mode of testing')
-    parser_plot.add_argument('--frac', type=float, default=1.0, help='fraction of data to plot')
-    parser_plot.add_argument('--tag', type=str, help='tag')
+    parser_plot.add_argument('-p', '--problem', type=str, help='optimizee name')
+    parser_plot.add_argument('-m', '--mode', type=str, choices=['many', 'cv'], help='mode of testing')
+    parser_plot.add_argument('-f', '--frac', type=float, default=1.0, help='fraction of data to plot')
+    parser_plot.add_argument('-t', '--tag', type=str, help='tag')
+    parser_plot.add_argument('-s', '--stochastic', action='store_true', help='whether problem is stochastic')
 
     parser_plot.set_defaults(func=run_plot)
     return parser_plot
