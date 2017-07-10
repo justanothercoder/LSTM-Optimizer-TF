@@ -51,9 +51,13 @@ def run_train(flags):
     model_path = util.get_model_path(flags.name)
 
     r = re.compile('epoch-(?P<eid>\d+).index')
-    max_eid = max([re.match(p).group('eid') for p in (model_path / 'tf_data').iterdir() if re.match(p)])
+    eids = [r.match(p).group('eid') for p in map(str, (model_path / 'tf_data').iterdir()) if r.match(p)]
+    if eids:
+        max_eid = max(eids)
+    else:
+        max_eid = None
 
-    if not flags.force and flags.eid < max_eid:
+    if not flags.force and max_eid is not None and flags.eid < max_eid:
         print("You will overwrite existing checkpoints. Add -f to force it.")
             
     opt = util.load_opt(flags.name)
