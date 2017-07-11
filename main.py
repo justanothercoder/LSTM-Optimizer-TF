@@ -48,6 +48,6 @@ if __name__ == '__main__':
     if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
     elif hasattr(flags, 'gpu') and flags.gpu is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(flags.gpu)
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, flags.gpu))
 
     flags.func(flags)

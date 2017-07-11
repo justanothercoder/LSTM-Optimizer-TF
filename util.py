@@ -7,6 +7,10 @@ def get_tf_config():
     import tensorflow as tf
     
     config = tf.ConfigProto()
+#    config.device_count.CPU = 8
+#    config.inter_op_parallelism_threads = 1
+#    config.intra_op_parallelism_threads = 1
+
     #config.gpu_options.per_process_gpu_memory_fraction = 0.4
     config.gpu_options.allow_growth = True
     return config

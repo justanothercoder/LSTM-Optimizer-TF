@@ -87,7 +87,7 @@ def make_parser_for_command_with_run():
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--cpu', action='store_true', help='run model on CPU')
-    group.add_argument('--gpu', type=int, help='gpu id')
+    group.add_argument('--gpu', type=int, nargs='+', help='gpu id')
 
     parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
     parser.add_argument('--tag', type=str, help='tag denoting run purpose/parameters')

@@ -66,13 +66,15 @@ class BasicModel:
         lrs    = []
         norms  = []
 
+        dev = self.devices[0]
+
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
 
             states, loss, fx, g_norm, summaries_str = session.run([
-                self.states[opt_name], self.loss[opt_name], self.losses[opt_name], self.norms[opt_name], self.summaries[opt_name]
+                self.states[opt_name][dev], self.loss[opt_name][dev], self.fxs[opt_name][dev], self.norms[opt_name][dev], self.summaries[opt_name]
             ], feed_dict=feed_dict)
 
             state = states[-1]
@@ -174,6 +176,8 @@ class BasicModel:
                 
         self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
 
+        dev = self.devices[0]
+
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
@@ -183,8 +187,11 @@ class BasicModel:
                 self.momentum: self.mu,
             })
 
+            #_, state, loss, fx, summaries_str = session.run([
+            #    self.apply_gradients[opt_name], self.states[opt_name][-1], self.loss[opt_name], self.fxs[opt_name], self.summaries[opt_name]
+            #], feed_dict=feed_dict)
             _, state, loss, fx, summaries_str = session.run([
-                self.apply_gradients[opt_name], self.states[opt_name][-1], self.loss[opt_name], self.losses[opt_name], self.summaries[opt_name]
+                self.apply_gradients[opt_name], self.states[opt_name][dev][-1], self.loss[opt_name][dev], self.fxs[opt_name][dev], self.summaries[opt_name]
             ], feed_dict=feed_dict)
 
             if i == 0:
@@ -209,7 +216,15 @@ class BasicModel:
         return ret
 
 
-    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam', lambd=0, inference_only=False):
+    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam', lambd=0, inference_only=False, devices=None):
+        self.devices = devices or ['/cpu:0']
+
+        num_gpus = 0
+        for i in range(len(self.devices)):
+            if self.devices[i].startswith('/gpu:'):
+                self.devices[i] = '/gpu:{}'.format(num_gpus)
+                num_gpus += 1
+
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps
         self.loss_type = loss_type
@@ -236,16 +251,16 @@ class BasicModel:
 
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
-            if not inference_only:
+            if not inference_only and self.all_vars:
                 self._build_optimizer()
 
             # loglr_mean, loglr_std = tf.nn.moments(self.loglr, axes=[0])
             # lr_mean, lr_std = tf.nn.moments(tf.exp(self.loglr), axes=[0])
 
-            for opt_name in self.optimizees:
+            #for opt_name in self.optimizees:
 
-                self.summaries[opt_name].append(tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
-                self.summaries[opt_name].append(tf.summary.scalar('function_value', tf.reduce_mean(self.losses[opt_name][-1])))
+                #self.summaries[opt_name].append(tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
+                #self.summaries[opt_name].append(tf.summary.scalar('function_value', tf.reduce_mean(self.fxs[opt_name][-1])))
 
                 #loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
                 #lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
@@ -263,7 +278,7 @@ class BasicModel:
 
 
     def _build_loop(self):
-        self.losses = {}
+        self.fxs = {}
         self.states = {}
         self.norms  = {}
 
@@ -272,53 +287,57 @@ class BasicModel:
             reused = False
 
             for opt_name, optimizee in self.optimizees.items():
-                states = []
-                losses = []
-                norms = []
+                self.fxs[opt_name] = {}
+                self.states[opt_name] = {}
+                self.norms[opt_name] = {}
+                for dev in self.devices:
+                    with tf.device(dev):
+                        states = []
+                        fxs = []
+                        norms = []
 
-                state = self.input_state
+                        state = self.input_state
 
-                for i in range(self.n_bptt_steps):
-                    state, f, g_norm = self._iter(optimizee.loss, i, state)
+                        for i in range(self.n_bptt_steps):
+                            state, f, g_norm = self._iter(optimizee.loss, i, state)
 
-                    losses.append(f)
-                    states.append(state)
-                    norms.append(g_norm)
+                            fxs.append(f)
+                            states.append(state)
+                            norms.append(g_norm)
 
-                    if not reused:
-                       self.loop_scope.reuse_variables()
-                       reused = True
+                            if not reused:
+                               self.loop_scope.reuse_variables()
+                               reused = True
 
-                self.losses[opt_name] = losses
-                self.states[opt_name] = states
-                self.norms [opt_name] = norms
+                        self.fxs   [opt_name][dev] = fxs
+                        self.states[opt_name][dev] = states
+                        self.norms [opt_name][dev] = norms
 
 
     def _build_loss(self):
         self.loss = {}
 
         for opt_name in self.optimizees:
-            losses = self.losses[opt_name] 
-            states = self.states[opt_name]
+            self.loss[opt_name] = {}
+            for dev in self.devices:
+                with tf.device(dev):
+                    fxs = self.fxs[opt_name][dev] 
+                    states = self.states[opt_name][dev]
 
-            losses = tf.stack(losses)
-            states = tf.stack([s[-1] for s in states])
+                    fxs = tf.stack(fxs)
+                    states = tf.stack([s[-1] for s in states])
 
-            if self.loss_type == 'log':
-                #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[0]))
-                #loss = tf.reduce_sum(tf.log(losses) - tf.log(losses[0]))
-                
-                #loss = tf.reduce_mean(tf.log(losses) - tf.log(losses[:1]))
-                loss = tf.reduce_mean(tf.reduce_sum(tf.log(losses) - tf.log(losses[:1]), axis=0))
-                lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
+                    if self.loss_type == 'log':
+                        loss = tf.reduce_mean(tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1]), axis=0))
+                        lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
 
-                loss += lr_loss
-            elif self.loss_type == 'sum':
-                loss = tf.reduce_mean(losses)
-            else:
-                loss = losses[-1]
+                        loss += lr_loss
+                    elif self.loss_type == 'sum':
+                        loss = tf.reduce_mean(fxs)
+                    else:
+                        loss = fxs[-1]
 
-            self.loss[opt_name] = loss
+                    self.loss[opt_name][dev] = loss
 
 
     def _fg(self, f, x, i):
@@ -363,8 +382,22 @@ class BasicModel:
             raise ValueError("Unknown optimizer: {}".format(self.optimizer_type))
 
         for opt_name in self.optimizees:
-            if self.all_vars:
-                gradients = self.optimizer.compute_gradients(self.loss[opt_name], var_list=self.all_vars)
+            tower_grads = []
+            for dev in self.devices:
+                with tf.device(dev):
+                    gradients = self.optimizer.compute_gradients(self.loss[opt_name][dev], var_list=self.all_vars)
+                    tower_grads.append(gradients)
+
+            average_grads = []
+            for grad_and_vars in zip(*tower_grads):
+                grad = tf.stack([g for g, _ in grad_and_vars], axis=0)
+                grad = tf.reduce_mean(grad, axis=0)
+                
+                v = grad_and_vars[0][1]
+                average_grads.append((grad, v))
+
+            #self.apply_gradients[opt_name] = self.optimizer.apply_gradients(gradients)
+            self.apply_gradients[opt_name] = self.optimizer.apply_gradients(average_grads)
 
             #for grad, var in gradients:
             #    if grad is not None:
@@ -374,14 +407,8 @@ class BasicModel:
             #        ratio = tf.norm(grad) / (tf.norm(var) + 1e-8)
             #        self.summaries[opt_name].append(tf.summary.histogram(var.op.name + ratio_name, ratio))
 
-                self.apply_gradients[opt_name] = self.optimizer.apply_gradients(gradients)
-
         #for var in tf.trainable_variables():
         #    self.summaries[opt_name].append(tf.summary.histogram(var.op.name, var))
-
-        #except Exception as e:
-        #    print("Caught exception: {}".format(e))
-        #    self.apply_gradients = None
 
 
     def restore(self, eid):

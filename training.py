@@ -69,7 +69,11 @@ def run_train(flags):
             for optimizee in optimizees.values():
                 optimizee.build()
 
-            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer, lambd=flags.lambd)
+            if flags.gpu is not None:
+                devices = ['/gpu:{}'.format(d) for d in map(int, flags.gpu)]
+            else:
+                devices = ['/cpu:0']
+            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer, lambd=flags.lambd, devices=devices)
 
             session.run(tf.global_variables_initializer(), {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum})
             train_rets, test_rets = train_opt(opt, flags)

@@ -27,7 +27,8 @@ def get_tests():
         },
         'stoch_logreg': {
             'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
-            'momentum': [MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(i)) for i in range(-5, 5)]
+            'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
+                        [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
         }
 
     }
@@ -64,6 +65,9 @@ def run_many_testing(opt, s_opts, flags):
 def run_test(flags):
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
+
+    if flags.gpu is not None and flags.gpu:
+        flags.gpu = flags.gpu[0]
 
     optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
     optimizee = {flags.problem: optimizees[flags.problem]}
