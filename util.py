@@ -6,7 +6,7 @@ import json, pickle
 def get_tf_config():
     import tensorflow as tf
     
-    config = tf.ConfigProto()
+    config = tf.ConfigProto(allow_soft_placement=True)
 #    config.device_count.CPU = 8
 #    config.inter_op_parallelism_threads = 1
 #    config.intra_op_parallelism_threads = 1
@@ -72,12 +72,18 @@ def load_results(model_path, **kwargs):
     return d
 
 
-def load_opt(name):
+def load_opt(name, kwargs=None):
     conf_path = get_model_path(name) / 'model_config.json'
     with conf_path.open('r') as conf:
         flags = json.load(conf)
 
     from lstm_opt import LSTMOpt
+    kwargs = kwargs or {}
+    
+    for name in flags:
+        if kwargs.get(name) is not None:
+            flags[name] = kwargs[name]
+
     opt = LSTMOpt(**flags)
     return opt
 
@@ -106,6 +112,7 @@ def get_optimizees(clip_by_value=True, random_scale=False):
     from rosenbrock_optimizee import Rosenbrock
     from logistic_regression_optimizee import LogisticRegression
     from stochastic_logistic_regression_optimizee import StochasticLogisticRegression
+    from stochastic_linear_regression_optimizee import StochasticLinearRegression
 
     import optimizee_transformers
 
@@ -113,7 +120,8 @@ def get_optimizees(clip_by_value=True, random_scale=False):
         'quadratic'   : Quadratic(low=50, high=100),
         'rosenbrock'  : Rosenbrock(low=2, high=10),
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
-        'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100)
+        'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
+        'stoch_linear': StochasticLogisticRegression(max_data_size=1000, max_features=100)
     }
 
     optimizees['mixed'] = optimizee_transformers.ConcatAndSum([
@@ -121,6 +129,13 @@ def get_optimizees(clip_by_value=True, random_scale=False):
         optimizees['rosenbrock'],
         #optimizees['logreg'],
         #optimizees['stoch_logreg'],
+    ])
+    
+    optimizees['mixed_stoch'] = optimizee_transformers.ConcatAndSum([
+        optimizees['quadratic'],
+        optimizees['rosenbrock'],
+        optimizees['stoch_logreg'],
+        optimizees['stoch_linear'],
     ])
 
     for name in optimizees:

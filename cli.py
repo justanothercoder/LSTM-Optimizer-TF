@@ -1,6 +1,6 @@
 import argparse
 
-problems = ['quadratic', 'rosenbrock', 'mixed', 'logreg', 'stoch_logreg']
+problems = ['quadratic', 'rosenbrock', 'mixed', 'logreg', 'stoch_logreg', 'stoch_linear', 'mixed_stoch']
 
 
 def make_train_parser(parser_train, run_train):

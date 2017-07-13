@@ -29,8 +29,12 @@ def get_tests():
             'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
             'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
                         [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
+        },
+        'stoch_linear': {
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
+                        [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
         }
-
     }
 
     return tests
