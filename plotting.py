@@ -64,7 +64,7 @@ def setup_test_plot(flags, d):
 def plot(ax, vals, name, logscale=True, with_moving=False):
     alpha = 1.0
     if with_moving:
-        alpha = 0.5
+        alpha = 0.3
 
     plot_func = ax.semilogy if logscale else ax.plot
 
@@ -172,6 +172,9 @@ def plot_cv_results(flags, d):
     n = math.ceil(np.sqrt(n))
 
     fig, axes = plt.subplots(nrows=n, ncols=n, figsize=(15, 12)) 
+
+    if n == 1:
+        axes = ((axes,),)
 
     for i, key in enumerate(keys):
         ax = axes[i // n][i % n]
