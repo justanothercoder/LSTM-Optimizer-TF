@@ -10,7 +10,7 @@ def normalize(d, gamma):
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, **kwargs):
+    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=1000, **kwargs):
         super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
@@ -23,6 +23,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.stop_grad = stop_grad
         self.add_skip = add_skip
         self.layer_norm = layer_norm
+        self.clip_delta = clip_delta
 
 
     def _build_pre(self):
@@ -108,6 +109,8 @@ class LSTMOpt(basic_model.BasicModel):
             d += -s / (tf.norm(s, axis=-1, keep_dims=True) * n_coords)
             #d = s
 
-        x += d * tf.exp(loglr)
+        lr = tf.exp(loglr)
+        lr = tf.clip_by_value(lr, 0, self.clip_delta)
+        x += d * lr
 
         return [b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm
