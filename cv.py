@@ -1,6 +1,7 @@
 import time
 import json, pickle
 import itertools
+import random
 import pathlib, subprocess, shlex
 from collections import OrderedDict
 
@@ -12,8 +13,11 @@ import util
 
 def random_product(*args, repeat=1):
     "Random selection from itertools.product(*args, **kwds)"
-    pools = [tuple(pool) for pool in args] * repeat
-    return tuple(random.choice(pool) for pool in pools)
+    pools = [tuple(pool) for pool in args]
+    result = []
+    for _ in range(repeat):
+        result.append(tuple(random.choice(pool) for pool in pools))
+    return result
 
 
 def get_score(rets):
@@ -29,7 +33,7 @@ def get_score(rets):
     return scores
 
 
-def train_opt(opt, flags):
+def train_opt(session, opt, flags):
     if type(flags) is not dict:
         flags = vars(flags)
     
@@ -40,18 +44,25 @@ def train_opt(opt, flags):
         'n_batches': flags['n_batches'],
         'batch_size': flags['batch_size'],
         'n_steps': flags['n_steps'],
-        'test': False
+        'test': False,
+        'train_lr': flags['train_lr'],
+        'momentum': flags['momentum']
     }
+
+    print('train_options: {}'.format(train_options))
         
     train_start_time = time.time()
-    session.run(tf.global_variables_initializer())
+    session.run(tf.global_variables_initializer(), feed_dict={
+        opt.train_lr: train_options['train_lr'], 
+        opt.momentum: train_options['momentum']
+    })
     train_rets, _ = opt.train(**train_options)
     train_time = time.time() - train_start_time
 
     return train_rets, train_time
 
 
-def build_opt(opt, flags):
+def build_opt(opt, optimizees, flags):
     if type(flags) is not dict:
         flags = vars(flags)
 
@@ -78,7 +89,7 @@ def test_configuration(opt, optimizees, flags):
     return test_rets, test_time
 
 
-def make_opt(flags, keys, val):
+def make_opt(flags, optimizees, keys, val):
     h = hash(val)
 
     kwargs = dict(zip(keys, val))
@@ -87,22 +98,24 @@ def make_opt(flags, keys, val):
 
     local_path = pathlib.Path('cv') / 'snapshots' / '{}.snapshot'.format(h)
 
-    opt = util.load_opt(flags.name)
-    opt.model_path = util.get_model_path(flags.name) / local_path
+    opt = util.load_opt(flags.name, d)
+    opt.model_path = util.get_model_path(flags.name)
     opt.save_path = str(local_path)
 
-    subprocess.call(shlex.split('mkdir -p {}'.format(opt.model_path)))
+    print(opt.save_path)
+
+    subprocess.call(shlex.split('mkdir -p {}'.format(opt.model_path / local_path)))
         
     with tf.variable_scope('cv_scope_{}'.format(h)):
-        build_opt(opt, d)
+        build_opt(opt, optimizees, d)
 
-    return opt, h
+    return opt, d, h
 
 
-def process_configuration(flags, keys, val, results):
-    opt, val_hash = make_opt(flags, keys, val)
+def process_configuration(session, flags, optimizees, keys, val, results):
+    opt, d, val_hash = make_opt(flags, optimizees, keys, val)
 
-    train_rets, train_time = train_opt(opt, d)
+    train_rets, train_time = train_opt(session, opt, d)
     opt.save(flags.n_epochs)
 
     test_rets, test_time = test_configuration(opt, optimizees, flags)
@@ -122,6 +135,8 @@ def process_configuration(flags, keys, val, results):
     results['params'].append(val)
     results['score'].append(np.nanmean(list(scores.values())))
 
+    return opt
+
 
 def exhaustive_sampler(values):
     yield from itertools.product(*values)
@@ -131,7 +146,7 @@ def random_sampler(values, n):
     yield from random_product(*values, repeat=n)
 
 
-def cv(session, optimizees, params, flags, sampler):
+def cv(params, flags, sampler):
     keys = params.keys()
     values = params.values()
 
@@ -139,6 +154,8 @@ def cv(session, optimizees, params, flags, sampler):
 
     for k in itertools.chain(keys, ['train_time', 'test_time', 'hash', 'params', 'score']):
         results[k] = []
+                
+    optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
 
     for k in optimizees.keys():
         results['score_{}'.format(k)] = []
@@ -146,9 +163,20 @@ def cv(session, optimizees, params, flags, sampler):
     rand_state = np.random.get_state()
 
     #for i, val in enumerate(itertools.product(*values)):
+    opt = None
     for val in sampler(values):
-        np.random.set_state(rand_state)
-        process_configuration(flags, keys, val, results)
+        graph = tf.Graph()
+        with graph.as_default():
+            with tf.Session(config=util.get_tf_config(), graph=graph) as session:
+                optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
+
+                for optimizee in optimizees.values():
+                    optimizee.build()
+
+                print(val)
+
+                np.random.set_state(rand_state)
+                opt = process_configuration(session, flags, optimizees, keys, val, results)
 
     best_index = np.argmax(results['score'])
     best_score = results['score'][best_index]
@@ -163,13 +191,13 @@ def cv(session, optimizees, params, flags, sampler):
     return results
 
 
-def grid_cv(session, optimizees, params, flags):
-    return cv(session, optimizees, params, flags, exhaustive_sampler)
+def grid_cv(params, flags):
+    return cv(params, flags, exhaustive_sampler)
 
 
-def random_cv(*args, num_tries=5):
+def random_cv(params, flags, num_tries=5):
     sampler = lambda a: random_sampler(a, num_tries)
-    return cv(session, optimizees, params, flags, sampler)
+    return cv(params, flags, sampler)
 
 
 def bayesian_cv(*args):
@@ -188,19 +216,11 @@ def run_cv(flags):
         del d['func']
         json.dump(d, f)
 
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(config=util.get_tf_config(), graph=graph) as session:
-            optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
-
-            for optimizee in optimizees.values():
-                optimizee.build()
-
-            if flags.method == 'grid':
-                results = cv_func(session, optimizees, params, flags)
-            elif flags.method == 'random':
-                random_cv(session, optimizees, params, flags, num_tries=flags.num_tries),
-            else:
-                bayesian_cv(session, optimizees, params, flags)
+    if flags.method == 'grid':
+        results = grid_cv(params, flags)
+    elif flags.method == 'random':
+        random_cv(params, flags, num_tries=flags.num_tries),
+    else:
+        bayesian_cv(params, flags)
 
     util.dump_results(model_path, results, phase='cv', tag=flags.tag)
