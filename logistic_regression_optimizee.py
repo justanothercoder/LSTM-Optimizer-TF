@@ -30,8 +30,8 @@ class LogisticRegression:
         w = tf.expand_dims(w, axis=-2)
         w0 = tf.expand_dims(w0, axis=-1)
 
-        score = tf.matmul(w, tf.transpose(self.X, perm=[0, 2, 1])) + w0
-        score = tf.squeeze(score, axis=-2)
+        XT = tf.transpose(self.X, perm=[0, 2, 1])
+        score = tf.squeeze(tf.matmul(w, XT), axis=-2) + w0
 
         p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
 
@@ -52,11 +52,12 @@ class LogisticRegression:
     def get_new_params(self, batch_size=1):
         X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
         #y = np.random.randint(0, 2, size=(batch_size, self.data_size))
-        y = (np.dot(self.w, X.transpose(0, 2, 1)) + self.w0) > 0
+        #y = (np.dot(self.w, X.transpose(0, 2, 1)) + self.w0) > 0
+        y = np.einsum('ai,aji->aj', self.w, X) + self.w0 > 0
 
         return {
             self.X: X,
-            self.y: y[:, 0],
+            self.y: y,
             self.dim: self.num_features + 1
         }
                 
