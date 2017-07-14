@@ -1,5 +1,5 @@
 import tensorflow as tf
-import basic_model
+from . import basic_model
 
 
 class MomentumOpt(basic_model.BasicModel):

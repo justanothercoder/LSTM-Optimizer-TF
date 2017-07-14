@@ -3,8 +3,8 @@ from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
 
-from sgd_opt import SgdOpt
-from momentum_opt import MomentumOpt
+from opts.sgd_opt import SgdOpt
+from opts.momentum_opt import MomentumOpt
 
 import util
 from util import lstm_opt, get_optimizees
@@ -13,7 +13,7 @@ from util import lstm_opt, get_optimizees
 def get_tests():
     tests = {
         'rosenbrock': {
-            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-5)) for i in range(1, 6)],
             'momentum': [MomentumOpt(lr=2**(-i-9), name='momentum_lr_{}'.format(-i-9)) for i in range(1, 3)],
         },
         'quadratic': {
@@ -21,19 +21,18 @@ def get_tests():
             'momentum': [MomentumOpt(lr=16 * 2**(-i), name='momentum_lr_{}'.format(4-i)) for i in range(0, 6)],
         },
         'logreg': {
-            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-5)) for i in range(1, 6)],
             'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
                         [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
         },
         'stoch_logreg': {
-            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-5)) for i in range(1, 6)],
             'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
                         [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
         },
         'stoch_linear': {
-            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-9)) for i in range(1, 6)],
-            'momentum': [MomentumOpt(lr=2**(-i-1), name='momentum_lr_{}'.format(-i-1)) for i in range(1, 3)] +
-                        [MomentumOpt(lr=2**(-i+2), name='momentum_lr_{}'.format(-i+2)) for i in range(1, 3)],
+            'sgd': [SgdOpt(lr=2**(-i-5), name='sgd_lr_{}'.format(-i-5)) for i in range(1, 6)],
+            'momentum': [MomentumOpt(lr=2**(-i), name='momentum_lr_{}'.format(2**(-i))) for i in range(8, 10)],
         }
     }
 

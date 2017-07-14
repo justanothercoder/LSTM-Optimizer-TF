@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
-import optimizee
+from . import optimizee
 
 
-class StochasticLogisticRegression(optimizee.Optimizee):
-    name = 'stochastic_logistic_regression'
+class StochasticLinearRegression(optimizee.Optimizee):
+    name = 'stochastic_linear_regression'
 
     def __init__(self, max_data_size=1000, max_features=100):
         self.max_data_size = max_data_size
@@ -19,7 +19,7 @@ class StochasticLogisticRegression(optimizee.Optimizee):
         with tf.variable_scope('stochastic_logistic_regression'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X') # n_bptt_steps * batch_size * data_size * num_features
-            self.y = tf.placeholder(tf.int32, [None, None, None], name='y')
+            self.y = tf.placeholder(tf.float32, [None, None, None], name='y')
 
     
     def loss(self, x, i):
@@ -29,10 +29,7 @@ class StochasticLogisticRegression(optimizee.Optimizee):
         xT = tf.transpose(self.x[i], perm=[0, 2, 1])
         score = tf.squeeze(tf.matmul(w, xT), axis=-2) + w0
 
-        p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
-
-        y = tf.cast(self.y[i], tf.float32)
-        f = -tf.reduce_mean(y * tf.log(p) + (1 - y) * tf.log(1 - p), axis=-1)
+        f = tf.reduce_mean((score - self.y[i])**2, axis=-1)
         g = self.grad(x, f)
         return f, g
 
@@ -47,8 +44,11 @@ class StochasticLogisticRegression(optimizee.Optimizee):
             
         self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
         #self.Y = np.random.randint(0, 2, size=(batch_size, self.data_size))
-        #self.Y = (np.dot(self.w, self.X.transpose(0, 2, 1)) + self.w0) > 0
+        
+        #xT = self.X.transpose(0, 2, 1)
+        #self.Y = (np.dot(self.w, xT) + self.w0) > 0
         #self.Y = self.Y[:, 0]
+        
         self.Y = np.einsum('ai,aji->aj', self.w, self.X) + self.w0 > 0
         self.s = 0
 

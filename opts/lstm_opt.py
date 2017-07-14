@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormBasicLSTMCell
 
-import basic_model
+from . import basic_model
 
 
 def normalize(d, gamma):

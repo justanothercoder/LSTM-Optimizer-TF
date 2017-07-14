@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import optimizee
+from . import optimizee
 
 
 class Rosenbrock(optimizee.Optimizee):

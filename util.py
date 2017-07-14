@@ -77,7 +77,7 @@ def load_opt(name, kwargs=None):
     with conf_path.open('r') as conf:
         flags = json.load(conf)
 
-    from lstm_opt import LSTMOpt
+    from opts.lstm_opt import LSTMOpt
     kwargs = kwargs or {}
     
     for name in flags:
@@ -89,7 +89,7 @@ def load_opt(name, kwargs=None):
 
 
 def lstm_opt(optimizees, flags):
-    from lstm_opt import LSTMOpt
+    from opts.lstm_opt import LSTMOpt
 
     if type(flags) is not dict:
         flags = vars(flags)
@@ -108,30 +108,30 @@ def lstm_opt(optimizees, flags):
 
 
 def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
-    from quadratic_optimizee import Quadratic
-    from rosenbrock_optimizee import Rosenbrock
-    from logistic_regression_optimizee import LogisticRegression
-    from stochastic_logistic_regression_optimizee import StochasticLogisticRegression
-    from stochastic_linear_regression_optimizee import StochasticLinearRegression
+    from optimizees.quadratic_optimizee import Quadratic
+    from optimizees.rosenbrock_optimizee import Rosenbrock
+    from optimizees.logistic_regression_optimizee import LogisticRegression
+    from optimizees.stochastic_logistic_regression_optimizee import StochasticLogisticRegression
+    from optimizees.stochastic_linear_regression_optimizee import StochasticLinearRegression
 
-    import optimizee_transformers
+    import optimizees.optimizee_transformers as opt_trans
 
     optimizees = {
         'quadratic'   : Quadratic(low=50, high=100),
         'rosenbrock'  : Rosenbrock(low=2, high=10),
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
-        'stoch_linear': StochasticLogisticRegression(max_data_size=1000, max_features=100)
+        'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100)
     }
 
-    optimizees['mixed'] = optimizee_transformers.ConcatAndSum([
+    optimizees['mixed'] = opt_trans.ConcatAndSum([
         optimizees['quadratic'],
         optimizees['rosenbrock'],
         #optimizees['logreg'],
         #optimizees['stoch_logreg'],
     ])
     
-    optimizees['mixed_stoch'] = optimizee_transformers.ConcatAndSum([
+    optimizees['mixed_stoch'] = opt_trans.ConcatAndSum([
         optimizees['quadratic'],
         optimizees['rosenbrock'],
         optimizees['stoch_logreg'],
@@ -142,13 +142,13 @@ def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
         opt = optimizees[name]
 
         if random_scale:
-            opt = optimizee_transformers.UniformRandomScaling(opt, r=3.0)
+            opt = opt_trans.UniformRandomScaling(opt, r=3.0)
 
         if clip_by_value:
-            opt = optimizee_transformers.ClipByValue(opt, clip_low=0, clip_high=10**10)
+            opt = opt_trans.ClipByValue(opt, clip_low=0, clip_high=10**10)
 
         if noisy_grad and not name.startswith('stoch'):
-            opt = optimizee_transformers.NormalNoisyGrad(opt, stddev=0.1)
+            opt = opt_trans.NormalNoisyGrad(opt, stddev=0.1)
 
         optimizees[name] = opt
 

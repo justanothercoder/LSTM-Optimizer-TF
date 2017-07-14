@@ -2,8 +2,8 @@ import re
 import json
 import tensorflow as tf
 
-from sgd_opt import SgdOpt
-from momentum_opt import MomentumOpt
+from opts.sgd_opt import SgdOpt
+from opts.momentum_opt import MomentumOpt
 
 import util
     

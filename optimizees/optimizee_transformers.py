@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import optimizee
+from . import optimizee
 
 
 class ClipByValue(optimizee.Optimizee):
@@ -75,8 +75,9 @@ class UniformRandomScaling(optimizee.Optimizee):
 
 
 class ConcatAndSum(optimizee.Optimizee):
-    def __init__(self, optimizee_list):
+    def __init__(self, optimizee_list, weighted=True):
         self.optim_list = optimizee_list
+        self.weighted = weighted
 
 
     def build(self):
@@ -98,6 +99,11 @@ class ConcatAndSum(optimizee.Optimizee):
             t = tf.slice(x, begin, size)
 
             f, _ = opt.loss(t, i)
+
+            if self.weighted:
+                c = 10 ** tf.random_uniform(tf.shape(f), minval=-3., maxval=3.)
+                f *= c
+
             fs.append(f)
 
             s += dim
