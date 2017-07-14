@@ -21,6 +21,7 @@ def make_train_parser(parser_train, run_train):
     
     parser_train.add_argument('--optimizee', type=str, nargs='+', choices=problems, default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
+    parser_train.add_argument('--noisy_grad', action='store_true', help='add normal noise to gradients of non-stochastic problems')
     parser_train.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
 
     parser_train.set_defaults(func=run_train)
@@ -32,6 +33,7 @@ def make_test_parser(parser_test, run_test):
     parser_test.add_argument('problem', choices=problems, help='problem to run test on')
     parser_test.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser_test.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
+    parser_test.add_argument('--noisy_grad', action='store_true', help='add normal noise to gradients of non-stochastic problems')
 
     parser_test.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_test.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
