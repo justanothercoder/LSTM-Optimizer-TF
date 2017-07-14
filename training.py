@@ -24,7 +24,7 @@ def save_train_config(flags):
 
 
 def select_optimizees(flags):
-    optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
+    optimizees = util.get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling, noisy_grad=flags.noisy_grad)
     if 'all' not in flags.optimizee:
         optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 

@@ -107,7 +107,7 @@ def lstm_opt(optimizees, flags):
     return opt
 
 
-def get_optimizees(clip_by_value=True, random_scale=False):
+def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
     from quadratic_optimizee import Quadratic
     from rosenbrock_optimizee import Rosenbrock
     from logistic_regression_optimizee import LogisticRegression
@@ -146,6 +146,9 @@ def get_optimizees(clip_by_value=True, random_scale=False):
 
         if clip_by_value:
             opt = optimizee_transformers.ClipByValue(opt, clip_low=0, clip_high=10**10)
+
+        if noisy_grad and not name.startswith('stoch'):
+            opt = optimizee_transformers.NormalNoisyGrad(opt, stddev=0.1)
 
         optimizees[name] = opt
 

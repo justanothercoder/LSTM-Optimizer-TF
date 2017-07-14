@@ -73,7 +73,7 @@ def run_test(flags):
     if flags.gpu is not None and flags.gpu:
         flags.gpu = flags.gpu[0]
 
-    optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling)
+    optimizees = get_optimizees(clip_by_value=True, random_scale=flags.enable_random_scaling, noisy_grad=flags.noisy_grad)
     optimizee = {flags.problem: optimizees[flags.problem]}
 
     opt = util.load_opt(flags.name)
