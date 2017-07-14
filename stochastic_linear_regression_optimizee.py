@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+import optimizee
 
 
-class StochasticLinearRegression:
+class StochasticLinearRegression(optimizee.Optimizee):
     name = 'stochastic_linear_regression'
 
     def __init__(self, max_data_size=1000, max_features=100):
@@ -28,7 +29,9 @@ class StochasticLinearRegression:
         xT = tf.transpose(self.x[i], perm=[0, 2, 1])
         score = tf.squeeze(tf.matmul(w, xT), axis=-2) + w0
 
-        return tf.reduce_mean((score - self.y[i])**2, axis=-1)
+        f = tf.reduce_mean((score - self.y[i])**2, axis=-1)
+        g = self.grad(x, f)
+        return f, g
 
 
     def get_initial_x(self, batch_size=1):

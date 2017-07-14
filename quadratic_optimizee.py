@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+import optimizee
 
 
-class Quadratic:
+class Quadratic(optimizee.Optimizee):
     name = 'quadratic'
 
     def __init__(self, low=20, high=100):
@@ -26,9 +27,9 @@ class Quadratic:
         x = tf.expand_dims(x, -1)
 
         f = (tf.matmul(self.W, x) - b)**2
-        return tf.reduce_mean(tf.squeeze(f, axis=-1), axis=-1)
-
-        #return tf.squeeze(tf.reduce_mean(, axis=1), axis=-1)
+        f = tf.reduce_mean(tf.squeeze(f, axis=-1), axis=-1)
+        g = self.grad(x, f)
+        return f, g
 
 
     def get_initial_x(self, batch_size=1):

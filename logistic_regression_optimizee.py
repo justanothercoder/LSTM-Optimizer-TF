@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+import optimizee
 
 
-class LogisticRegression:
+class LogisticRegression(optimizee.Optimizee):
     name = 'logistic_regression'
 
     def __init__(self, max_data_size=300, max_features=100):
@@ -36,7 +37,9 @@ class LogisticRegression:
         p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
 
         y = tf.cast(self.y, tf.float32)
-        return -tf.reduce_mean(y * tf.log(p) + (1 - y) * tf.log(1 - p), axis=-1)
+        f = -tf.reduce_mean(y * tf.log(p) + (1 - y) * tf.log(1 - p), axis=-1)
+        g = self.grad(x, f)
+        return f, g
 
 
     def get_initial_x(self, batch_size=1):

@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+import optimizee
 
 
-class ClipByValue:
+class ClipByValue(optimizee.Optimizee):
     def __init__(self, optimizee, clip_low, clip_high):
         self.optim = optimizee
         self.clip_low = clip_low
@@ -14,8 +15,9 @@ class ClipByValue:
 
 
     def loss(self, x, i):
-        f = self.optim.loss(x, i)
-        return tf.clip_by_value(f, self.clip_low, self.clip_high)
+        f, _ = self.optim.loss(x, i)
+        g = self.grad(x, f)
+        return tf.clip_by_value(f, self.clip_low, self.clip_high), g
 
     
     def get_initial_x(self, batch_size=1):
@@ -29,8 +31,12 @@ class ClipByValue:
     def get_next_dict(self, n_bptt_steps, batch_size=1):
         return self.optim.get_next_dict(n_bptt_steps, batch_size)
 
+    
+    def get_x_dim(self):
+        return self.optim.get_x_dim()
 
-class UniformRandomScaling:
+
+class UniformRandomScaling(optimizee.Optimizee):
     def __init__(self, optimizee, r=3.0):
         self.optim = optimizee
         self.r = r
@@ -44,8 +50,8 @@ class UniformRandomScaling:
 
 
     def loss(self, x, i):
-        f = self.optim.loss(self.c * x, i)
-        return f
+        f, g = self.optim.loss(self.c * x, i)
+        return f, g
 
     
     def get_initial_x(self, batch_size=1):
@@ -63,8 +69,12 @@ class UniformRandomScaling:
     def get_next_dict(self, n_bptt_steps, batch_size=1):
         return self.optim.get_next_dict(n_bptt_steps, batch_size)
 
+    
+    def get_x_dim(self):
+        return self.optim.get_x_dim()
 
-class ConcatAndSum:
+
+class ConcatAndSum(optimizee.Optimizee):
     def __init__(self, optimizee_list):
         self.optim_list = optimizee_list
 
@@ -87,12 +97,14 @@ class ConcatAndSum:
             size = [batch_size, dim]
             t = tf.slice(x, begin, size)
 
-            f = opt.loss(t, i)
+            f, _ = opt.loss(t, i)
             fs.append(f)
 
             s += dim
 
-        return tf.add_n(fs)
+        f = tf.add_n(fs)
+        g = self.grad(x, f)
+        return f, g
 
 
     def get_initial_x(self, batch_size=1):
@@ -113,3 +125,39 @@ class ConcatAndSum:
         for opt in self.optim_list:
             d.update(opt.get_next_dict(n_bptt_steps, batch_size))
         return d
+
+    
+    def get_x_dim(self):
+        return tf.add_n([o.get_x_dim() for o in self.optim_list])
+
+
+class NormalNoisyGrad(optimizee.Optimizee):
+    def __init__(self, opt, stddev=0.1):
+        self.stddev = stddev
+        self.opt = opt
+
+
+    def build(self):
+        self.opt.build()
+
+
+    def loss(self, x, i):
+        f, g = self.opt.loss(x, i)
+        g = g + tf.random_normal(tf.shape(g), mean=0, stddev=self.stddev)
+        return f, g
+
+
+    def get_initial_x(self, batch_size=1):
+        return self.opt.get_initial_x(batch_size)
+
+
+    def get_new_params(self, batch_size=1):
+        return self.opt.get_new_params(batch_size)
+
+
+    def get_next_dict(self, n_bptt_steps, batch_size=1):
+        return self.opt.get_next_dict(n_bptt_steps, batch_size)
+
+    
+    def get_x_dim(self):
+        return self.opt.get_x_dim()

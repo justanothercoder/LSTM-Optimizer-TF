@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+import optimizee
 
 
-class Rosenbrock:
+class Rosenbrock(optimizee.Optimizee):
     name = 'rosenbrock'
 
     def __init__(self, low=2, high=10):
@@ -28,7 +29,9 @@ class Rosenbrock:
         t1 = x[..., 1::2]
 
         s = tf.reduce_sum((self.a - t0)**2 + self.b * (t1 - t0**2)**2, axis=-1)
-        return tf.clip_by_value(s, 0, 10**10)
+        #return tf.clip_by_value(s, 0, 10**10)
+        g = self.grad(x, s)
+        return s, g
 
 
     def get_initial_x(self, batch_size=1):
