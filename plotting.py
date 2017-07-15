@@ -49,8 +49,12 @@ def setup_test_plot(flags, d):
         (ax_f, ax_g) = axes
     
 
-    ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
-    ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
+    if flags.stochastic:
+        ax_f.set_ylabel(r'function value: $f(\theta_t)$')
+        ax_g.set_ylabel(r'mean $\|\nabla f(\theta_t)\|^2$')
+    else:
+        ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
+        ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
 
     if flags.plot_lr:
         ax_lr.set_ylabel('mean learning rate')

@@ -19,7 +19,7 @@ def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_train.add_argument('--batch_size', type=int, default=100, help='batch size')
     
-    parser_train.add_argument('--optimizee', type=str, nargs='+', choices=problems, default='all', help='space separated list of optimizees or all')
+    parser_train.add_argument('-opt', '--optimizee', type=str, nargs='+', choices=problems, default='all', help='space separated list of optimizees or all')
     parser_train.add_argument('--enable_random_scaling', action='store_true', help='enable random scaling of problems')
     parser_train.add_argument('--noisy_grad', action='store_true', help='add normal noise to gradients of non-stochastic problems')
     parser_train.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
@@ -78,6 +78,8 @@ def make_new_parser(parser_new, run_new):
     parser_new.add_argument('--layer_norm', action='store_true', help='enable layer normalization')
     parser_new.add_argument('--add_skip', action='store_true', help='add adam output to LSTM output')
     parser_new.add_argument('--no_stop_grad', action='store_false', dest='stop_grad', help='whether to compute second derivatives')
+    parser_new.add_argument('--rnn_type', type=str, choices=['lstm', 'gru'], default='lstm', help='cell to use: LSTM or GRU')
+    parser_new.add_argument('-f', '--force', action='store_true')
 
     parser_new.set_defaults(func=run_new)
     return parser_new

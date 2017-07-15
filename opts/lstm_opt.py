@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, MultiRNNCell, LayerNormBasicLSTMCell
+from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell
 
 from . import basic_model
 
@@ -10,7 +10,7 @@ def normalize(d, gamma):
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=1000, **kwargs):
+    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=10, rnn_type='lstm', **kwargs):
         super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
@@ -24,17 +24,23 @@ class LSTMOpt(basic_model.BasicModel):
         self.add_skip = add_skip
         self.layer_norm = layer_norm
         self.clip_delta = clip_delta
+        self.rnn_type = rnn_type
 
 
     def _build_pre(self):
+        if self.rnn_type == 'gru':
+            print("GRU")
+            self.lstm = MultiRNNCell([GRUCell(self.num_units) for _ in range(self.num_layers)])
+            return
+
         if self.layer_norm:
-            print("With layer norm")
+            print("LSTM With layer norm")
             self.lstm = MultiRNNCell([
-                LayerNormBasicLSTMCell(self.num_units, layer_norm=True, dropout_keep_prob=1.0) 
+                LayerNormBasicLSTMCell(self.num_units, layer_norm=True) 
                 for _ in range(self.num_layers)
             ])
         else:
-            print("Without layer norm")
+            print("LSTM Without layer norm")
             self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
         
 
@@ -46,10 +52,16 @@ class LSTMOpt(basic_model.BasicModel):
         self.b2t = tf.placeholder(tf.float32, [None], name='b2t')
         self.loglr = tf.placeholder(tf.float32, [None, None], name='loglr')
 
-        self.lstm_state = tuple(
-            (tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
-            for size in self.lstm.state_size
-        )
+        if self.rnn_type == 'gru':
+            self.lstm_state = tuple(
+                tf.placeholder(tf.float32, [None, size]) # shape = (n_functions * n_coords, num_units)
+                for size in self.lstm.state_size
+            )
+        else:
+            self.lstm_state = tuple(
+                (tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
+                for size in self.lstm.state_size
+            )
         self.input_state = [self.b1t, self.b2t, self.x, self.m, self.v, self.lstm_state, self.loglr]
 
     
@@ -103,11 +115,13 @@ class LSTMOpt(basic_model.BasicModel):
         n_coords = tf.cast(x_shape[0], tf.float32)
         
         #d = d / (tf.norm(d, axis=-1, keep_dims=True) * n_coords)
-        d = normalize(d, 1. / n_coords)
-
         if self.add_skip:
-            d += -s / (tf.norm(s, axis=-1, keep_dims=True) * n_coords)
+            #d += -s / (tf.norm(s, axis=-1, keep_dims=True) * n_coords)
             #d = s
+            #d += normalize(-s, 1. / n_coords)
+            d += -s
+        
+        d = normalize(d, 1. / n_coords)
 
         lr = tf.exp(loglr)
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
