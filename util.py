@@ -87,11 +87,11 @@ def load_opt(name, **kwargs):
 
 
 def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
-    from optimizees.quadratic_optimizee import Quadratic
-    from optimizees.rosenbrock_optimizee import Rosenbrock
-    from optimizees.logistic_regression_optimizee import LogisticRegression
-    from optimizees.stochastic_logistic_regression_optimizee import StochasticLogisticRegression
-    from optimizees.stochastic_linear_regression_optimizee import StochasticLinearRegression
+    from optimizees.quadratic import Quadratic
+    from optimizees.rosenbrock import Rosenbrock
+    from optimizees.logistic_regression import LogisticRegression
+    from optimizees.stochastic_logistic_regression import StochasticLogisticRegression
+    from optimizees.stochastic_linear_regression import StochasticLinearRegression
 
     import optimizees.transformers as transformers
 
