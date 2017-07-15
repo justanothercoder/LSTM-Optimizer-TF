@@ -98,7 +98,7 @@ def make_opt(flags, optimizees, keys, val):
 
     local_path = pathlib.Path('cv') / 'snapshots' / '{}.snapshot'.format(h)
 
-    opt = util.load_opt(flags.name, d)
+    opt = util.load_opt(flags.name, **d)
     opt.model_path = util.get_model_path(flags.name)
     opt.save_path = str(local_path)
 

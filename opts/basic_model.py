@@ -16,7 +16,7 @@ class BasicModel:
         self.name = name
 
         self.model_path = model_path or pathlib.Path('models') / name
-        self.save_path = save_path or 'tf_data'
+        self.save_path = save_path or 'snapshots'
         self.save_tf_data = save_tf_data
 
 
@@ -221,12 +221,6 @@ class BasicModel:
 
     def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam', lambd=0, inference_only=False, devices=None):
         self.devices = devices or ['/cpu:0']
-
-        num_gpus = 0
-        for i in range(len(self.devices)):
-            if self.devices[i].startswith('/gpu:'):
-                self.devices[i] = '/gpu:{}'.format(num_gpus)
-                num_gpus += 1
 
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps

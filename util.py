@@ -72,38 +72,17 @@ def load_results(model_path, **kwargs):
     return d
 
 
-def load_opt(name, kwargs=None):
+def load_opt(name, **kwargs):
     conf_path = get_model_path(name) / 'model_config.json'
     with conf_path.open('r') as conf:
         flags = json.load(conf)
 
-    from opts.lstm_opt import LSTMOpt
-    kwargs = kwargs or {}
-    
     for name in flags:
         if kwargs.get(name) is not None:
             flags[name] = kwargs[name]
 
-    opt = LSTMOpt(**flags)
-    return opt
-
-
-def lstm_opt(optimizees, flags):
     from opts.lstm_opt import LSTMOpt
-
-    if type(flags) is not dict:
-        flags = vars(flags)
-
-    #used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad', 'add_skip', 'num_units', 'num_layers', 'name', 'layer_norm', 'verbose'}
-    used_kwargs = {'train_lr', 'n_bptt_steps', 'loss_type', 'stop_grad'}
-
-    flags = {k: v for k, v in flags.items() if k in used_kwargs}
-
-    #opt = LSTMOpt(optimizees, train_lr=flags.train_lr, 
-    #                       n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, stop_grad=flags.stop_grad, add_skip=flags.add_skip,
-    #                       num_units=flags.num_units, num_layers=flags.num_layers, name=flags.name)
-
-    opt = LSTMOpt(optimizees, **flags)
+    opt = LSTMOpt(**flags)
     return opt
 
 
@@ -166,11 +145,10 @@ def run_new(flags):
     if not flags.force and path.exists():
         print('Model already exists')
         return
-    
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'train')))
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'tf_data')))
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'test')))
-    subprocess.call(shlex.split('mkdir -p {}'.format(path / 'cv' / 'snapshots')))
+
+    paths = ['train', 'test', 'cv/snapshots', 'tf_data', 'snapshots']
+    command = "mkdir -p " + ' '.join(str(path / p) for p in paths)
+    subprocess.call(shlex.split(command))
 
     model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad', 'rnn_type'}
 

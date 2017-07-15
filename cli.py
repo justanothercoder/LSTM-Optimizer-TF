@@ -6,16 +6,16 @@ problems = ['quadratic', 'rosenbrock', 'mixed', 'logreg', 'stoch_logreg', 'stoch
 def make_train_parser(parser_train, run_train):
     parser_train.add_argument('--eid', type=int, default=0, help='epoch id from which train optimizer')
     parser_train.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'momentum', 'yellowfin'], help='optimizer to train LSTM')
-    parser_train.add_argument('--train_lr', type=float, default=1e-2, help='learning rate')
+    parser_train.add_argument('--train_lr', type=float, default=1e-4, help='learning rate')
     parser_train.add_argument('--momentum', type=float, default=0.9, help='momentum')
 
     parser_train.add_argument('--loss_type', type=str, choices=['log', 'sum', 'last'], default='log', help='loss function to use')
-    parser_train.add_argument('--lambd', type=float, default=1e-5)
+    parser_train.add_argument('--lambd', type=float, default=0)
 
     parser_train.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser_train.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
     
-    parser_train.add_argument('--n_epochs', type=int, default=10, help='number of epochs')
+    parser_train.add_argument('--n_epochs', type=int, default=100, help='number of epochs')
     parser_train.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser_train.add_argument('--batch_size', type=int, default=100, help='batch size')
     

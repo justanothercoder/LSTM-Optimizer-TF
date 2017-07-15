@@ -1,5 +1,7 @@
 import re
 import json
+import subprocess, shlex
+
 import tensorflow as tf
 
 from opts.sgd_opt import SgdOpt
@@ -7,13 +9,12 @@ from opts.momentum_opt import MomentumOpt
 
 import util
     
-training_options = {
-    'batch_size', 'enable_random_scaling', 'loss_type', 
-    'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
-    'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
-}
-
 def save_train_config(flags):
+    training_options = {
+        'batch_size', 'enable_random_scaling', 'loss_type', 
+        'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
+        'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
+    }
 
     d = {k: v for k, v in vars(flags).items() if k in training_options}
     print('Training config: ', d)
@@ -31,6 +32,22 @@ def select_optimizees(flags):
     return optimizees
 
 
+def build_opt(opt, optimizees, flags):
+    if flags.gpu is not None:
+        devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
+    else:
+        devices = ['/cpu:0']
+
+    build_options = {
+        'n_bptt_steps': flags.n_bptt_steps,
+        'loss_type': flags.loss_type,
+        'optimizer': flags.optimizer,
+        'lambd': flags.lambd,
+        'devices': devices
+    }
+    opt.build(optimizees, **build_options)
+
+
 def train_opt(opt, flags):
     train_options = {
         'n_epochs': flags.n_epochs,
@@ -45,23 +62,40 @@ def train_opt(opt, flags):
     return opt.train(**train_options)
 
 
-def run_train(flags):
-    save_train_config(flags)
-
+def check_snapshots(flags):
     model_path = util.get_model_path(flags.name)
 
+    save_path = 'snapshots'
+    if flags.tag is not None:
+        save_path += '_' + flags.tag
+
+    subprocess.call(shlex.split('mkdir -p {}'.format(model_path / save_path)))
+
     r = re.compile('epoch-(?P<eid>\d+).index')
-    eids = [r.match(p.split('/')[-1]).group('eid') for p in map(lambda s: str(s).split('/')[-1], (model_path / 'tf_data').iterdir()) if r.match(p)]
+
+    files = [str(s).split('/')[-1] for s in (model_path / save_path).iterdir()]
+    eids = [r.match(p).group('eid') for p in files if r.match(p)]
     if eids:
         max_eid = max(map(int, eids))
-    else:
-        max_eid = None
-
-    if not flags.force and max_eid is not None and flags.eid < max_eid:
+    
+    if not flags.force and eids and flags.eid < max_eid:
         print("You will overwrite existing checkpoints. Add -f to force it.")
-        return
-            
-    opt = util.load_opt(flags.name)
+        return False
+
+    return True
+
+
+def run_train(flags):
+    if not check_snapshots(flags):
+        return 
+    
+    save_path = 'checkpoint'
+    if flags.tag is not None:
+        save_path += '_' + flags.tag
+
+    save_train_config(flags)
+
+    opt = util.load_opt(flags.name, save_path=save_path)
     optimizees = select_optimizees(flags)
 
     graph = tf.Graph()
@@ -70,17 +104,10 @@ def run_train(flags):
             for optimizee in optimizees.values():
                 optimizee.build()
 
-            if flags.gpu is not None:
-                devices = ['/gpu:{}'.format(d) for d in map(int, flags.gpu)]
-            else:
-                devices = ['/cpu:0']
-            opt.build(optimizees, n_bptt_steps=flags.n_bptt_steps, loss_type=flags.loss_type, optimizer=flags.optimizer, lambd=flags.lambd, devices=devices)
+            build_opt(opt, optimizees, flags)
 
             session.run(tf.global_variables_initializer(), {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum})
             train_rets, test_rets = train_opt(opt, flags)
             
             model_path = util.get_model_path(flags.name)
             util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)
-
-            #for problem, rets in util.split_list(test_rets, lambda ret: ret['optimizee_name'])[0].items():
-            #    util.dump_results(util.get_model_path(flags.name), rets, phase='test', problem=problem + '_training', mode='many')
