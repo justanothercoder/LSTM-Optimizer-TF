@@ -1,46 +1,18 @@
 #!/usr/bin/env python
-
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+"""
+This script is the entry point of program.
+It builds and runs parser on passed command-line arguments.
+Also it handles some environemnt variables.
+"""
 import pprint
-
+import os
 import cli
 
 
-def run_train(flags):
-    import training
-    training.run_train(flags)
-
-
-def run_test(flags):
-    import testing
-    testing.run_test(flags)
-
-
-def run_plot(flags):
-    import plotting
-    plotting.run_plot(flags)
-
-
-def run_cv(flags):
-    import cv
-    cv.run_cv(flags)
-
-
-def run_new(flags):
-    import util
-    util.run_new(flags)
-
-
 if __name__ == '__main__':
-    commands = {
-        'train': run_train,
-        'test' : run_test,
-        'cv'   : run_cv,
-        'plot' : run_plot,
-        'new'  : run_new
-    }
-    parser = cli.make_parser(commands)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+    parser = cli.make_parser()
 
     flags = parser.parse_args()
     pprint.pprint(vars(flags))
@@ -48,6 +20,22 @@ if __name__ == '__main__':
     if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
     elif hasattr(flags, 'gpu') and flags.gpu is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, flags.gpu))
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(str(i) for i in flags.gpu)
 
-    flags.func(flags)
+    if flags.command_name == 'train':
+        import training
+        training.run_train(flags)
+    elif flags.command_name == 'test':
+        import testing
+        testing.run_test(flags)
+    elif flags.command_name == 'cv':
+        import cv
+        cv.run_cv(flags)
+    elif flags.command_name == 'plot':
+        import plotting
+        plotting.run_plot(flags)
+    elif flags.command_name == 'new':
+        import util
+        util.run_new(flags)
+    else:
+        parser.print_help()

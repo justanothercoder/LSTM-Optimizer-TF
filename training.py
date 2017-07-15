@@ -1,31 +1,42 @@
+"""
+This module defines run_train function which setups everything for training
+of the model.
+"""
+
 import re
 import json
-import subprocess, shlex
-
+import subprocess
+import shlex
 import tensorflow as tf
-
-from opts.sgd_opt import SgdOpt
-from opts.momentum_opt import MomentumOpt
-
 import util
-    
+import optimizees as optim
+
 def save_train_config(flags):
+    """
+    This function dump training config to directory where model lies.
+    """
     training_options = {
-        'batch_size', 'enable_random_scaling', 'loss_type', 
-        'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps', 
+        'batch_size', 'enable_random_scaling', 'loss_type',
+        'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
         'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
     }
 
-    d = {k: v for k, v in vars(flags).items() if k in training_options}
-    print('Training config: ', d)
+    training_config = {k: v for k, v in vars(flags).items() if k in training_options}
+    print('Training config: ', training_config)
 
     conf_path = util.get_model_path(flags.name) / 'train'/ 'config'
     with conf_path.open('w') as conf:
-        json.dump(d, conf, sort_keys=True, indent=4)
+        json.dump(training_config, conf, sort_keys=True, indent=4)
 
 
 def select_optimizees(flags):
-    optimizees = util.get_optimizees(clip_by_value=False, random_scale=flags.enable_random_scaling, noisy_grad=flags.noisy_grad)
+    """
+    This functions returns dict of optimizees chosen according to flags.
+    """
+    optimizees = optim.get_optimizees(clip_by_value=True,
+                                      random_scale=flags.enable_random_scaling,
+                                      noisy_grad=flags.noisy_grad)
+
     if 'all' not in flags.optimizee:
         optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
 
@@ -33,36 +44,40 @@ def select_optimizees(flags):
 
 
 def build_opt(opt, optimizees, flags):
+    """
+    This functions setups and runs model building.
+    """
     if flags.gpu is not None:
         devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
     else:
         devices = ['/cpu:0']
 
-    build_options = {
-        'n_bptt_steps': flags.n_bptt_steps,
-        'loss_type': flags.loss_type,
-        'optimizer': flags.optimizer,
-        'lambd': flags.lambd,
-        'devices': devices
-    }
-    opt.build(optimizees, **build_options)
+    opt.build(optimizees,
+              n_bptt_steps=flags.n_bptt_steps,
+              loss_type=flags.loss_type,
+              optimizer=flags.optimizer,
+              lambd=flags.lambd,
+              devices=devices)
 
 
 def train_opt(opt, flags):
+    """
+    This functions extracts relevant flags and runs training of optimizer.
+    """
     train_options = {
-        'n_epochs': flags.n_epochs,
-        'n_batches': flags.n_batches,
-        'batch_size': flags.batch_size,
-        'n_steps': flags.n_steps,
-        'eid': flags.eid,
-        'train_lr': flags.train_lr,
-        'momentum': flags.momentum,
-        'verbose': flags.verbose,
+        'n_epochs', 'n_batches', 'batch_size',
+        'n_steps', 'eid', 'train_lr', 'momentum',
+        'verbose'
     }
+
+    train_options = {k: v for k, v in vars(flags).items() if k in train_options}
     return opt.train(**train_options)
 
 
 def check_snapshots(flags):
+    """
+    This function checks whether snapshots will be overwritten by running training.
+    """
     model_path = util.get_model_path(flags.name)
 
     save_path = 'snapshots'
@@ -71,13 +86,13 @@ def check_snapshots(flags):
 
     subprocess.call(shlex.split('mkdir -p {}'.format(model_path / save_path)))
 
-    r = re.compile('epoch-(?P<eid>\d+).index')
+    snapshot_regex = re.compile(r'epoch-(?P<eid>\d+).index')
 
     files = [str(s).split('/')[-1] for s in (model_path / save_path).iterdir()]
-    eids = [r.match(p).group('eid') for p in files if r.match(p)]
+    eids = [snapshot_regex.match(p).group('eid') for p in files if snapshot_regex.match(p)]
     if eids:
-        max_eid = max(map(int, eids))
-    
+        max_eid = max(int(eid) for eid in eids)
+
     if not flags.force and eids and flags.eid < max_eid:
         print("You will overwrite existing checkpoints. Add -f to force it.")
         return False
@@ -86,10 +101,13 @@ def check_snapshots(flags):
 
 
 def run_train(flags):
+    """
+    This functions runs training of optimizer.
+    """
     if not check_snapshots(flags):
-        return 
-    
-    save_path = 'checkpoint'
+        return
+
+    save_path = 'snapshots'
     if flags.tag is not None:
         save_path += '_' + flags.tag
 
@@ -106,8 +124,9 @@ def run_train(flags):
 
             build_opt(opt, optimizees, flags)
 
-            session.run(tf.global_variables_initializer(), {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum})
+            feed_dict = {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum}
+            session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
             train_rets, test_rets = train_opt(opt, flags)
-            
+
             model_path = util.get_model_path(flags.name)
             util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)

@@ -1,32 +1,43 @@
+"""
+    This module defines basic model which defines structure of optimizer.
+"""
+
 import time
-import os, pathlib
+import os
+import pathlib
 import random
 import numpy as np
 
 import tensorflow as tf
-from tensorflow.python.ops import gradients
-
-import util
 import yellowfin
 
 
 class BasicModel:
-    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=True):
+    """
+        This class defines basic model.
+    """
+    # pylint: disable=too-many-instance-attributes
+
+    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=True, snapshot_path=None):
         self.bid = 0
         self.name = name
 
         self.model_path = model_path or pathlib.Path('models') / name
         self.save_path = save_path or 'snapshots'
         self.save_tf_data = save_tf_data
+        self.snapshot_path = snapshot_path
 
 
     def log(self, message, verbosity, level=0):
+        """logs message"""
         if verbosity <= self.verbose:
-            s = '\t' * level + message
-            print(s)
+            message = '\t' * level + message
+            print(message)
 
 
     def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
+        #pylint: disable=too-many-arguments
+        """Runs testing"""
         self.restore(eid)
         self.verbose = verbose
 
@@ -40,15 +51,18 @@ class BasicModel:
             if sample_optimizee:
                 opt_name = random.choice(opt_names)
 
-            t = time.time()
+            batch_time = time.time()
             ret = self.test_one_iteration(n_steps, opt_name)
-            self.log("Time: {}".format(time.time() - t), verbosity=1, level=1)
+            batch_time = time.time() - batch_time
+            self.log("Time: {}".format(batch_time), verbosity=1, level=1)
             rets.append(ret)
 
         return rets
 
 
     def test_one_iteration(self, n_steps, opt_name):
+        #pylint: disable=too-many-locals
+        """Runs test on one batch"""
         self.bid += 1
         session = tf.get_default_session()
 
@@ -62,23 +76,27 @@ class BasicModel:
         optimizee_params = optimizee.get_new_params()
 
         losses = []
-        fxs    = []
-        lrs    = []
-        norms  = []
+        fxs = []
+        lrs = []
+        norms = []
 
         dev = self.devices[0]
 
-        for i in range(n_steps // self.n_bptt_steps):
+        for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
 
             states, loss, fx, g_norm, summaries_str = session.run([
-                self.states[opt_name][dev], self.loss[opt_name][dev], self.fxs[opt_name][dev], self.norms[opt_name][dev], self.summaries[opt_name]
+                self.states[opt_name][dev],
+                self.loss[opt_name][dev],
+                self.fxs[opt_name][dev],
+                self.norms[opt_name][dev],
+                self.summaries[opt_name]
             ], feed_dict=feed_dict)
 
             state = states[-1]
-            
+
             losses.append(loss)
             fxs.extend(fx)
             lrs.extend([s[-1] for s in states])
@@ -87,9 +105,9 @@ class BasicModel:
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
-        ret['loss']  = np.mean(losses)
-        ret['fxs']   = np.array(fxs)
-        ret['lrs']   = np.array(lrs).mean(axis=1)
+        ret['loss'] = np.mean(losses)
+        ret['fxs'] = np.array(fxs)
+        ret['lrs'] = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
 
         if self.save_tf_data:
@@ -100,14 +118,22 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
+    def train(self, n_epochs, n_batches,
+              batch_size=100, n_steps=20,
+              train_lr=1e-2, momentum=0.9,
+              eid=0, test=True, verbose=1):
+        #pylint: disable=too-many-arguments
+        #pylint: disable=too-many-locals
+        """
+            Runs training
+        """
         self.verbose = verbose
         self.lr = train_lr
         self.mu = momentum
 
         if eid > 0:
             self.restore(eid)
-            self.bid = eid * n_batches 
+            self.bid = eid * n_batches
 
         train_rets = []
         test_rets = []
@@ -118,6 +144,8 @@ class BasicModel:
             for epoch in range(eid, n_epochs):
                 self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
                 epoch_time = time.time()
+
+                loss = None
 
                 for batch in range(n_batches):
                     self.log("Batch: {}".format(batch), verbosity=2, level=1)
@@ -131,15 +159,21 @@ class BasicModel:
 
                     batch_time = time.time()
                     ret = self.train_one_iteration(n_steps, batch_size)
-                    self.log("Batch time: {}".format(time.time() - batch_time), verbosity=2, level=2)
+                    if loss is not None:
+                        loss = 0.9 * loss + 0.1 * ret['loss']
+                    else:
+                        loss = ret['loss']
+                    batch_time = time.time() - batch_time
 
+                    self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
                     train_rets.append(ret)
-                
+
                 self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
+                self.log("Epoch loss: {}".format(loss / np.log(10)), verbosity=1, level=1)
 
                 if test and (epoch + 1) % 10 == 0:
                     self.save(epoch + 1)
-            
+
                     opt_name = random.choice(list(self.optimizees.keys()))
 
                     self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
@@ -150,18 +184,22 @@ class BasicModel:
 
                         batch_time = time.time()
                         ret = self.test_one_iteration(n_steps, opt_name)
-                        self.log("Batch time: {}".format(time.time() - batch_time), verbosity=2, level=2)
+                        batch_time = time.time() - batch_time
+                        self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
 
                         test_rets.append(ret)
 
-                    self.log("Epoch time: {}".format(time.time() - test_epoch_time), verbosity=1, level=1)
+                    test_epoch_time = time.time() - test_epoch_time
+                    self.log("Epoch time: {}".format(test_epoch_time), verbosity=1, level=1)
         except KeyboardInterrupt:
             print("Stopped training early")
-        
+
         return train_rets, test_rets
 
 
     def train_one_iteration(self, n_steps, batch_size=1):
+        #pylint: disable=too-many-locals
+        """Runs training on one batch"""
         self.bid += 1
         session = tf.get_default_session()
 
@@ -176,7 +214,7 @@ class BasicModel:
 
         losses = []
         fxs = []
-                
+
         self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
 
         dev = self.devices[0]
@@ -191,10 +229,16 @@ class BasicModel:
             })
 
             #_, state, loss, fx, summaries_str = session.run([
-            #    self.apply_gradients[opt_name], self.states[opt_name][-1], self.loss[opt_name], self.fxs[opt_name], self.summaries[opt_name]
+            #    self.apply_gradients[opt_name],
+            #    self.states[opt_name][-1],
+            #    self.loss[opt_name], self.fxs[opt_name], self.summaries[opt_name]
             #], feed_dict=feed_dict)
             _, state, loss, fx, summaries_str = session.run([
-                self.apply_gradients[opt_name], self.states[opt_name][dev][-1], self.loss[opt_name][dev], self.fxs[opt_name][dev], self.summaries[opt_name]
+                self.apply_gradients[opt_name],
+                self.states[opt_name][dev][-1],
+                self.loss[opt_name][dev],
+                self.fxs[opt_name][dev],
+                self.summaries[opt_name]
             ], feed_dict=feed_dict)
 
             if i == 0:
@@ -219,7 +263,12 @@ class BasicModel:
         return ret
 
 
-    def build(self, optimizees, n_bptt_steps=20, loss_type='log', optimizer='adam', lambd=0, inference_only=False, devices=None):
+    def build(self, optimizees, n_bptt_steps=20,
+              loss_type='log', optimizer='adam',
+              lambd=0, inference_only=False, devices=None):
+        """Builds model"""
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-arguments
         self.devices = devices or ['/cpu:0']
 
         self.optimizees = optimizees
@@ -231,12 +280,13 @@ class BasicModel:
         self.session = tf.get_default_session()
 
         with tf.variable_scope('opt_global_vscope') as scope:
-            
             if self.save_tf_data:
                 tf_data_path = self.model_path / 'tf_data'
+                train_path = str(tf_data_path / 'train')
+                test_path = str(tf_data_path / 'test')
 
-                self.train_writer = tf.summary.FileWriter(str(tf_data_path / 'train'), self.session.graph)
-                self.test_writer = tf.summary.FileWriter(str(tf_data_path / 'test'), self.session.graph)
+                self.train_writer = tf.summary.FileWriter(train_path, self.session.graph)
+                self.test_writer = tf.summary.FileWriter(test_path, self.session.graph)
             self.summaries = {name: [] for name in self.optimizees}
 
             self._build_pre()
@@ -256,16 +306,22 @@ class BasicModel:
 
             #for opt_name in self.optimizees:
 
-                #self.summaries[opt_name].append(tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
-                #self.summaries[opt_name].append(tf.summary.scalar('function_value', tf.reduce_mean(self.fxs[opt_name][-1])))
+                #self.summaries[opt_name].append(
+                #    tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
+                #self.summaries[opt_name].append(
+                #    tf.summary.scalar('function_value', tf.reduce_mean(self.fxs[opt_name][-1])))
 
                 #loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
                 #lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
-                 
-                #self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_mean', loglr_mean))
-                #self.summaries[opt_name].append(tf.summary.scalar('log_learning_rate_std', loglr_std))
-                #self.summaries[opt_name].append(tf.summary.scalar('learning_rate_mean', lr_mean))
-                #self.summaries[opt_name].append(tf.summary.scalar('learning_rate_std', lr_std))
+
+                #self.summaries[opt_name].append(
+                #    tf.summary.scalar('log_learning_rate_mean', loglr_mean))
+                #self.summaries[opt_name].append(
+                #    tf.summary.scalar('log_learning_rate_std', loglr_std))
+                #self.summaries[opt_name].append(
+                #   tf.summary.scalar('learning_rate_mean', lr_mean))
+                #self.summaries[opt_name].append(
+                #   tf.summary.scalar('learning_rate_std', lr_std))
 
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
@@ -277,10 +333,9 @@ class BasicModel:
     def _build_loop(self):
         self.fxs = {}
         self.states = {}
-        self.norms  = {}
+        self.norms = {}
 
         with tf.variable_scope('loop_scope') as self.loop_scope:
-            
             reused = False
 
             for opt_name, optimizee in self.optimizees.items():
@@ -303,12 +358,12 @@ class BasicModel:
                             norms.append(g_norm)
 
                             if not reused:
-                               self.loop_scope.reuse_variables()
-                               reused = True
+                                self.loop_scope.reuse_variables()
+                                reused = True
 
-                        self.fxs   [opt_name][dev] = fxs
+                        self.fxs[opt_name][dev] = fxs
                         self.states[opt_name][dev] = states
-                        self.norms [opt_name][dev] = norms
+                        self.norms[opt_name][dev] = norms
 
 
     def _build_loss(self):
@@ -318,7 +373,7 @@ class BasicModel:
             self.loss[opt_name] = {}
             for dev in self.devices:
                 with tf.device(dev):
-                    fxs = self.fxs[opt_name][dev] 
+                    fxs = self.fxs[opt_name][dev]
                     states = self.states[opt_name][dev]
 
                     fxs = tf.stack(fxs)
@@ -372,7 +427,9 @@ class BasicModel:
         if self.optimizer_type == 'adam':
             self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
         elif self.optimizer_type == 'momentum':
-            self.optimizer = tf.train.MomentumOptimizer(self.train_lr, self.momentum, use_nesterov=True)
+            self.optimizer = tf.train.MomentumOptimizer(self.train_lr,
+                                                        self.momentum,
+                                                        use_nesterov=True)
         elif self.optimizer_type == 'yellowfin':
             self.optimizer = yellowfin.YFOptimizer(self.train_lr)
         else:
@@ -382,14 +439,16 @@ class BasicModel:
             tower_grads = []
             for dev in self.devices:
                 with tf.device(dev):
-                    gradients = self.optimizer.compute_gradients(self.loss[opt_name][dev], var_list=self.all_vars)
+                    gradients = self.optimizer.compute_gradients(
+                        self.loss[opt_name][dev],
+                        var_list=self.all_vars)
                     tower_grads.append(gradients)
 
             average_grads = []
             for grad_and_vars in zip(*tower_grads):
                 grad = tf.stack([g for g, _ in grad_and_vars], axis=0)
                 grad = tf.reduce_mean(grad, axis=0)
-                
+
                 v = grad_and_vars[0][1]
                 average_grads.append((grad, v))
 
@@ -398,18 +457,24 @@ class BasicModel:
 
             #for grad, var in gradients:
             #    if grad is not None:
-            #        self.summaries[opt_name].append(tf.summary.histogram(var.op.name + '/{}/gradients'.format(opt_name), grad))
+            #        self.summaries[opt_name].append(
+            #          tf.summary.histogram(var.op.name + '/{}/gradients'.format(opt_name), grad))
 
             #        ratio_name = '/{}/grad_to_var_ratio'.format(opt_name)
             #        ratio = tf.norm(grad) / (tf.norm(var) + 1e-8)
-            #        self.summaries[opt_name].append(tf.summary.histogram(var.op.name + ratio_name, ratio))
+            #        self.summaries[opt_name].append(
+            #    tf.summary.histogram(var.op.name + ratio_name, ratio))
 
         #for var in tf.trainable_variables():
         #    self.summaries[opt_name].append(tf.summary.histogram(var.op.name, var))
 
 
     def restore(self, eid):
-        snapshot_path = self.model_path / self.save_path / 'epoch-{}'.format(eid)
+        if self.snapshot_path:
+            snapshot_path = self.snapshot_path
+        else:
+            snapshot_path = self.model_path / self.save_path / 'epoch-{}'.format(eid)
+        print("Snapshot path: ", snapshot_path)
         self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
@@ -418,6 +483,8 @@ class BasicModel:
         folder = self.model_path / self.save_path
         filename = folder / 'epoch'
         sfilename = folder / 'epoch-last'
+
+        print("Saving to ", filename)
 
         self.saver.save(self.session, str(filename), global_step=eid)
         os.unlink("{}-{}.meta".format(filename, eid))

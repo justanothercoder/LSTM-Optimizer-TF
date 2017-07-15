@@ -10,7 +10,7 @@ def normalize(d, gamma):
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=10, rnn_type='lstm', **kwargs):
+    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=2, rnn_type='lstm', **kwargs):
         super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
