@@ -99,17 +99,20 @@ class ConcatAndSum(optimizee.Optimizee):
             t = tf.slice(x, begin, size)
 
             f, _ = opt.loss(t, i)
-
-            if self.weighted:
-                c = 10 ** tf.random_uniform(tf.shape(f), minval=-3., maxval=3.)
-                f *= c
-
             fs.append(f)
 
             s += dim
 
         f = tf.add_n(fs)
         g = self.grad(x, f)
+
+        if self.weighted:
+            for i in range(len(fs)):
+                c = tf.stop_gradient(1 / tf.reduce_max(fs[i]))
+                fs[i] *= c
+
+        f = tf.add_n(fs)
+
         return f, g
 
 
