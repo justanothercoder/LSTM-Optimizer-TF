@@ -107,14 +107,14 @@ def lstm_opt(optimizees, flags):
     return opt
 
 
-def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
+def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
     from optimizees.quadratic_optimizee import Quadratic
     from optimizees.rosenbrock_optimizee import Rosenbrock
     from optimizees.logistic_regression_optimizee import LogisticRegression
     from optimizees.stochastic_logistic_regression_optimizee import StochasticLogisticRegression
     from optimizees.stochastic_linear_regression_optimizee import StochasticLinearRegression
 
-    import optimizees.optimizee_transformers as opt_trans
+    import optimizees.transformers as transformers
 
     optimizees = {
         'quadratic'   : Quadratic(low=50, high=100),
@@ -124,14 +124,14 @@ def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100)
     }
 
-    optimizees['mixed'] = opt_trans.ConcatAndSum([
+    optimizees['mixed'] = transformers.ConcatAndSum([
         optimizees['quadratic'],
         optimizees['rosenbrock'],
         #optimizees['logreg'],
         #optimizees['stoch_logreg'],
     ])
     
-    optimizees['mixed_stoch'] = opt_trans.ConcatAndSum([
+    optimizees['mixed_stoch'] = transformers.ConcatAndSum([
         optimizees['quadratic'],
         optimizees['rosenbrock'],
         optimizees['stoch_logreg'],
@@ -142,13 +142,13 @@ def get_optimizees(clip_by_value=True, random_scale=False, noisy_grad=False):
         opt = optimizees[name]
 
         if random_scale:
-            opt = opt_trans.UniformRandomScaling(opt, r=3.0)
+            opt = transformers.UniformRandomScaling(opt, r=3.0)
 
         if clip_by_value:
-            opt = opt_trans.ClipByValue(opt, clip_low=0, clip_high=10**10)
+            opt = transformers.ClipByValue(opt, clip_low=0, clip_high=10**10)
 
         if noisy_grad and not name.startswith('stoch'):
-            opt = opt_trans.NormalNoisyGrad(opt, stddev=0.1)
+            opt = transformers.NormalNoisyGrad(opt, stddev=0.1)
 
         optimizees[name] = opt
 
@@ -163,7 +163,7 @@ def get_model_path(name):
 def run_new(flags):
     path = get_model_path(flags.name)
 
-    if path.exists():
+    if not flags.force and path.exists():
         print('Model already exists')
         return
     
@@ -172,7 +172,7 @@ def run_new(flags):
     subprocess.call(shlex.split('mkdir -p {}'.format(path / 'test')))
     subprocess.call(shlex.split('mkdir -p {}'.format(path / 'cv' / 'snapshots')))
 
-    model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad'}
+    model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad', 'rnn_type'}
 
     with (path / 'model_config.json').open('w') as conf:
         d = {k: v for k, v in vars(flags).items() if k in model_parameters}

@@ -16,7 +16,7 @@ class StochasticLinearRegression(optimizee.Optimizee):
 
 
     def build(self):
-        with tf.variable_scope('stochastic_logistic_regression'):
+        with tf.variable_scope('stochastic_linear_regression'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X') # n_bptt_steps * batch_size * data_size * num_features
             self.y = tf.placeholder(tf.float32, [None, None, None], name='y')
@@ -29,7 +29,7 @@ class StochasticLinearRegression(optimizee.Optimizee):
         xT = tf.transpose(self.x[i], perm=[0, 2, 1])
         score = tf.squeeze(tf.matmul(w, xT), axis=-2) + w0
 
-        f = tf.reduce_mean((score - self.y[i])**2, axis=-1)
+        f = tf.reduce_mean((score - self.y[i])**2, axis=-1) / tf.cast(tf.shape(w)[1], tf.float32)
         g = self.grad(x, f)
         return f, g
 
