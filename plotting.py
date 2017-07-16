@@ -100,12 +100,15 @@ def plot_test_results(flags, data):
     for name, rets in data['results'].items():
         fxs, fxs_mean, _ = extract_test_run_info(rets, flags, 'fxs', not flags.stochastic)
         _, norms_mean, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
-        _, lrs_mean, lrs_std = extract_test_run_info(rets, flags, 'lrs', False)
+
+        trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
+        if trainable_opt:
+            _, lrs_mean, lrs_std = extract_test_run_info(rets, flags, 'lrs', False)
 
         plot(axes[0], fxs_mean, name, with_moving=flags.stochastic)
         plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
 
-        if flags.plot_lr:
+        if trainable_opt and flags.plot_lr:
             p = axes[2].plot(lrs_mean, label=name)
             axes[2].fill_between(np.arange(lrs_mean.shape[0]),
                                lrs_mean + lrs_std,
@@ -113,8 +116,10 @@ def plot_test_results(flags, data):
                                alpha=0.3,
                                facecolor=p[-1].get_color())
 
+    print(fxs_mean.shape)
+
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
-    title = title.format(fxs.shape[1], fxs.shape[0], **data)
+    title = title.format(fxs.shape[0], fxs.shape[1], **data)
     axes[0].set_title(title)
     axes[0].legend(loc='best')
 
@@ -225,7 +230,7 @@ def run_plot(flags):
     """
         This function handles command-line arguments and runs plotting.
     """
-    accepted_keys = {'phase', 'problem', 'mode', 'tag'}
+    accepted_keys = {'phase', 'problem', 'mode', 'tag', 'compare_with'}
     kwargs = {k: v for k, v in vars(flags).items() if k in accepted_keys and v is not None}
 
     data = util.load_results(util.get_model_path(flags.name), **kwargs)

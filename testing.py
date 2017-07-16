@@ -5,10 +5,13 @@
 from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
+
 from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
+from opts.adam_opt import AdamOpt
+
 import util
-import optimizees
+import optimizees as optim
 
 
 def get_tests():
@@ -16,58 +19,41 @@ def get_tests():
         This functions returns set of non-trainable optimizees
         to compare with on different experiments.
     """
-    tests = {
-        'rosenbrock': {
-            'sgd': [
-                SgdOpt(lr=2**i, name='sgd_lr_{}'.format(2**i))
-                for i in [-6, -7, -8, -9, -10]
-            ],
-            'momentum': [
-                MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(2**i))
-                for i in [-10, -11]
-            ],
-        },
-        'quadratic': {
-            'sgd': [
-                SgdOpt(lr=2**i, name='sgd_lr_{}'.format(2**i))
-                for i in [4, 3, 2, 1, 0, -1]
-            ],
-            'momentum': [
-                MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(2**i))
-                for i in [4, 3, 2, 1, 0, -1]
-            ],
-        },
-        'logreg': {
-            'sgd': [
-                SgdOpt(lr=2**i, name='sgd_lr_{}'.format(2**i))
-                for i in [-6, -7, -8, -9, -10]
-            ],
-            'momentum': [
-                MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(2**i))
-                for i in [1, 0, -1, -2, -3]
-            ]
-        },
-        'stoch_logreg': {
-            'sgd': [
-                SgdOpt(lr=2**i, name='sgd_lr_{}'.format(2**i))
-                for i in [-6, -7, -8, -9, -10]
-            ],
-            'momentum': [
-                MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(2**i))
-                for i in [1, 0, -1, -2, -3]
-            ]
-        },
-        'stoch_linear': {
-            'sgd': [
-                SgdOpt(lr=2**i, name='sgd_lr_{}'.format(2**i))
-                for i in [-6, -7, -8, -9, -10]
-            ],
-            'momentum': [
-                MomentumOpt(lr=2**i, name='momentum_lr_{}'.format(2**i))
-                for i in [-8, -9]
-            ],
-        }
+    def opt(name, lr):
+        return {
+            'sgd': SgdOpt,
+            'momentum': MomentumOpt,
+            'adam': MomentumOpt
+        }[name](lr=lr, name='{}_lr_{}'.format(name, lr))
+
+
+    problems = {
+        'rosenbrock',
+        'quadratic',
+        'beale',
+        'booth',
+        'matyas',
+        'logreg',
+        'stoch_logreg',
+        'stoch_linear',
+        'digits_classifier'
     }
+
+    opts = {
+        'sgd',
+        'momentum',
+        'adam'
+    }
+
+
+    tests = {}
+
+    for p in problems:
+        tests[p] = {
+            o: [opt(o, lr) for lr in np.logspace(start=-1, stop=-5, num=5)]
+            for o in opts
+        }
+
 
     return tests
 
@@ -120,7 +106,7 @@ def run_test(flags):
     if flags.gpu is not None and flags.gpu:
         flags.gpu = flags.gpu[0]
 
-    optimizees = optim.get_optimizees(clip_by_value=True,
+    optimizees = optim.get_optimizees(clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
     optimizee = {flags.problem: optimizees[flags.problem]}
@@ -155,4 +141,5 @@ def run_test(flags):
                               phase='test',
                               problem=flags.problem,
                               mode=flags.mode,
-                              tag=flags.tag)
+                              tag=flags.tag,
+                              compare_with=flags.compare_with)

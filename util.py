@@ -103,7 +103,7 @@ def run_new(flags):
     command = "mkdir -p " + ' '.join(str(path / p) for p in paths)
     subprocess.call(shlex.split(command))
 
-    model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad', 'rnn_type'}
+    model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad', 'rnn_type', 'residual'}
 
     with (path / 'model_config.json').open('w') as conf:
         d = {k: v for k, v in vars(flags).items() if k in model_parameters}
