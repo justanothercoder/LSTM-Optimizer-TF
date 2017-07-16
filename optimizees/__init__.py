@@ -6,6 +6,7 @@ from .matyas import Matyas
 from .logistic_regression import LogisticRegression
 from .stochastic_logistic_regression import StochasticLogisticRegression
 from .stochastic_linear_regression import StochasticLinearRegression
+from .digits_classifier import DIGITSClassifier
 
 from . import transformers
 
@@ -19,7 +20,8 @@ def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
         'matyas'      : transformers.UniformRandomScaling(Matyas(low=2, high=10), r=3.0),
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
-        'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100)
+        'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
+        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1),
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([
