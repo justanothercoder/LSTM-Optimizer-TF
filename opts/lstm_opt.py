@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell
+from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper
 
 from . import basic_model
 
@@ -10,7 +10,7 @@ def normalize(d, gamma):
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=2, rnn_type='lstm', **kwargs):
+    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=2, rnn_type='lstm', residual=False, **kwargs):
         super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
@@ -25,24 +25,28 @@ class LSTMOpt(basic_model.BasicModel):
         self.layer_norm = layer_norm
         self.clip_delta = clip_delta
         self.rnn_type = rnn_type
+        self.residual = residual
 
 
     def _build_pre(self):
-        if self.rnn_type == 'gru':
-            print("GRU")
-            self.lstm = MultiRNNCell([GRUCell(self.num_units) for _ in range(self.num_layers)])
-            return
+        def make_cell(num_units, residual):
+            if self.rnn_type == 'gru':
+                print("GRU")
+                cell = GRUCell(num_units)
+            else:
+                if self.layer_norm:
+                    print("LSTM With layer norm")
+                    cell = LayerNormBasicLSTMCell(num_units, layer_norm=True)
+                else:
+                    print("LSTM Without layer norm")
+                    cell = LSTMCell(num_units)
 
-        if self.layer_norm:
-            print("LSTM With layer norm")
-            self.lstm = MultiRNNCell([
-                LayerNormBasicLSTMCell(self.num_units, layer_norm=True) 
-                for _ in range(self.num_layers)
-            ])
-        else:
-            print("LSTM Without layer norm")
-            self.lstm = MultiRNNCell([LSTMCell(self.num_units) for _ in range(self.num_layers)])
-        
+            if residual:
+                cell = ResidualWrapper(cell)
+            return cell
+
+        self.lstm = MultiRNNCell([make_cell(self.num_units, self.residual and i > 0) for i in range(self.num_layers)])
+
 
     def _build_input(self):
         self.x = tf.placeholder(tf.float32, [None, None], name='x') # shape = (n_functions, n_coords)
