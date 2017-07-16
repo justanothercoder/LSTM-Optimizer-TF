@@ -13,7 +13,9 @@ problems = [
     'stoch_logreg',
     'stoch_linear',
     'mixed_stoch',
-    'mixed_nonstoch'
+    'mixed_nonstoch',
+    'digits_classifier',
+    'beale', 'booth', 'matyas'
 ]
 
 
@@ -74,7 +76,7 @@ def make_test_parser(parser):
     parser.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
 
     parser.add_argument('--compare_with', type=str, default='momentum',
-                        choices=['sgd', 'momentum'], help='baseline for optimizer')
+                        choices=['sgd', 'momentum', 'adam'], help='baseline for optimizer')
 
     parser.add_argument('--start_eid', type=int, default=100,
                         help='epoch from which start to run cv')
@@ -85,9 +87,7 @@ def make_test_parser(parser):
 
 
 def make_plot_parser(parser):
-    """
-    This function creates subparser for 'plot' command.
-    """
+    """This function creates subparser for 'plot' command."""
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('phase', type=str, choices=['train', 'test', 'cv'],
                         help='train or test phase')
@@ -104,6 +104,7 @@ def make_plot_parser(parser):
     parser.add_argument('-t', '--tag', type=str)
     parser.add_argument('-s', '--stochastic', action='store_true',
                         help='whether problem is stochastic')
+    parser.add_argument('--compare_with', type=str)
 
     return parser
 
@@ -125,9 +126,7 @@ def make_cv_parser(parser):
 
 
 def make_new_parser(parser):
-    """
-    This function creates subparser for 'new' command.
-    """
+    """This function creates subparser for 'new' command."""
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('num_units', type=int, help='number of units in LSTM')
     parser.add_argument('num_layers', type=int, help='number of lstm layers')
@@ -139,6 +138,8 @@ def make_new_parser(parser):
                         help='whether to compute second derivatives')
     parser.add_argument('--rnn_type', type=str, choices=['lstm', 'gru'], default='lstm',
                         help='cell to use: LSTM or GRU')
+    parser.add_argument('--residual', action='store_true',
+                        help='add residual connections in lstm')
     parser.add_argument('-f', '--force', action='store_true')
 
     return parser
