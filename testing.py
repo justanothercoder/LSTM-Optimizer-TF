@@ -8,9 +8,9 @@ from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
 
-import tf_utils
 import util
-import paths
+import util.tf_utils as tf_utils
+import util.paths as paths
 import optimizees as optim
 
 

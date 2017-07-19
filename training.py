@@ -7,9 +7,10 @@ import re
 import json
 import tensorflow as tf
 import optimizees as optim
-import paths
+
 import util
-import tf_utils
+import util.paths as paths
+import util.tf_utils as tf_paths
 
 
 def save_train_config(flags, experiment_path):

@@ -13,8 +13,8 @@ import tensorflow as tf
 
 import optimizees as optim
 import util
-import paths
-import tf_utils
+import util.paths as paths
+import util.tf_utils as tf_utils
 
 
 def get_score(rets):

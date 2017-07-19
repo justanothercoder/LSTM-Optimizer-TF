@@ -10,8 +10,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 import util
-import paths
+import util.paths as paths
 
 
 def save_figure(fig, filename):
