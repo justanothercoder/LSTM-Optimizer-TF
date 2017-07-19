@@ -16,12 +16,11 @@ class BasicModel:
     """This class defines basic model."""
     # pylint: disable=too-many-instance-attributes
 
-    def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=True, snapshot_path=None):
+    def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None):
         self.bid = 0
         self.name = name
 
         self.model_path = model_path or pathlib.Path('models') / name
-        self.save_path = save_path or 'snapshots'
         self.save_tf_data = save_tf_data
         self.snapshot_path = snapshot_path
 
@@ -155,6 +154,11 @@ class BasicModel:
 
                     batch_time = time.time()
                     ret = self.train_one_iteration(n_steps, batch_size)
+
+                    if np.isnan(ret['loss']):
+                        print("Loss is NaN")
+                        print(ret['fxs'])
+
                     if loss is not None:
                         loss = 0.9 * loss + 0.1 * ret['loss']
                     else:
@@ -165,7 +169,7 @@ class BasicModel:
                     train_rets.append(ret)
 
                 self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
-                self.log("Epoch loss: {}".format(loss / np.log(10)), verbosity=1, level=1)
+                self.log("Epoch loss: {}".format(loss / np.log(10) / self.n_bptt_steps), verbosity=1, level=1)
 
                 if test and (epoch + 1) % 10 == 0:
                     self.save(epoch + 1)
@@ -466,19 +470,14 @@ class BasicModel:
 
 
     def restore(self, eid):
-        if self.snapshot_path:
-            snapshot_path = pathlib.Path(self.snapshot_path)
-        else:
-            snapshot_path = self.model_path / self.save_path 
-
-        snapshot_path = snapshot_path / 'epoch-{}'.format(eid)
+        snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
         self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
 
     def save(self, eid):
-        folder = self.model_path / self.save_path
+        folder = self.snapshot_path
         filename = folder / 'epoch'
         sfilename = folder / 'epoch-last'
 

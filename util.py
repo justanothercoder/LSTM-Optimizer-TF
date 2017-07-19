@@ -1,17 +1,21 @@
-import pathlib
-import subprocess, shlex
-import json, pickle
+import json
+import pickle
+import paths
 
+
+def get_devices(flags):
+    if flags.gpu is not None:
+        devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
+    else:
+        devices = ['/cpu:0']
+
+    return devices
+    
 
 def get_tf_config():
     import tensorflow as tf
     
     config = tf.ConfigProto(allow_soft_placement=True)
-#    config.device_count = {"CPU": 8}
-#    config.inter_op_parallelism_threads = 1
-#    config.intra_op_parallelism_threads = 1
-
-    #config.gpu_options.per_process_gpu_memory_fraction = 0.4
     config.gpu_options.allow_growth = True
     return config
 
@@ -38,87 +42,52 @@ def split_list(lst, descr):
     return splits, keys
 
 
-def dump_results(model_path, results, **kwargs):
-    assert kwargs.get('phase') in ['train', 'test', 'cv']
-    results_path = model_path / kwargs['phase']
-    
-    tags = [kwargs[k] for k in sorted(kwargs) if k != 'phase' and kwargs[k] is not None]
-    filename = 'results' + '_{}' * len(tags)
-    filename = (filename + '.pkl').format(*tags)
+def dump_results(path, results):
+    results_path = path / 'results.pkl'
 
-    d = {
-        'model_name': model_path.parts[-1],
-        'results': results,
-    }
-    d.update(**kwargs)
+    if results_path.exists():
+        with results_path.open('rb') as f:
+            r = pickle.load(f)
+            results = [r, results]
+
+    with results_path.open('wb') as f:
+        pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-    with (results_path / filename).open('wb') as f:
-        pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
+def load_results(path):
+    with (path / 'results.pkl').open('rb') as f:
+        results = pickle.load(f)
+
+    return results
 
 
-def load_results(model_path, **kwargs):
-    assert kwargs.get('phase') in ['train', 'test', 'cv']
-    results_path = model_path / kwargs['phase']
-
-    tags = [kwargs[k] for k in sorted(kwargs) if k != 'phase' and kwargs[k] is not None]
-
-    filename = 'results' + '_{}' * len(tags)
-    filename = (filename + '.pkl').format(*tags)
-
-    with (results_path / filename).open('rb') as f:
-        d = pickle.load(f)
-
-    return d
-
-
-def load_opt(name, **kwargs):
-    conf_path = get_model_path(name) / 'model_config.json'
-    with conf_path.open('r') as conf:
+def load_opt(model_path, experiment_path):
+    config_path = paths.config_path(model_path)
+    with config_path.open('r') as conf:
         flags = json.load(conf)
 
-    #for name in flags:
-    #    if kwargs.get(name) is not None:
-    #        flags[name] = kwargs[name]
-    flags.update(kwargs)
-
-    accepted_kwargs = {
-        'num_units',
-        'num_layers',
-        'beta1',
-        'beta2',
-        'layer_norm',
-        'stop_grad',
-        'add_skip',
-        'rnn_type',
-        'residual',
-        'name', 'save_path', 'model_path', 'snapshot_path'
-    }
-    flags = {k: v for k, v in flags.items() if k in accepted_kwargs}
+    flags['model_path'] = experiment_path
+    flags['snapshot_path'] = paths.snapshots_path(experiment_path)
 
     from opts.lstm_opt import LSTMOpt
     opt = LSTMOpt(**flags)
     return opt
 
 
-def get_model_path(name):
-    path = pathlib.Path('models') / name
-    return path
-
-
 def run_new(flags):
-    path = get_model_path(flags.name)
+    model_path = paths.model_path(flags.name)
+    config_path = paths.config_path(model_path)
 
-    if not flags.force and path.exists():
+    if not flags.force and model_path.exists():
         print('Model already exists')
         return
 
-    paths = ['train', 'test', 'cv/snapshots', 'tf_data', 'snapshots']
-    command = "mkdir -p " + ' '.join(str(path / p) for p in paths)
-    subprocess.call(shlex.split(command))
+    dirs = ['train', 'test', 'cv/snapshots']
+    dirs = [str(model_path / d) for d in dirs]
+    paths.make_dirs(dirs)
 
     model_parameters = {'num_layers', 'num_units', 'layer_norm', 'name', 'stop_grad', 'rnn_type', 'residual'}
 
-    with (path / 'model_config.json').open('w') as conf:
+    with config_path.open('w') as conf:
         d = {k: v for k, v in vars(flags).items() if k in model_parameters}
         json.dump(d, conf, sort_keys=True, indent=4)

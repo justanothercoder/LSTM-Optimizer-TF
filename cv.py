@@ -7,16 +7,14 @@ import time
 import json
 import itertools
 import random
-import pathlib
-import subprocess
-import shlex
 from collections import OrderedDict
 
 import numpy as np
 import tensorflow as tf
 
-import util
 import optimizees as optim
+import util
+import paths
 
 
 def random_product(*args, repeat=1):
@@ -29,9 +27,7 @@ def random_product(*args, repeat=1):
 
 
 def get_score(rets):
-    """
-        This function computes score given the results of testing.
-    """
+    """This function computes score given the results of testing."""
     by_opt = lambda ret: ret['optimizee_name']
     splits, opt_names = util.split_list(rets, by_opt)
 
@@ -71,18 +67,6 @@ def train_opt(opt, flags):
     return train_rets, train_time
 
 
-def build_opt(opt, optimizees, flags):
-    """This function builds optimizer."""
-    if not isinstance(flags, dict):
-        flags = vars(flags)
-
-    opt.build(optimizees,
-              n_bptt_steps=flags['n_bptt_steps'],
-              loss_type=flags['loss_type'],
-              optimizer=flags['optimizer'],
-              lambd=flags['lambd'])
-
-
 def test_configuration(opt, optimizees, flags):
     """
         This function runs testing of optimizer with given flags.
@@ -112,18 +96,22 @@ def make_opt(flags, optimizees, keys, val):
     configuration.update(kwargs)
     del configuration['name']
 
-    local_path = pathlib.Path('cv') / 'snapshots' / '{}.snapshot'.format(configuration_hash)
+    model_path = paths.model_path(flags.name)
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
+    snapshots_path = paths.snapshots_path(experiment_path)
 
-    opt = util.load_opt(flags.name, **configuration)
-    opt.model_path = util.get_model_path(flags.name)
-    opt.save_path = str(local_path)
-
-    print(opt.save_path)
-
-    subprocess.call(shlex.split('mkdir -p {}'.format(opt.model_path / local_path)))
+    opt = util.load_opt(model_path, experiment_path)
+    opt.snapshots_path = snapshots_path / '{}.snapshot'.format(configuration_hash)
+    util.make_dirs(opt.snapshots_path)
+    print("Snapshot path: ", opt.snapshots_path)
 
     with tf.variable_scope('cv_scope_{}'.format(configuration_hash)):
-        build_opt(opt, optimizees, configuration)
+        opt.build(optimizees,
+                  n_bptt_steps=configuration['n_bptt_steps'],
+                  loss_type=configuration['loss_type'],
+                  optimizer=configuration['optimizer'],
+                  lambd=configuration['lambd'],
+                  devices=util.get_devices(flags))
 
     return opt, configuration, configuration_hash
 
@@ -183,6 +171,8 @@ def abstract_cv(params, flags, sampler):
     rand_state = np.random.get_state()
 
     for val in sampler(values):
+        np.random.set_state(rand_state)
+
         graph = tf.Graph()
         session = tf.Session(config=util.get_tf_config(), graph=graph)
         with graph.as_default(), session:
@@ -196,7 +186,6 @@ def abstract_cv(params, flags, sampler):
 
             print(val)
 
-            np.random.set_state(rand_state)
             process_configuration(flags, optimizees, keys, val, results)
 
     #best_index = np.argmax(results['score'])
@@ -213,29 +202,31 @@ def abstract_cv(params, flags, sampler):
 
 
 def grid_cv(params, flags):
-    """Performs exhaustive grid search over parameters"""
+    """Performs exhaustive grid search over parameters."""
     return abstract_cv(params, flags, exhaustive_sampler)
 
 
 def random_cv(params, flags, num_tries=5):
-    """Performs random grid search over parameters"""
+    """Performs random grid search over parameters."""
     sampler = lambda a: random_sampler(a, num_tries)
     return abstract_cv(params, flags, sampler)
 
 
 def bayesian_cv(*args):
-    """Performs bayesian cv"""
+    """Performs bayesian cv."""
     raise NotImplementedError
 
 
 def run_cv(flags):
-    """Performs parameter tuning"""
+    """Performs parameter tuning."""
     with open(flags.config, 'r') as conf:
         params = json.load(conf)
         params = OrderedDict(params)
 
-    model_path = util.get_model_path(flags.name)
-    with (model_path / 'cv' / 'run_config.json').open('w') as conf:
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
+    run_config_path = experiment_path / 'run_config.json'
+
+    with run_config_path.open('w') as conf:
         run_config = vars(flags).copy()
         del run_config['command_name']
         json.dump(run_config, conf)
@@ -247,4 +238,9 @@ def run_cv(flags):
     else:
         results = bayesian_cv(params, flags)
 
-    util.dump_results(model_path, results, phase='cv', tag=flags.tag)
+    data = {
+        'results': results,
+        'keys': list(params.keys())
+    }
+
+    util.dump_results(experiment_path, data)

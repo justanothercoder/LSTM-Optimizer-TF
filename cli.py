@@ -17,6 +17,7 @@ problems = [
 
 def make_train_parser(parser):
     """This function creates subparser for 'train' command."""
+    parser.add_argument('experiment_name', type=str, default='name of the experiment')
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
 
     parser.add_argument('--optimizer', type=str,
@@ -59,6 +60,10 @@ def make_test_parser(parser):
     parser.add_argument('eid', type=int, help='epoch id from which test optimizer')
     parser.add_argument('problem', choices=problems, help='problem to run test on')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
+
+    parser.add_argument('train_experiment_name', type=str, help='name of the training experiment')
+    parser.add_argument('experiment_name', type=str, help='name of the experiment')
+
     parser.add_argument('--enable_random_scaling', action='store_true',
                         help='enable random scaling of problems')
     parser.add_argument('--noisy_grad', action='store_true',
@@ -83,6 +88,7 @@ def make_plot_parser(parser):
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('phase', type=str, choices=['train', 'test', 'cv'],
                         help='train or test phase')
+    parser.add_argument('experiment_name', type=str, help='experiment name')
     parser.add_argument('--plot_lr', action='store_true',
                         help='plot learning rate')
     parser.add_argument('--plot_moving', action='store_true',

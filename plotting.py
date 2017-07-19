@@ -11,6 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import util
+import paths
 
 
 def save_figure(fig, filename):
@@ -18,7 +19,8 @@ def save_figure(fig, filename):
         This function saves figure to files.
         First it saves to .svg and then converts to .png.
     """
-    fig.savefig('{filename}.svg'.format(**locals()), format='svg')
+    filename = str(filename)
+    fig.savefig('{filename}.svg'.format(filename=filename), format='svg')
     os.system('convert {filename}.svg {filename}.png'.format(filename=filename))
     print("Plotted to {filename}.svg and {filename}.png".format(filename=filename))
 
@@ -89,7 +91,9 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
         plot_func(moving_vals, label='moving {}'.format(name), color=p[-1].get_color())
 
 
-def plot_test_results(flags, data):
+def plot_test_results(flags, experiment_path, data):
+    print(data.keys())
+
     """This function plots tests results."""
     fig, axes = setup_test_plot(flags)
 
@@ -116,25 +120,19 @@ def plot_test_results(flags, data):
     print(fxs_mean.shape)
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
-    title = title.format(fxs.shape[0], fxs.shape[1], **data)
+    title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
     axes[0].set_title(title)
     axes[0].legend(loc='best')
 
-    model_path = util.get_model_path(flags.name)
-
-    filename = '{problem}_{mode}'
-    if flags.tag:
-        filename += '_{tag}'
-    filename = filename.format(**data)
-
-    save_figure(fig, filename=str(model_path / 'test' / filename))
+    filename = '{problem}_{mode}'.format(**data)
+    path = experiment_path / filename
+    save_figure(fig, path)
 
 
-def plot_training_results(flags, data):
+def plot_training_results(flags, experiment_path, results):
     """This function plots training results."""
     by_opt = lambda ret: ret['optimizee_name']
-
-    train_results, test_results = data['results']
+    train_results, test_results = results
 
     train_results_splits, opts = util.split_list(train_results, by_opt)
     test_results_splits, _ = util.split_list(test_results, by_opt)
@@ -185,11 +183,11 @@ def plot_training_results(flags, data):
         ax.legend(loc='best')
 
     fig.tight_layout()
-    model_path = util.get_model_path(flags.name)
-    save_figure(fig, filename=str(model_path / 'train' / 'training'))
+
+    save_figure(fig, filename=experiment_path / 'training')
 
 
-def plot_cv_results(flags, data):
+def plot_cv_results(flags, experiment_path, data):
     """This function plots validation results."""
     data = data['results']
     keys = data['keys']
@@ -215,19 +213,13 @@ def plot_cv_results(flags, data):
         ax = axes[i // n_keys][i % n_keys]
         sns.barplot(x=key, y='score', data=data, ax=ax)
 
-    model_path = util.get_model_path(flags.name)
-    save_figure(fig, filename=str(model_path / 'cv' / 'summary'))
+    save_figure(fig, experiment_path / 'summary')
 
 
 def run_plot(flags):
     """This function handles command-line arguments and runs plotting."""
-    accepted_keys = {'phase', 'problem', 'mode', 'tag', 'compare_with'}
-    kwargs = {k: v for k, v in vars(flags).items() if k in accepted_keys and v is not None}
-
-    if flags.enable_random_scaling:
-        kwargs['enable_random_scaling'] = 'random_scaled'
-
-    data = util.load_results(util.get_model_path(flags.name), **kwargs)
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, flags.phase)
+    data = util.load_results(experiment_path)
 
     plot_func = {
         'train': plot_training_results,
@@ -235,4 +227,4 @@ def run_plot(flags):
         'cv': plot_cv_results
     }[flags.phase]
 
-    plot_func(flags, data)
+    plot_func(flags, experiment_path, data)

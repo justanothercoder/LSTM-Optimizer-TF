@@ -10,10 +10,11 @@ from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
 
 import util
+import paths
 import optimizees as optim
 
 
-def get_tests():
+def get_tests(problem, compare_with):
     """
         This function returns set of non-trainable optimizees
         to compare with on different experiments.
@@ -43,7 +44,7 @@ def get_tests():
         for o in opts:
             tests[p][o] = [opt(o, lr) for lr in lrs]
 
-    return tests
+    return tests[problem][compare_with]
 
 
 def run_cv_testing(opt, flags):
@@ -84,31 +85,27 @@ def run_test(flags):
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
 
-    if flags.gpu is not None and flags.gpu:
-        flags.gpu = flags.gpu[0]
-
     optimizees = optim.get_optimizees([flags.problem],
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
 
-    save_path = 'snapshots'
-    if flags.tag:
-        save_path += '_' + flags.tag
+    model_path = paths.model_path(flags.name)
+    train_experiment_path = paths.experiment_path(flags.name, flags.train_experiment_name, 'train')
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
 
-    opt = util.load_opt(flags.name, save_path=save_path, snapshot_path=flags.snapshot_path)
-    s_opts = get_tests()[flags.problem][flags.compare_with]
+    paths.make_dirs(experiment_path)
+
+    s_opts = get_tests(flags.problem, flags.compare_with)
     
-    if flags.gpu is not None:
-        devices = ['/gpu:{}'.format(flags.gpu)]
-    else:
-        devices = ['/cpu:0']
-
     graph = tf.Graph()
     session = tf.Session(config=util.get_tf_config(), graph=graph)
     with graph.as_default(), session:
         optimizees[flags.problem].build()
-        opt.build(optimizees, inference_only=True, devices=devices)
+        
+        opt = util.load_opt(model_path, train_experiment_path)
+        opt.build(optimizees, inference_only=True, devices=util.get_devices(flags))
+        
         for s_opt in s_opts:
             s_opt.build(optimizees, inference_only=True)
 
@@ -119,17 +116,10 @@ def run_test(flags):
         else:
             results = run_cv_testing(opt, flags)
 
-        kwargs = {
+        data = {
+            'results': results,
             'problem': flags.problem,
             'mode': flags.mode,
-            'tag': flags.tag,
-            'compare_with': flags.compare_with,
         }
         
-        if flags.enable_random_scaling:
-            kwargs['enable_random_scaling'] = 'randomly_scaled'
-
-        model_path = util.get_model_path(flags.name)
-        util.dump_results(model_path, 
-                          results,
-                          phase='test', **kwargs)
+        util.dump_results(experiment_path, data)

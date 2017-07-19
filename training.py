@@ -5,13 +5,13 @@ of the model.
 
 import re
 import json
-import subprocess
-import shlex
 import tensorflow as tf
-import util
 import optimizees as optim
+import paths
+import util
 
-def save_train_config(flags):
+
+def save_train_config(flags, experiment_path):
     """This function dump training config to directory where model lies."""
 
     training_options = {
@@ -23,25 +23,8 @@ def save_train_config(flags):
     training_config = {k: v for k, v in vars(flags).items() if k in training_options}
     print('Training config: ', training_config)
 
-    conf_path = util.get_model_path(flags.name) / 'train'/ 'config'
-    with conf_path.open('w') as conf:
+    with (experiment_path / 'config').open('w') as conf:
         json.dump(training_config, conf, sort_keys=True, indent=4)
-
-
-def build_opt(opt, optimizees, flags):
-    """This function setups and runs model building."""
-    if flags.gpu is not None:
-        devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
-    else:
-        devices = ['/cpu:0']
-        #devices = ['/cpu:%d' % i for i in range(util.get_tf_config().device_count["CPU"])]
-
-    opt.build(optimizees,
-              n_bptt_steps=flags.n_bptt_steps,
-              loss_type=flags.loss_type,
-              optimizer=flags.optimizer,
-              lambd=flags.lambd,
-              devices=devices)
 
 
 def train_opt(opt, flags):
@@ -56,42 +39,41 @@ def train_opt(opt, flags):
     return opt.train(**train_options)
 
 
-def check_snapshots(flags):
+def will_overwrite_snapshots(snapshots_path, eid):
     """This function checks whether snapshots will be overwritten by running training."""
-    model_path = util.get_model_path(flags.name)
-
-    save_path = 'snapshots'
-    if flags.tag is not None:
-        save_path += '_' + flags.tag
-
-    subprocess.call(shlex.split('mkdir -p {}'.format(model_path / save_path)))
+    if not snapshots_path.exists():
+        return False
 
     snapshot_regex = re.compile(r'epoch-(?P<eid>\d+).index')
 
-    files = [str(s).split('/')[-1] for s in (model_path / save_path).iterdir()]
+    files = [str(s).split('/')[-1] for s in snapshots_path.iterdir()]
     eids = [snapshot_regex.match(p).group('eid') for p in files if snapshot_regex.match(p)]
     if eids:
         max_eid = max(int(eid) for eid in eids)
 
-    if not flags.force and eids and flags.eid < max_eid:
+    if eids and eid < max_eid:
         print("You will overwrite existing checkpoints. Add -f to force it.")
-        return False
+        return True
 
-    return True
+    return False
 
 
 def run_train(flags):
     """This function runs training of optimizer."""
-    if not check_snapshots(flags):
+    model_path = paths.model_path(flags.name)
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'train')
+    snapshots_path = paths.snapshots_path(experiment_path)
+
+    print("Running experiment: ", flags.experiment_name)
+    print("Experiment path: ", experiment_path)
+    print("Snapshots path: ", snapshots_path)
+
+    if not flags.force and will_overwrite_snapshots(snapshots_path, flags.eid):
         return
 
-    save_path = 'snapshots'
-    if flags.tag is not None:
-        save_path += '_' + flags.tag
+    paths.make_dirs(experiment_path, snapshots_path)
+    save_train_config(flags, experiment_path)
 
-    save_train_config(flags)
-
-    opt = util.load_opt(flags.name, save_path=save_path)
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=True,
                                       random_scale=flags.enable_random_scaling,
@@ -103,11 +85,19 @@ def run_train(flags):
         for optimizee in optimizees.values():
             optimizee.build()
 
-        build_opt(opt, optimizees, flags)
+        opt = util.load_opt(model_path, experiment_path)
+        opt.build(optimizees,
+                  n_bptt_steps=flags.n_bptt_steps,
+                  loss_type=flags.loss_type,
+                  optimizer=flags.optimizer,
+                  lambd=flags.lambd,
+                  devices=util.get_devices(flags))
 
-        feed_dict = {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum}
+        feed_dict = {
+            opt.train_lr: flags.train_lr, 
+            opt.momentum: flags.momentum
+        }
         session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-        train_rets, test_rets = train_opt(opt, flags)
+        rets = train_opt(opt, flags)
 
-        model_path = util.get_model_path(flags.name)
-        util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)
+        util.dump_results(experiment_path, rets)
