@@ -4,29 +4,22 @@ of the model.
 """
 
 import re
-import json
 import tensorflow as tf
 import optimizees as optim
 
 import util
 import util.paths as paths
-import util.tf_utils as tf_paths
+import util.tf_utils as tf_utils
 
 
 def save_train_config(flags, experiment_path):
-    """This function dump training config to directory where model lies."""
-
+    """This function dumps training config to directory where model lies."""
     training_options = {
         'batch_size', 'enable_random_scaling', 'loss_type',
         'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
         'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
     }
-
-    training_config = {k: v for k, v in vars(flags).items() if k in training_options}
-    print('Training config: ', training_config)
-
-    with (experiment_path / 'config').open('w') as conf:
-        json.dump(training_config, conf, sort_keys=True, indent=4)
+    util.dump_config(experiment_path / 'config', flags, training_options)
 
 
 def will_overwrite_snapshots(snapshots_path, eid):

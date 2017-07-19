@@ -78,6 +78,12 @@ def run_many_testing(opt, s_opts, flags):
     return results
 
 
+def save_test_config(flags, experiment_path):
+    """This function dumps testing config to directory where model lies."""
+    testing_options = {'eid', 'n_batches', 'n_steps', 'verbose'}
+    util.dump_config(experiment_path / 'config', flags, testing_options)
+
+
 def setup_experiment(flags):
     """Setups directories and loads optimizer"""
     if flags.eid == 0:
@@ -87,7 +93,13 @@ def setup_experiment(flags):
     train_experiment_path = paths.experiment_path(flags.name, flags.train_experiment_name, 'train')
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
 
+    print("Model path: ", model_path)
+    print("Train experiment path: ", train_experiment_path)
+    print("Test experiment path: ", experiment_path)
+
     paths.make_dirs(experiment_path)
+    save_test_config(flags, experiment_path)
+
     opt = util.load_opt(model_path, train_experiment_path)
 
     optimizees = optim.get_optimizees([flags.problem],
@@ -124,6 +136,11 @@ def testing(flags, opt, s_opts, optimizees):
 def run_test(flags):
     """This function runs testing according to flags."""
     experiment_path, opt, s_opts, optimizees = setup_experiment(flags)
+
+    if not flags.force and (experiment_path / 'results.pkl').exists():
+        print("You will overwrite existing results. Add -f/--force to force it.")
+        return
+
     results = testing(flags, opt, s_opts, optimizees)
 
     data = {

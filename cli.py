@@ -61,8 +61,12 @@ def make_test_parser(parser):
     parser.add_argument('problem', choices=problems, help='problem to run test on')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
 
-    parser.add_argument('train_experiment_name', type=str, help='name of the training experiment')
-    parser.add_argument('experiment_name', type=str, help='name of the experiment')
+    parser.add_argument('--train-experiment', required=True, type=str,
+                        dest='train_experiment_name',
+                        help='name of the training experiment')
+    parser.add_argument('--test-experiment', required=True, type=str,
+                        dest='experiment_name',
+                        help='name of the experiment')
 
     parser.add_argument('--enable_random_scaling', action='store_true',
                         help='enable random scaling of problems')
@@ -78,7 +82,7 @@ def make_test_parser(parser):
     parser.add_argument('--start_eid', type=int, default=100,
                         help='epoch from which start to run cv')
     parser.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
-    parser.add_argument('--snapshot_path', type=str)
+    parser.add_argument('-f', '--force', action='store_true', help='force overwrite of results')
 
     return parser
 
@@ -99,7 +103,6 @@ def make_plot_parser(parser):
                         help='mode of testing')
     parser.add_argument('-f', '--frac', type=float, default=1.0,
                         help='fraction of data to plot')
-    parser.add_argument('-t', '--tag', type=str)
     parser.add_argument('-s', '--stochastic', action='store_true',
                         help='whether problem is stochastic')
     parser.add_argument('--compare_with', type=str)
@@ -155,7 +158,6 @@ def make_parser():
     group.add_argument('--gpu', type=int, nargs='+', help='gpu id')
 
     run_parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
-    run_parser.add_argument('--tag', type=str, help='tag denoting run purpose/parameters')
 
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_train = subparsers.add_parser('train', parents=[run_parser],
