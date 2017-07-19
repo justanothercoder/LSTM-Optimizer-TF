@@ -6,24 +6,16 @@ and parsers for each of subcommands.
 import argparse
 
 problems = [
-    'quadratic',
-    'rosenbrock',
-    'mixed',
-    'logreg',
-    'stoch_logreg',
-    'stoch_linear',
-    'mixed_stoch',
-    'mixed_nonstoch',
-    'digits_classifier',
-    'mnist_classifier',
+    'quadratic', 'rosenbrock', 'logreg',
+    'stoch_logreg', 'stoch_linear',
+    'mixed', 'mixed_stoch', 'mixed_nonstoch',
+    'digits_classifier', 'mnist_classifier',
     'beale', 'booth', 'matyas'
 ]
 
 
 def make_train_parser(parser):
-    """
-    This function creates subparser for 'train' command.
-    """
+    """This function creates subparser for 'train' command."""
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
 
     parser.add_argument('--optimizer', type=str,
@@ -62,9 +54,7 @@ def make_train_parser(parser):
 
 
 def make_test_parser(parser):
-    """
-    This function creates subparser for 'test' command.
-    """
+    """This function creates subparser for 'test' command."""
     parser.add_argument('eid', type=int, help='epoch id from which test optimizer')
     parser.add_argument('problem', choices=problems, help='problem to run test on')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
@@ -111,9 +101,7 @@ def make_plot_parser(parser):
 
 
 def make_cv_parser(parser):
-    """
-    This function creates subparser for 'cv' command.
-    """
+    """This function creates subparser for 'cv' command."""
     methods = ['grid', 'random', 'bayesian']
 
     parser.add_argument('config', type=str,
@@ -147,9 +135,7 @@ def make_new_parser(parser):
 
 
 def make_parser():
-    """
-    This function assembles global parser from parsers for subcommands.
-    """
+    """This function assembles global parser from parsers for subcommands."""
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers(help='command to run', dest='command_name')
 
@@ -177,7 +163,6 @@ def make_parser():
     parser_cv = subparsers.add_parser('cv', parents=[parser_train], add_help=False,
                                       help='tune hyperparameters by validation')
     parser_cv = make_cv_parser(parser_cv)
-    
     parser_plot = make_plot_parser(parser_plot)
 
     return parser
