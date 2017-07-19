@@ -15,6 +15,7 @@ problems = [
     'mixed_stoch',
     'mixed_nonstoch',
     'digits_classifier',
+    'mnist_classifier',
     'beale', 'booth', 'matyas'
 ]
 
@@ -147,7 +148,7 @@ def make_new_parser(parser):
 
 def make_parser():
     """
-    This function assemble global parser from parsers for subcommands.
+    This function assembles global parser from parsers for subcommands.
     """
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers(help='command to run', dest='command_name')
@@ -167,14 +168,16 @@ def make_parser():
                                          help='train optimizer on a set of functions')
     parser_test = subparsers.add_parser('test', parents=[run_parser],
                                         help='run trained optimizer on some problem')
-    parser_cv = subparsers.add_parser('cv', parents=[parser_train], add_help=False,
-                                      help='tune hyperparameters by validation')
     parser_plot = subparsers.add_parser('plot', help='plot dumped results')
 
     parser_new = make_new_parser(parser_new)
     parser_train = make_train_parser(parser_train)
     parser_test = make_test_parser(parser_test)
+    
+    parser_cv = subparsers.add_parser('cv', parents=[parser_train], add_help=False,
+                                      help='tune hyperparameters by validation')
     parser_cv = make_cv_parser(parser_cv)
+    
     parser_plot = make_plot_parser(parser_plot)
 
     return parser
