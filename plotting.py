@@ -15,7 +15,7 @@ import util
 
 def save_figure(fig, filename):
     """
-        This functions saves figure to files.
+        This function saves figure to files.
         First it saves to .svg and then converts to .png.
     """
     fig.savefig('{filename}.svg'.format(**locals()), format='svg')
@@ -25,7 +25,7 @@ def save_figure(fig, filename):
 
 def extract_test_run_info(rets, flags, key, normalize):
     """
-        This functions extracts function values, gradient norms and learning rates
+        This function extracts function values, gradient norms and learning rates
     """
     vals = []
     for ret in rets:
@@ -47,20 +47,22 @@ def extract_test_run_info(rets, flags, key, normalize):
 
 
 def setup_test_plot(flags):
-    """
-        This functions setups plot.
-    """
+    """This function setups plot."""
+
+    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr)
+    fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
+
+    ax_f = axes[0]
+    if not flags.stochastic:
+        ax_g = axes[1]
+
     if flags.plot_lr:
-        fig, axes = plt.subplots(nrows=3, figsize=(15, 12), sharex=True)
-        (ax_f, ax_g, ax_lr) = axes
-    else:
-        fig, axes = plt.subplots(nrows=2, figsize=(15, 12), sharex=True)
-        (ax_f, ax_g) = axes
+        ax_lr = axes[2 - int(flags.stochastic)]
 
 
     if flags.stochastic:
         ax_f.set_ylabel(r'function value: $f(\theta_t)$')
-        ax_g.set_ylabel(r'mean $\|\nabla f(\theta_t)\|^2$')
+        #ax_g.set_ylabel(r'mean $\|\nabla f(\theta_t)\|^2$')
     else:
         ax_f.set_ylabel(r'function value: $\frac{f(\theta_t)}{f(\theta_0)}$')
         ax_g.set_ylabel(r'mean $\frac{\|\nabla f(\theta_t)\|^2}{\|\nabla f(\theta_0)\|^2}$')
@@ -76,7 +78,7 @@ def setup_test_plot(flags):
 
 def plot(ax, vals, name, logscale=True, with_moving=False):
     """
-        This functions plots values on ax.
+        This function plots values on ax.
     """
     alpha = 1.0
     if with_moving:
@@ -92,9 +94,7 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
 
 
 def plot_test_results(flags, data):
-    """
-        This function plots tests results.
-    """
+    """This function plots tests results."""
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
@@ -106,15 +106,16 @@ def plot_test_results(flags, data):
             _, lrs_mean, lrs_std = extract_test_run_info(rets, flags, 'lrs', False)
 
         plot(axes[0], fxs_mean, name, with_moving=flags.stochastic)
-        plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
+        if not flags.stochastic:
+            plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
 
         if trainable_opt and flags.plot_lr:
-            p = axes[2].plot(lrs_mean, label=name)
-            axes[2].fill_between(np.arange(lrs_mean.shape[0]),
-                               lrs_mean + lrs_std,
-                               lrs_mean  - lrs_std,
-                               alpha=0.3,
-                               facecolor=p[-1].get_color())
+            p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
+            axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
+                                                        lrs_mean + lrs_std,
+                                                        lrs_mean  - lrs_std,
+                                                        alpha=0.3,
+                                                        facecolor=p[-1].get_color())
 
     print(fxs_mean.shape)
 
