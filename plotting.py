@@ -24,9 +24,7 @@ def save_figure(fig, filename):
 
 
 def extract_test_run_info(rets, flags, key, normalize):
-    """
-        This function extracts function values, gradient norms and learning rates
-    """
+    """This function extracts function values, gradient norms and learning rates."""
     vals = []
     for ret in rets:
         value = ret[key]
@@ -77,9 +75,7 @@ def setup_test_plot(flags):
 
 
 def plot(ax, vals, name, logscale=True, with_moving=False):
-    """
-        This function plots values on ax.
-    """
+    """This function plots values on ax."""
     alpha = 1.0
     if with_moving:
         alpha = 0.3
@@ -135,9 +131,7 @@ def plot_test_results(flags, data):
 
 
 def plot_training_results(flags, data):
-    """
-        This function plots training results.
-    """
+    """This function plots training results."""
     by_opt = lambda ret: ret['optimizee_name']
 
     train_results, test_results = data['results']
@@ -196,9 +190,7 @@ def plot_training_results(flags, data):
 
 
 def plot_cv_results(flags, data):
-    """
-        This function plots validation results.
-    """
+    """This function plots validation results."""
     data = data['results']
     keys = data['keys']
 
@@ -228,11 +220,12 @@ def plot_cv_results(flags, data):
 
 
 def run_plot(flags):
-    """
-        This function handles command-line arguments and runs plotting.
-    """
+    """This function handles command-line arguments and runs plotting."""
     accepted_keys = {'phase', 'problem', 'mode', 'tag', 'compare_with'}
     kwargs = {k: v for k, v in vars(flags).items() if k in accepted_keys and v is not None}
+
+    if flags.enable_random_scaling:
+        kwargs['enable_random_scaling'] = 'random_scaled'
 
     data = util.load_results(util.get_model_path(flags.name), **kwargs)
 

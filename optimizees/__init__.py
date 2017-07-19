@@ -22,6 +22,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
         'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
+        'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
         'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist')
     }
 
@@ -60,4 +61,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
 
         optimizees[name] = opt
 
-    return {problem: optimizees[problem] for problem in problems_list}
+    if 'all' not in problems_list:
+        return {problem: optimizees[problem] for problem in problems_list}
+    else:
+        return optimizees

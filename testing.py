@@ -30,14 +30,18 @@ def get_tests():
         'beale', 'booth', 'matyas',
         'logreg',
         'stoch_logreg', 'stoch_linear',
-        'digits_classifier', 'mnist_classifier'
+        'digits_classifier', 'mnist_classifier',
+        'digits_classifier_2'
     }
 
     opts = {'sgd', 'momentum', 'adam'}
 
+    lrs = np.logspace(start=-1, stop=-5, num=5)
     tests = {}
-    for p, o in itertools.product(problems, opts):
-        tests[p][o] = [opt(o, lr) for lr in np.logspace(start=-1, stop=-5, num=5)]
+    for p in problems:
+        tests[p] = {}
+        for o in opts:
+            tests[p][o] = [opt(o, lr) for lr in lrs]
 
     return tests
 
@@ -94,12 +98,17 @@ def run_test(flags):
 
     opt = util.load_opt(flags.name, save_path=save_path, snapshot_path=flags.snapshot_path)
     s_opts = get_tests()[flags.problem][flags.compare_with]
+    
+    if flags.gpu is not None:
+        devices = ['/gpu:{}'.format(flags.gpu)]
+    else:
+        devices = ['/cpu:0']
 
     graph = tf.Graph()
     session = tf.Session(config=util.get_tf_config(), graph=graph)
     with graph.as_default(), session:
         optimizees[flags.problem].build()
-        opt.build(optimizees, inference_only=True)
+        opt.build(optimizees, inference_only=True, devices=devices)
         for s_opt in s_opts:
             s_opt.build(optimizees, inference_only=True)
 
@@ -110,11 +119,17 @@ def run_test(flags):
         else:
             results = run_cv_testing(opt, flags)
 
+        kwargs = {
+            'problem': flags.problem,
+            'mode': flags.mode,
+            'tag': flags.tag,
+            'compare_with': flags.compare_with,
+        }
+        
+        if flags.enable_random_scaling:
+            kwargs['enable_random_scaling'] = 'randomly_scaled'
+
         model_path = util.get_model_path(flags.name)
         util.dump_results(model_path, 
                           results,
-                          phase='test',
-                          problem=flags.problem,
-                          mode=flags.mode,
-                          tag=flags.tag,
-                          compare_with=flags.compare_with)
+                          phase='test', **kwargs)

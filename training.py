@@ -28,18 +28,6 @@ def save_train_config(flags):
         json.dump(training_config, conf, sort_keys=True, indent=4)
 
 
-def select_optimizees(flags):
-    """This function returns dict of optimizees chosen according to flags."""
-    optimizees = optim.get_optimizees(clip_by_value=True,
-                                      random_scale=flags.enable_random_scaling,
-                                      noisy_grad=flags.noisy_grad)
-
-    if 'all' not in flags.optimizee:
-        optimizees = {name: opt for name, opt in optimizees.items() if name in flags.optimizee}
-
-    return optimizees
-
-
 def build_opt(opt, optimizees, flags):
     """This function setups and runs model building."""
     if flags.gpu is not None:
@@ -104,7 +92,10 @@ def run_train(flags):
     save_train_config(flags)
 
     opt = util.load_opt(flags.name, save_path=save_path)
-    optimizees = select_optimizees(flags)
+    optimizees = optim.get_optimizees(flags.optimizee,
+                                      clip_by_value=True,
+                                      random_scale=flags.enable_random_scaling,
+                                      noisy_grad=flags.noisy_grad)
 
     graph = tf.Graph()
     session = tf.Session(config=util.get_tf_config(), graph=graph)
