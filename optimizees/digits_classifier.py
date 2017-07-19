@@ -1,15 +1,23 @@
 import numpy as np
 import tensorflow as tf
 from . import optimizee
-from sklearn.datasets import load_digits
+
+from sklearn.datasets import load_digits, fetch_mldata
+from sklearn.preprocessing import StandardScaler
 
 
 class DIGITSClassifier(optimizee.Optimizee):
     name = 'digits_classifier'
 
-    def __init__(self, num_units=20, num_layers=1):
-        digits = load_digits(n_class=10)
-        self.X, self.Y = digits.data, digits.target
+    def __init__(self, num_units=20, num_layers=1, dataset_name='digits'):
+        if dataset_name == 'digits':
+            dataset = load_digits(n_class=10)
+        elif dataset_name == 'mnist':
+            dataset = fetch_mldata('MNIST original', data_home='/srv/hd1/data/vyanush/')
+
+        self.X, self.Y = dataset.data, dataset.target
+        self.X = StandardScaler().fit_transform(self.X).astype(np.float32)
+
         self.num_units = num_units
         self.num_layers = num_layers
 
@@ -29,12 +37,12 @@ class DIGITSClassifier(optimizee.Optimizee):
         batch_size = tf.shape(x)[0]
 
         weights = []
-        n_inputs = 64
+        n_inputs = self.X.shape[1]
 
         fs = []
         s = 0
 
-        dims = [64] + [self.num_units] * self.num_layers + [10]
+        dims = [n_inputs] + [self.num_units] * self.num_layers + [10]
 
         # self.x[i].shape == (batch_size, data_size, n_inputs)
         pred = tf.transpose(self.x[i], perm=[0, 2, 1])
@@ -68,11 +76,12 @@ class DIGITSClassifier(optimizee.Optimizee):
 
 
     def get_initial_x(self, batch_size=1):
-        self.batch_size = np.random.randint(low=1, high=self.X.shape[1] + 1)
+        self.batch_size = np.random.randint(low=1, high=self.X.shape[0] // 4 + 1)
+        print("Digits classifier; batch_size: ", self.batch_size)
 
         self.x_len = 0
     
-        dims = [64] + [self.num_units] * self.num_layers + [10]
+        dims = [self.X.shape[1]] + [self.num_units] * self.num_layers + [10]
         for i in range(1, len(dims)):
             n_inputs = dims[i - 1]
             n_outputs = dims[i]
@@ -99,8 +108,8 @@ class DIGITSClassifier(optimizee.Optimizee):
                 self.s = 0
             pos_cur, pos_next = self.s, self.s + self.batch_size
 
-            x[i] = np.tile(self.X[pos_cur:pos_next], (batch_size, 1))
-            y[i] = np.tile(self.Y[pos_cur:pos_next], (batch_size, 1))
+            x[i] = np.tile(self.X[None, pos_cur:pos_next], (batch_size, 1, 1))
+            y[i] = np.tile(self.Y[None, pos_cur:pos_next], (batch_size, 1, 1))
 
             self.s = pos_next
 
