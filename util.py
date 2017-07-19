@@ -7,7 +7,7 @@ def get_tf_config():
     import tensorflow as tf
     
     config = tf.ConfigProto(allow_soft_placement=True)
-#    config.device_count.CPU = 8
+#    config.device_count = {"CPU": 8}
 #    config.inter_op_parallelism_threads = 1
 #    config.intra_op_parallelism_threads = 1
 
@@ -81,6 +81,20 @@ def load_opt(name, **kwargs):
     #    if kwargs.get(name) is not None:
     #        flags[name] = kwargs[name]
     flags.update(kwargs)
+
+    accepted_kwargs = {
+        'num_units',
+        'num_layers',
+        'beta1',
+        'beta2',
+        'layer_norm',
+        'stop_grad',
+        'add_skip',
+        'rnn_type',
+        'residual',
+        'name', 'save_path', 'model_path', 'snapshot_path'
+    }
+    flags = {k: v for k, v in flags.items() if k in accepted_kwargs}
 
     from opts.lstm_opt import LSTMOpt
     opt = LSTMOpt(**flags)

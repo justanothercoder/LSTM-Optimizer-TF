@@ -13,9 +13,7 @@ import yellowfin
 
 
 class BasicModel:
-    """
-        This class defines basic model.
-    """
+    """This class defines basic model."""
     # pylint: disable=too-many-instance-attributes
 
     def __init__(self, name=None, model_path=None, save_path=None, save_tf_data=True, snapshot_path=None):
@@ -124,9 +122,7 @@ class BasicModel:
               eid=0, test=True, verbose=1):
         #pylint: disable=too-many-arguments
         #pylint: disable=too-many-locals
-        """
-            Runs training
-        """
+        """Runs training."""
         self.verbose = verbose
         self.lr = train_lr
         self.mu = momentum
@@ -471,9 +467,11 @@ class BasicModel:
 
     def restore(self, eid):
         if self.snapshot_path:
-            snapshot_path = self.snapshot_path
+            snapshot_path = pathlib.Path(self.snapshot_path)
         else:
-            snapshot_path = self.model_path / self.save_path / 'epoch-{}'.format(eid)
+            snapshot_path = self.model_path / self.save_path 
+
+        snapshot_path = snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
         self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")

@@ -48,7 +48,7 @@ class AdamOpt(basic_model.BasicModel):
 
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
         s = self.lr * a * m / (tf.sqrt(v) + self.eps)
- 
+
         x -= s
         return [x, m, v, b1t, b2t], fx, g_norm
     
