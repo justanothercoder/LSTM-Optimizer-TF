@@ -6,7 +6,6 @@
 import time
 import json
 import itertools
-import random
 from collections import OrderedDict
 
 import numpy as np
@@ -79,15 +78,15 @@ def test_configuration(opt, optimizees, flags):
     return test_rets, test_time
 
 
-def make_opt(flags, optimizees, paths_, h, devices=None):
+def make_opt(flags, optimizees, paths_, val_hash, devices=None):
     """Initializes optimizer with given configuration."""
     opt = util.load_opt(paths_['model'], paths_['experiment'])
-    opt.snapshots_path = paths_['snapshots']
+    opt.snapshots_path = paths_['snapshots'] / '{}.snapshot'.format(val_hash)
 
-    util.make_dirs(opt.snapshots_path)
+    paths.make_dirs(opt.snapshots_path)
     print("Snapshot path: ", opt.snapshots_path)
 
-    with tf.variable_scope('cv_scope_{}'.format(h)):
+    with tf.variable_scope('cv_scope_{}'.format(val_hash)):
         opt.build(optimizees,
                   n_bptt_steps=flags['n_bptt_steps'],
                   loss_type=flags['loss_type'],
@@ -99,9 +98,10 @@ def make_opt(flags, optimizees, paths_, h, devices=None):
 
 
 def get_paths(flags):
+    """Shortcut to get all needed paths from flags"""
     model_path = paths.model_path(flags.name)
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
-    snapshots_path = paths.snapshots_path(experiment_path) / '{}.snapshot'.format(val_hash)
+    snapshots_path = paths.snapshots_path(experiment_path)
     return {
         'model': model_path,
         'experiment': experiment_path,
@@ -110,21 +110,20 @@ def get_paths(flags):
 
 
 def process_configuration(flags, optimizees, keys, val, results):
+    #pylint: disable=too-many-locals
     """
         This function makes optimizer, trains it, tests and returns various
         characteristics.
     """
-    val_hash = hash(val)
     mapping = dict(zip(keys, val))
 
     configuration = vars(flags)
     configuration.update(mapping)
     del configuration['name']
-    
-    paths_ = get_paths(flags)
+
     opt = make_opt(
         configuration, optimizees,
-        paths_, val_hash,
+        get_paths(flags), hash(val),
         devices=tf_utils.get_devices(flags)
     )
 
@@ -144,7 +143,7 @@ def process_configuration(flags, optimizees, keys, val, results):
 
     results['train_time'].append(train_time)
     results['test_time'].append(test_time)
-    results['hash'].append(val_hash)
+    results['hash'].append(hash(val))
     results['params'].append(val)
     results['score'].append(np.nanmean(list(scores.values())))
 
@@ -156,11 +155,12 @@ def exhaustive_sampler(values):
 
 def random_sampler(values, repeat):
     """Samples random combinations of values."""
-    yield from random_product(*values, repeat=repeat)
+    yield from util.random_product(*values, repeat=repeat)
 
 
 @tf_utils.with_tf_graph
 def cv_iteration(flags, keys, val, results):
+    """Runs one iteration of cv"""
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
@@ -217,7 +217,7 @@ def random_cv(params, flags, num_tries=5):
     return abstract_cv(params, flags, sampler)
 
 
-def bayesian_cv(*args):
+def bayesian_cv(*_):
     """Performs bayesian cv."""
     raise NotImplementedError
 

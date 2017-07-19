@@ -23,6 +23,7 @@ def with_tf_graph(func):
         graph = tf.Graph()
         with graph.as_default():
             config = get_tf_config()
-            with tf.Session(config=config, graph=graph):
+            session = tf.Session(config=config, graph=graph)
+            with session.as_default():
                 return func(*args, **kwargs)
     return wrapper

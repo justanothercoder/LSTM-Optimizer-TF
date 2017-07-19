@@ -28,18 +28,6 @@ def save_train_config(flags, experiment_path):
         json.dump(training_config, conf, sort_keys=True, indent=4)
 
 
-def train_opt(opt, flags):
-    """This function extracts relevant flags and runs training of optimizer."""
-    train_options = {
-        'n_epochs', 'n_batches', 'batch_size',
-        'n_steps', 'eid', 'train_lr', 'momentum',
-        'verbose'
-    }
-
-    train_options = {k: v for k, v in vars(flags).items() if k in train_options}
-    return opt.train(**train_options)
-
-
 def will_overwrite_snapshots(snapshots_path, eid):
     """This function checks whether snapshots will be overwritten by running training."""
     if not snapshots_path.exists():
@@ -60,6 +48,7 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
 
 def setup_experiment(flags):
+    """Setups directories and loads optimizer"""
     model_path = paths.model_path(flags.name)
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'train')
     snapshots_path = paths.snapshots_path(experiment_path)
@@ -73,9 +62,9 @@ def setup_experiment(flags):
 
     paths.make_dirs(experiment_path, snapshots_path)
     save_train_config(flags, experiment_path)
-    
+
     opt = util.load_opt(model_path, experiment_path)
-    return opt
+    return experiment_path, opt
 
 
 @tf_utils.with_tf_graph
@@ -97,18 +86,30 @@ def training(flags, opt):
               devices=tf_utils.get_devices(flags))
 
     feed_dict = {
-        opt.train_lr: flags.train_lr, 
+        opt.train_lr: flags.train_lr,
         opt.momentum: flags.momentum
     }
+    session = tf.get_default_session()
     session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-    rets = train_opt(opt, flags)
+    rets = opt.train(n_epochs=flags.n_epochs,
+                     n_batches=flags.n_batches,
+                     batch_size=flags.batch_size,
+                     n_steps=flags.n_steps,
+                     train_lr=flags.train_lr,
+                     momentum=flags.momentum,
+                     eid=flags.eid,
+                     verbose=flags.verbose)
+
     return rets
 
 
 def run_train(flags):
-    opt = setup_experiment(flags)
-    if opt is None:
+    """Entry-point function: setups and runs experiment."""
+    out = setup_experiment(flags)
+    if out is None:
         return
+
+    experiment_path, opt = out
 
     rets = training(flags, opt)
     util.dump_results(experiment_path, rets)

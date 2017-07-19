@@ -1,7 +1,6 @@
 """This module defines various testing functions."""
 
 from collections import OrderedDict
-import itertools
 import numpy as np
 import tensorflow as tf
 
@@ -15,37 +14,35 @@ import paths
 import optimizees as optim
 
 
-def get_tests(problem, compare_with):
+def get_tests(test_problem, compare_with):
     """
         This function returns set of non-trainable optimizees
         to compare with on different experiments.
     """
-    def opt(name, lr):
+    def make_opt(name, learning_rate):
+        #pylint: disable=missing-docstring
         return {
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
             'adam': AdamOpt
-        }[name](lr=lr, name='{}_lr_{}'.format(name, lr))
+        }[name](lr=learning_rate, name='{}_lr_{}'.format(name, learning_rate))
 
     problems = {
-        'rosenbrock', 'quadratic',
-        'beale', 'booth', 'matyas',
-        'logreg',
+        'rosenbrock', 'quadratic', 'beale', 'booth', 'matyas', 'logreg',
         'stoch_logreg', 'stoch_linear',
-        'digits_classifier', 'mnist_classifier',
-        'digits_classifier_2'
+        'digits_classifier', 'mnist_classifier', 'digits_classifier_2'
     }
 
     opts = {'sgd', 'momentum', 'adam'}
 
     lrs = np.logspace(start=-1, stop=-5, num=5)
     tests = {}
-    for p in problems:
-        tests[p] = {}
-        for o in opts:
-            tests[p][o] = [opt(o, lr) for lr in lrs]
+    for problem in problems:
+        tests[problem] = {}
+        for opt in opts:
+            tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
 
-    return tests[problem][compare_with]
+    return tests[test_problem][compare_with]
 
 
 def run_cv_testing(opt, flags):
@@ -82,6 +79,7 @@ def run_many_testing(opt, s_opts, flags):
 
 
 def setup_experiment(flags):
+    """Setups directories and loads optimizer"""
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
 
@@ -91,26 +89,28 @@ def setup_experiment(flags):
 
     paths.make_dirs(experiment_path)
     opt = util.load_opt(model_path, train_experiment_path)
-    
+
     optimizees = optim.get_optimizees([flags.problem],
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
 
     s_opts = get_tests(flags.problem, flags.compare_with)
-    return opt, s_opts, optimizees
+    return experiment_path, opt, s_opts, optimizees
 
 
 @tf_utils.with_tf_graph
 def testing(flags, opt, s_opts, optimizees):
+    """Runs testing"""
     for optimizee in optimizees.values():
         optimizee.build()
-    
-    opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
-    
-    for s_opt in s_opts:
-        s_opt.build(optimizees, inference_only=True)
 
+    opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+
+    for s_opt in s_opts:
+        s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+
+    session = tf.get_default_session()
     session.run(tf.global_variables_initializer())
 
     if flags.mode == 'many':
@@ -123,7 +123,7 @@ def testing(flags, opt, s_opts, optimizees):
 
 def run_test(flags):
     """This function runs testing according to flags."""
-    opt, s_opts, optimizees = setup_experiment(flags)
+    experiment_path, opt, s_opts, optimizees = setup_experiment(flags)
     results = testing(flags, opt, s_opts, optimizees)
 
     data = {
@@ -131,5 +131,5 @@ def run_test(flags):
         'problem': flags.problem,
         'mode': flags.mode,
     }
-    
+
     util.dump_results(experiment_path, data)
