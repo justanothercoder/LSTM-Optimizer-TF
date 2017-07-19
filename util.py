@@ -3,21 +3,13 @@ import pickle
 import paths
 
 
-def get_devices(flags):
-    if flags.gpu is not None:
-        devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
-    else:
-        devices = ['/cpu:0']
-
-    return devices
-    
-
-def get_tf_config():
-    import tensorflow as tf
-    
-    config = tf.ConfigProto(allow_soft_placement=True)
-    config.gpu_options.allow_growth = True
-    return config
+def random_product(*args, repeat=1):
+    "Random selection from itertools.product(*args, **kwds)"
+    pools = [tuple(pool) for pool in args]
+    result = []
+    for _ in range(repeat):
+        result.append(tuple(random.choice(pool) for pool in pools))
+    return result
 
 
 def get_moving(values, mu=0.9):

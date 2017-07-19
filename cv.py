@@ -15,15 +15,7 @@ import tensorflow as tf
 import optimizees as optim
 import util
 import paths
-
-
-def random_product(*args, repeat=1):
-    "Random selection from itertools.product(*args, **kwds)"
-    pools = [tuple(pool) for pool in args]
-    result = []
-    for _ in range(repeat):
-        result.append(tuple(random.choice(pool) for pool in pools))
-    return result
+import tf_utils
 
 
 def get_score(rets):
@@ -87,33 +79,34 @@ def test_configuration(opt, optimizees, flags):
     return test_rets, test_time
 
 
-def make_opt(flags, optimizees, keys, val):
+def make_opt(flags, optimizees, paths_, h, devices=None):
     """Initializes optimizer with given configuration."""
-    configuration_hash = hash(val)
+    opt = util.load_opt(paths_['model'], paths_['experiment'])
+    opt.snapshots_path = paths_['snapshots']
 
-    kwargs = dict(zip(keys, val))
-    configuration = vars(flags).copy()
-    configuration.update(kwargs)
-    del configuration['name']
-
-    model_path = paths.model_path(flags.name)
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
-    snapshots_path = paths.snapshots_path(experiment_path)
-
-    opt = util.load_opt(model_path, experiment_path)
-    opt.snapshots_path = snapshots_path / '{}.snapshot'.format(configuration_hash)
     util.make_dirs(opt.snapshots_path)
     print("Snapshot path: ", opt.snapshots_path)
 
-    with tf.variable_scope('cv_scope_{}'.format(configuration_hash)):
+    with tf.variable_scope('cv_scope_{}'.format(h)):
         opt.build(optimizees,
-                  n_bptt_steps=configuration['n_bptt_steps'],
-                  loss_type=configuration['loss_type'],
-                  optimizer=configuration['optimizer'],
-                  lambd=configuration['lambd'],
-                  devices=util.get_devices(flags))
+                  n_bptt_steps=flags['n_bptt_steps'],
+                  loss_type=flags['loss_type'],
+                  optimizer=flags['optimizer'],
+                  lambd=flags['lambd'],
+                  devices=devices)
 
-    return opt, configuration, configuration_hash
+    return opt
+
+
+def get_paths(flags):
+    model_path = paths.model_path(flags.name)
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
+    snapshots_path = paths.snapshots_path(experiment_path) / '{}.snapshot'.format(val_hash)
+    return {
+        'model': model_path,
+        'experiment': experiment_path,
+        'snapshots': snapshots_path
+    }
 
 
 def process_configuration(flags, optimizees, keys, val, results):
@@ -121,7 +114,19 @@ def process_configuration(flags, optimizees, keys, val, results):
         This function makes optimizer, trains it, tests and returns various
         characteristics.
     """
-    opt, configuration, val_hash = make_opt(flags, optimizees, keys, val)
+    val_hash = hash(val)
+    mapping = dict(zip(keys, val))
+
+    configuration = vars(flags)
+    configuration.update(mapping)
+    del configuration['name']
+    
+    paths_ = get_paths(flags)
+    opt = make_opt(
+        configuration, optimizees,
+        paths_, val_hash,
+        devices=tf_utils.get_devices(flags)
+    )
 
     _, train_time = train_opt(opt, configuration)
     opt.save(flags.n_epochs)
@@ -131,7 +136,7 @@ def process_configuration(flags, optimizees, keys, val, results):
 
     scores = get_score(test_rets)
 
-    for key, value in zip(keys, val):
+    for key, value in mapping.items():
         results[key].append(value)
 
     for key, score in scores.items():
@@ -154,6 +159,19 @@ def random_sampler(values, repeat):
     yield from random_product(*values, repeat=repeat)
 
 
+@tf_utils.with_tf_graph
+def cv_iteration(flags, keys, val, results):
+    optimizees = optim.get_optimizees(flags.optimizee,
+                                      clip_by_value=False,
+                                      random_scale=flags.enable_random_scaling,
+                                      noisy_grad=flags.noisy_grad)
+
+    for optimizee in optimizees.values():
+        optimizee.build()
+
+    process_configuration(flags, optimizees, keys, val, results)
+
+
 def abstract_cv(params, flags, sampler):
     """Performs sampling of configurations and computes scores."""
 
@@ -172,21 +190,8 @@ def abstract_cv(params, flags, sampler):
 
     for val in sampler(values):
         np.random.set_state(rand_state)
-
-        graph = tf.Graph()
-        session = tf.Session(config=util.get_tf_config(), graph=graph)
-        with graph.as_default(), session:
-            optimizees = optim.get_optimizees(flags.optimizee,
-                                              clip_by_value=False,
-                                              random_scale=flags.enable_random_scaling,
-                                              noisy_grad=flags.noisy_grad)
-
-            for optimizee in optimizees.values():
-                optimizee.build()
-
-            print(val)
-
-            process_configuration(flags, optimizees, keys, val, results)
+        print(val)
+        cv_iteration(flags, keys, val, results)
 
     #best_index = np.argmax(results['score'])
     #best_score = results['score'][best_index]

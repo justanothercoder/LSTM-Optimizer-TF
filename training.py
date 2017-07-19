@@ -9,6 +9,7 @@ import tensorflow as tf
 import optimizees as optim
 import paths
 import util
+import tf_utils
 
 
 def save_train_config(flags, experiment_path):
@@ -58,8 +59,7 @@ def will_overwrite_snapshots(snapshots_path, eid):
     return False
 
 
-def run_train(flags):
-    """This function runs training of optimizer."""
+def setup_experiment(flags):
     model_path = paths.model_path(flags.name)
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'train')
     snapshots_path = paths.snapshots_path(experiment_path)
@@ -69,35 +69,46 @@ def run_train(flags):
     print("Snapshots path: ", snapshots_path)
 
     if not flags.force and will_overwrite_snapshots(snapshots_path, flags.eid):
-        return
+        return None
 
     paths.make_dirs(experiment_path, snapshots_path)
     save_train_config(flags, experiment_path)
+    
+    opt = util.load_opt(model_path, experiment_path)
+    return opt
 
+
+@tf_utils.with_tf_graph
+def training(flags, opt):
+    """This function runs training of optimizer."""
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=True,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
 
-    graph = tf.Graph()
-    session = tf.Session(config=util.get_tf_config(), graph=graph)
-    with graph.as_default(), session:
-        for optimizee in optimizees.values():
-            optimizee.build()
+    for optimizee in optimizees.values():
+        optimizee.build()
 
-        opt = util.load_opt(model_path, experiment_path)
-        opt.build(optimizees,
-                  n_bptt_steps=flags.n_bptt_steps,
-                  loss_type=flags.loss_type,
-                  optimizer=flags.optimizer,
-                  lambd=flags.lambd,
-                  devices=util.get_devices(flags))
+    opt.build(optimizees,
+              n_bptt_steps=flags.n_bptt_steps,
+              loss_type=flags.loss_type,
+              optimizer=flags.optimizer,
+              lambd=flags.lambd,
+              devices=tf_utils.get_devices(flags))
 
-        feed_dict = {
-            opt.train_lr: flags.train_lr, 
-            opt.momentum: flags.momentum
-        }
-        session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-        rets = train_opt(opt, flags)
+    feed_dict = {
+        opt.train_lr: flags.train_lr, 
+        opt.momentum: flags.momentum
+    }
+    session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
+    rets = train_opt(opt, flags)
+    return rets
 
-        util.dump_results(experiment_path, rets)
+
+def run_train(flags):
+    opt = setup_experiment(flags)
+    if opt is None:
+        return
+
+    rets = training(flags, opt)
+    util.dump_results(experiment_path, rets)

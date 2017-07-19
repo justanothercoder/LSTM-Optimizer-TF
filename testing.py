@@ -9,6 +9,7 @@ from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
 
+import tf_utils
 import util
 import paths
 import optimizees as optim
@@ -80,46 +81,55 @@ def run_many_testing(opt, s_opts, flags):
     return results
 
 
-def run_test(flags):
-    """This function runs testing according to flags."""
+def setup_experiment(flags):
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
-
-    optimizees = optim.get_optimizees([flags.problem],
-                                      clip_by_value=False,
-                                      random_scale=flags.enable_random_scaling,
-                                      noisy_grad=flags.noisy_grad)
 
     model_path = paths.model_path(flags.name)
     train_experiment_path = paths.experiment_path(flags.name, flags.train_experiment_name, 'train')
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
 
     paths.make_dirs(experiment_path)
+    opt = util.load_opt(model_path, train_experiment_path)
+    
+    optimizees = optim.get_optimizees([flags.problem],
+                                      clip_by_value=False,
+                                      random_scale=flags.enable_random_scaling,
+                                      noisy_grad=flags.noisy_grad)
 
     s_opts = get_tests(flags.problem, flags.compare_with)
+    return opt, s_opts, optimizees
+
+
+@tf_utils.with_tf_graph
+def testing(flags, opt, s_opts, optimizees):
+    for optimizee in optimizees.values():
+        optimizee.build()
     
-    graph = tf.Graph()
-    session = tf.Session(config=util.get_tf_config(), graph=graph)
-    with graph.as_default(), session:
-        optimizees[flags.problem].build()
-        
-        opt = util.load_opt(model_path, train_experiment_path)
-        opt.build(optimizees, inference_only=True, devices=util.get_devices(flags))
-        
-        for s_opt in s_opts:
-            s_opt.build(optimizees, inference_only=True)
+    opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+    
+    for s_opt in s_opts:
+        s_opt.build(optimizees, inference_only=True)
 
-        session.run(tf.global_variables_initializer())
+    session.run(tf.global_variables_initializer())
 
-        if flags.mode == 'many':
-            results = run_many_testing(opt, s_opts, flags)
-        else:
-            results = run_cv_testing(opt, flags)
+    if flags.mode == 'many':
+        results = run_many_testing(opt, s_opts, flags)
+    else:
+        results = run_cv_testing(opt, flags)
 
-        data = {
-            'results': results,
-            'problem': flags.problem,
-            'mode': flags.mode,
-        }
-        
-        util.dump_results(experiment_path, data)
+    return results
+
+
+def run_test(flags):
+    """This function runs testing according to flags."""
+    opt, s_opts, optimizees = setup_experiment(flags)
+    results = testing(flags, opt, s_opts, optimizees)
+
+    data = {
+        'results': results,
+        'problem': flags.problem,
+        'mode': flags.mode,
+    }
+    
+    util.dump_results(experiment_path, data)
