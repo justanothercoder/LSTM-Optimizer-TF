@@ -1,8 +1,7 @@
-"""
-    This module defines various testing functions.
-"""
+"""This module defines various testing functions."""
 
 from collections import OrderedDict
+import itertools
 import numpy as np
 import tensorflow as tf
 
@@ -16,52 +15,35 @@ import optimizees as optim
 
 def get_tests():
     """
-        This functions returns set of non-trainable optimizees
+        This function returns set of non-trainable optimizees
         to compare with on different experiments.
     """
     def opt(name, lr):
         return {
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
-            'adam': MomentumOpt
+            'adam': AdamOpt
         }[name](lr=lr, name='{}_lr_{}'.format(name, lr))
 
-
     problems = {
-        'rosenbrock',
-        'quadratic',
-        'beale',
-        'booth',
-        'matyas',
+        'rosenbrock', 'quadratic',
+        'beale', 'booth', 'matyas',
         'logreg',
-        'stoch_logreg',
-        'stoch_linear',
-        'digits_classifier'
+        'stoch_logreg', 'stoch_linear',
+        'digits_classifier', 'mnist_classifier'
     }
 
-    opts = {
-        'sgd',
-        'momentum',
-        'adam'
-    }
-
+    opts = {'sgd', 'momentum', 'adam'}
 
     tests = {}
-
-    for p in problems:
-        tests[p] = {
-            o: [opt(o, lr) for lr in np.logspace(start=-1, stop=-5, num=5)]
-            for o in opts
-        }
-
+    for p, o in itertools.product(problems, opts):
+        tests[p][o] = [opt(o, lr) for lr in np.logspace(start=-1, stop=-5, num=5)]
 
     return tests
 
 
 def run_cv_testing(opt, flags):
-    """
-        Runs testing of different snapshots of LSTM optimizer.
-    """
+    """Runs testing of different snapshots of LSTM optimizer."""
     results = OrderedDict()
     random_state = np.random.get_state()
 
@@ -79,37 +61,32 @@ def run_cv_testing(opt, flags):
 
 
 def run_many_testing(opt, s_opts, flags):
-    """
-        Runs testing of LSTM with non-trainable optimizers.
-    """
+    """Runs testing of LSTM with non-trainable optimizers."""
     results = OrderedDict()
     random_state = np.random.get_state()
 
     for optimizer in [opt] + s_opts:
         np.random.set_state(random_state)
-        rets = optimizer.test(eid=flags.eid,
-                              n_batches=flags.n_batches,
-                              n_steps=flags.n_steps,
-                              verbose=flags.verbose)
-        results[optimizer.name] = rets
+        results[optimizer.name] = optimizer.test(eid=flags.eid,
+                                                 n_batches=flags.n_batches,
+                                                 n_steps=flags.n_steps,
+                                                 verbose=flags.verbose)
 
     return results
 
 
 def run_test(flags):
-    """
-        This functions runs testing according to flags.
-    """
+    """This function runs testing according to flags."""
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
 
     if flags.gpu is not None and flags.gpu:
         flags.gpu = flags.gpu[0]
 
-    optimizees = optim.get_optimizees(clip_by_value=False,
+    optimizees = optim.get_optimizees([flags.problem],
+                                      clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
-    optimizee = {flags.problem: optimizees[flags.problem]}
 
     save_path = 'snapshots'
     if flags.tag:
@@ -119,27 +96,25 @@ def run_test(flags):
     s_opts = get_tests()[flags.problem][flags.compare_with]
 
     graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(config=util.get_tf_config(), graph=graph) as session:
+    session = tf.Session(config=util.get_tf_config(), graph=graph)
+    with graph.as_default(), session:
+        optimizees[flags.problem].build()
+        opt.build(optimizees, inference_only=True)
+        for s_opt in s_opts:
+            s_opt.build(optimizees, inference_only=True)
 
-            optimizees[flags.problem].build()
-            opt.build(optimizee, inference_only=True)
-            for s_opt in s_opts:
-                s_opt.build(optimizee, inference_only=True)
+        session.run(tf.global_variables_initializer())
 
-            #session.run(tf.global_variables_initializer())
-            session.run(tf.global_variables_initializer())
+        if flags.mode == 'many':
+            results = run_many_testing(opt, s_opts, flags)
+        else:
+            results = run_cv_testing(opt, flags)
 
-            if flags.mode == 'many':
-                results = run_many_testing(opt, s_opts, flags)
-            else:
-                results = run_cv_testing(opt, flags)
-
-            model_path = util.get_model_path(flags.name)
-            util.dump_results(model_path, 
-                              results,
-                              phase='test',
-                              problem=flags.problem,
-                              mode=flags.mode,
-                              tag=flags.tag,
-                              compare_with=flags.compare_with)
+        model_path = util.get_model_path(flags.name)
+        util.dump_results(model_path, 
+                          results,
+                          phase='test',
+                          problem=flags.problem,
+                          mode=flags.mode,
+                          tag=flags.tag,
+                          compare_with=flags.compare_with)

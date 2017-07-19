@@ -12,9 +12,8 @@ import util
 import optimizees as optim
 
 def save_train_config(flags):
-    """
-    This function dump training config to directory where model lies.
-    """
+    """This function dump training config to directory where model lies."""
+
     training_options = {
         'batch_size', 'enable_random_scaling', 'loss_type',
         'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
@@ -30,9 +29,7 @@ def save_train_config(flags):
 
 
 def select_optimizees(flags):
-    """
-    This functions returns dict of optimizees chosen according to flags.
-    """
+    """This function returns dict of optimizees chosen according to flags."""
     optimizees = optim.get_optimizees(clip_by_value=True,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
@@ -44,13 +41,12 @@ def select_optimizees(flags):
 
 
 def build_opt(opt, optimizees, flags):
-    """
-    This functions setups and runs model building.
-    """
+    """This function setups and runs model building."""
     if flags.gpu is not None:
         devices = ['/gpu:{}'.format(i) for i in range(len(flags.gpu))]
     else:
         devices = ['/cpu:0']
+        #devices = ['/cpu:%d' % i for i in range(util.get_tf_config().device_count["CPU"])]
 
     opt.build(optimizees,
               n_bptt_steps=flags.n_bptt_steps,
@@ -61,9 +57,7 @@ def build_opt(opt, optimizees, flags):
 
 
 def train_opt(opt, flags):
-    """
-    This functions extracts relevant flags and runs training of optimizer.
-    """
+    """This function extracts relevant flags and runs training of optimizer."""
     train_options = {
         'n_epochs', 'n_batches', 'batch_size',
         'n_steps', 'eid', 'train_lr', 'momentum',
@@ -75,9 +69,7 @@ def train_opt(opt, flags):
 
 
 def check_snapshots(flags):
-    """
-    This function checks whether snapshots will be overwritten by running training.
-    """
+    """This function checks whether snapshots will be overwritten by running training."""
     model_path = util.get_model_path(flags.name)
 
     save_path = 'snapshots'
@@ -101,9 +93,7 @@ def check_snapshots(flags):
 
 
 def run_train(flags):
-    """
-    This functions runs training of optimizer.
-    """
+    """This function runs training of optimizer."""
     if not check_snapshots(flags):
         return
 
@@ -117,16 +107,16 @@ def run_train(flags):
     optimizees = select_optimizees(flags)
 
     graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(config=util.get_tf_config(), graph=graph) as session:
-            for optimizee in optimizees.values():
-                optimizee.build()
+    session = tf.Session(config=util.get_tf_config(), graph=graph)
+    with graph.as_default(), session:
+        for optimizee in optimizees.values():
+            optimizee.build()
 
-            build_opt(opt, optimizees, flags)
+        build_opt(opt, optimizees, flags)
 
-            feed_dict = {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum}
-            session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-            train_rets, test_rets = train_opt(opt, flags)
+        feed_dict = {opt.train_lr: flags.train_lr, opt.momentum: flags.momentum}
+        session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
+        train_rets, test_rets = train_opt(opt, flags)
 
-            model_path = util.get_model_path(flags.name)
-            util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)
+        model_path = util.get_model_path(flags.name)
+        util.dump_results(model_path, (train_rets, test_rets), phase='train', tag=flags.tag)

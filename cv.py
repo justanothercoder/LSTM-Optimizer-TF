@@ -16,7 +16,7 @@ import numpy as np
 import tensorflow as tf
 
 import util
-import optimizees
+import optimizees as optim
 
 
 def random_product(*args, repeat=1):
@@ -45,9 +45,7 @@ def get_score(rets):
 
 
 def train_opt(opt, flags):
-    """
-        This functions runs training of optimizer given flags.
-    """
+    """This function runs training of optimizer given flags."""
     if not isinstance(flags, dict):
         flags = vars(flags)
 
@@ -58,7 +56,7 @@ def train_opt(opt, flags):
         'n_steps', 'train_lr', 'momentum'
     }
 
-    train_options = {k: v for k, v in flags if k in train_options}
+    train_options = {k: v for k, v in flags.items() if k in train_options}
     print('train_options: {}'.format(train_options))
 
     train_start_time = time.time()
@@ -74,9 +72,7 @@ def train_opt(opt, flags):
 
 
 def build_opt(opt, optimizees, flags):
-    """
-        This functions builds optimizer.
-    """
+    """This function builds optimizer."""
     if not isinstance(flags, dict):
         flags = vars(flags)
 
@@ -89,7 +85,7 @@ def build_opt(opt, optimizees, flags):
 
 def test_configuration(opt, optimizees, flags):
     """
-        This functions runs testing of optimizer with given flags.
+        This function runs testing of optimizer with given flags.
         Returns results and time of execution.
     """
     test_start_time = time.time()
@@ -108,14 +104,13 @@ def test_configuration(opt, optimizees, flags):
 
 
 def make_opt(flags, optimizees, keys, val):
-    """
-        Initializes optimizer with given configuration.
-    """
+    """Initializes optimizer with given configuration."""
     configuration_hash = hash(val)
 
     kwargs = dict(zip(keys, val))
     configuration = vars(flags).copy()
     configuration.update(kwargs)
+    del configuration['name']
 
     local_path = pathlib.Path('cv') / 'snapshots' / '{}.snapshot'.format(configuration_hash)
 
@@ -182,31 +177,27 @@ def abstract_cv(params, flags, sampler):
     for k in itertools.chain(keys, ['train_time', 'test_time', 'hash', 'params', 'score']):
         results[k] = []
 
-    optimizees = optim.get_optimizees(clip_by_value=True,
-                                      random_scale=flags.enable_random_scaling,
-                                      noisy_grad=flags.noisy_grad)
-
-    for k in optimizees.keys():
+    for k in flags.optimizee:
         results['score_{}'.format(k)] = []
 
     rand_state = np.random.get_state()
 
-    #for i, val in enumerate(itertools.product(*values)):
     for val in sampler(values):
         graph = tf.Graph()
-        with graph.as_default():
-            with tf.Session(config=util.get_tf_config(), graph=graph):
-                optimizees = optim.get_optimizees(clip_by_value=False,
-                                                  random_scale=flags.enable_random_scaling,
-                                                  noisy_grad=flags.noisy_grad)
+        session = tf.Session(config=util.get_tf_config(), graph=graph)
+        with graph.as_default(), session:
+            optimizees = optim.get_optimizees(flags.optimizee,
+                                              clip_by_value=False,
+                                              random_scale=flags.enable_random_scaling,
+                                              noisy_grad=flags.noisy_grad)
 
-                for optimizee in optimizees.values():
-                    optimizee.build()
+            for optimizee in optimizees.values():
+                optimizee.build()
 
-                print(val)
+            print(val)
 
-                np.random.set_state(rand_state)
-                process_configuration(flags, optimizees, keys, val, results)
+            np.random.set_state(rand_state)
+            process_configuration(flags, optimizees, keys, val, results)
 
     #best_index = np.argmax(results['score'])
     #best_score = results['score'][best_index]
@@ -246,7 +237,7 @@ def run_cv(flags):
     model_path = util.get_model_path(flags.name)
     with (model_path / 'cv' / 'run_config.json').open('w') as conf:
         run_config = vars(flags).copy()
-        del run_config['func']
+        del run_config['command_name']
         json.dump(run_config, conf)
 
     if flags.method == 'grid':

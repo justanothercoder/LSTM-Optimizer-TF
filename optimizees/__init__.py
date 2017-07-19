@@ -11,7 +11,7 @@ from .digits_classifier import DIGITSClassifier
 from . import transformers
 
 
-def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
+def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy_grad=False):
     optimizees = {
         'quadratic'   : Quadratic(low=50, high=100),
         'rosenbrock'  : Rosenbrock(low=2, high=10),
@@ -21,7 +21,8 @@ def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
-        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1),
+        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
+        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist')
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([
@@ -59,4 +60,4 @@ def get_optimizees(clip_by_value=False, random_scale=False, noisy_grad=False):
 
         optimizees[name] = opt
 
-    return optimizees
+    return {problem: optimizees[problem] for problem in problems_list}
