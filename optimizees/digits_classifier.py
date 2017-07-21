@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 class DIGITSClassifier(optimizee.Optimizee):
     name = 'digits_classifier'
 
-    def __init__(self, num_units=20, num_layers=1, dataset_name='digits'):
+    def __init__(self, num_units=20, num_layers=1, dataset_name='digits', activation='sigmoid'):
         if dataset_name == 'digits':
             dataset = load_digits(n_class=10)
         elif dataset_name == 'mnist':
@@ -20,6 +20,7 @@ class DIGITSClassifier(optimizee.Optimizee):
 
         self.num_units = num_units
         self.num_layers = num_layers
+        self.activation = activation
 
 
     def get_x_dim(self):
@@ -32,9 +33,10 @@ class DIGITSClassifier(optimizee.Optimizee):
             self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X') # n_bptt_steps * batch_size * data_size * num_features
             self.y = tf.placeholder(tf.int32, [None, None, None], name='y')
 
-    
+ 
     def loss(self, x, i):
         batch_size = tf.shape(x)[0]
+        activation = getattr(tf.nn, self.activation)
 
         weights = []
         n_inputs = self.X.shape[1]
@@ -60,7 +62,8 @@ class DIGITSClassifier(optimizee.Optimizee):
             pred = tf.matmul(W, pred) + b
 
             if i + 1 < len(dims):
-                pred = tf.nn.sigmoid(pred)
+                #pred = tf.nn.sigmoid(pred)
+                pred = activation(pred)
 
             s += (n_inputs + 1) * n_outputs
 
