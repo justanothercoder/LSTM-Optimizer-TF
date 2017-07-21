@@ -16,8 +16,11 @@ class ClipByValue(optimizee.Optimizee):
 
     def loss(self, x, i):
         f, _ = self.optim.loss(x, i)
+        #g = self.grad(x, f)
+
+        f = tf.clip_by_value(f, self.clip_low, self.clip_high)
         g = self.grad(x, f)
-        return tf.clip_by_value(f, self.clip_low, self.clip_high), g
+        return f, g
 
     
     def get_initial_x(self, batch_size=1):

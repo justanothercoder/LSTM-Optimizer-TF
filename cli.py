@@ -9,8 +9,10 @@ problems = [
     'quadratic', 'rosenbrock', 'logreg',
     'stoch_logreg', 'stoch_linear',
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
-    'digits_classifier', 'mnist_classifier',
-    'digits_classifier_2',
+    'digits_classifier', 'digits_classifier_2',
+    'digits_classifier_relu', 'digits_classifier_relu_2',
+    'mnist_classifier',
+    'conv_digits_classifier', 'conv_digits_classifier_2',
     'beale', 'booth', 'matyas'
 ]
 
@@ -74,9 +76,9 @@ def make_test_parser(parser):
                         help='add normal noise to gradients of non-stochastic problems')
 
     parser.add_argument('--n_steps', type=int, default=1000, help='number of steps')
-    parser.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
+    parser.add_argument('--n_batches', type=int, default=20, help='number of batches per epoch')
 
-    parser.add_argument('--compare_with', type=str, default='momentum',
+    parser.add_argument('--compare_with', type=str, default='adam',
                         choices=['sgd', 'momentum', 'adam'], help='baseline for optimizer')
 
     parser.add_argument('--start_eid', type=int, default=100,
@@ -105,7 +107,7 @@ def make_plot_parser(parser):
                         help='fraction of data to plot')
     parser.add_argument('-s', '--stochastic', action='store_true',
                         help='whether problem is stochastic')
-    parser.add_argument('--compare_with', type=str)
+    parser.add_argument('--compare_with', type=str, default='adam')
     parser.add_argument('--enable_random_scaling', action='store_true')
 
     return parser

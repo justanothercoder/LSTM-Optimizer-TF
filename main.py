@@ -37,5 +37,8 @@ if __name__ == '__main__':
     elif flags.command_name == 'new':
         import util
         util.run_new(flags)
+    elif flags.commad_name == 'explore':
+        import explore
+        explore.run_explore(flags)
     else:
         parser.print_help()

@@ -157,7 +157,7 @@ class BasicModel:
 
                     if np.isnan(ret['loss']):
                         print("Loss is NaN")
-                        print(ret['fxs'])
+                        #print(ret['fxs'])
 
                     if loss is not None:
                         loss = 0.9 * loss + 0.1 * ret['loss']
@@ -380,7 +380,16 @@ class BasicModel:
                     states = tf.stack([s[-1] for s in states])
 
                     if self.loss_type == 'log':
-                        loss = tf.reduce_mean(tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1]), axis=0))
+                        #loss = tf.reduce_mean(tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1]), axis=0))
+                        loss = tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1])) / tf.cast(tf.shape(fxs)[0] * tf.shape(fxs)[1], tf.float32)
+                        #loss = tf.Print(loss, [
+                        #    loss, #tf.shape(fxs),
+                        #    tf.reduce_mean(tf.log(fxs)),
+                        #    tf.reduce_max(fxs), tf.reduce_min(fxs),
+                        #    tf.reduce_max(tf.log(fxs)), tf.reduce_min(tf.log(fxs)),
+                        #    tf.reduce_mean(tf.log(fxs[:1])), 
+                        #    tf.reduce_mean(tf.log(fxs)) - tf.reduce_mean(tf.log(fxs[:1])),
+                        #])
                         lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
 
                         loss += lr_loss
@@ -472,7 +481,7 @@ class BasicModel:
     def restore(self, eid):
         snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
-        self.saver.restore(self.session, str(snapshot_path))
+        self.saver.restore(self.session, './' + str(snapshot_path))
         print(self.name, "restored.")
 
 

@@ -85,11 +85,19 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
 
     plot_func = ax.semilogy if logscale else ax.plot
 
-    p = plot_func(vals, label=name, alpha=alpha)
+    #p = plot_func(vals, label=name, alpha=alpha)
+
+    #if with_moving:
+    #    moving_vals = util.get_moving(vals, mu=0.95)
+    #    plot_func(moving_vals, label='moving {}'.format(name), color=p[-1].get_color())
 
     if with_moving:
+        #p = plot_func(vals, alpha=alpha)
         moving_vals = util.get_moving(vals, mu=0.95)
-        plot_func(moving_vals, label='moving {}'.format(name), color=p[-1].get_color())
+        #plot_func(moving_vals, label=name, color=p[-1].get_color())
+        plot_func(moving_vals, label=name)
+    else:
+        plot_func(vals, label=name, alpha=alpha)
 
 
 def plot_test_results(flags, experiment_path, data):
@@ -220,7 +228,15 @@ def plot_cv_results(flags, experiment_path, data):
 def run_plot(flags):
     """This function handles command-line arguments and runs plotting."""
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, flags.phase)
-    data = util.load_results(experiment_path)
+
+    if flags.phase == 'test':
+        prefix = flags.problem + '_' + flags.mode
+        if flags.mode == 'many':
+            flags.compare_with = flags.compare_with or 'momentum'
+            prefix += '_' + flags.compare_with
+    else:
+        prefix = None
+    data = util.load_results(experiment_path, prefix=prefix)
 
     plot_func = {
         'train': plot_training_results,
