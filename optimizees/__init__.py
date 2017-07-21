@@ -7,6 +7,7 @@ from .logistic_regression import LogisticRegression
 from .stochastic_logistic_regression import StochasticLogisticRegression
 from .stochastic_linear_regression import StochasticLinearRegression
 from .digits_classifier import DIGITSClassifier
+from .conv_classifier import ConvClassifier
 
 from . import transformers
 
@@ -23,7 +24,11 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
         'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
         'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
-        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist')
+        'digits_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
+        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
+        'conv_digits_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='digits'),
+        'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits')
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([
@@ -61,7 +66,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
 
         optimizees[name] = opt
 
-    if 'all' not in problems_list:
+    if 'all' != problems_list and 'all' not in problems_list:
         return {problem: optimizees[problem] for problem in problems_list}
     else:
         return optimizees

@@ -30,7 +30,9 @@ def get_tests(test_problem, compare_with):
     problems = {
         'rosenbrock', 'quadratic', 'beale', 'booth', 'matyas', 'logreg',
         'stoch_logreg', 'stoch_linear',
-        'digits_classifier', 'mnist_classifier', 'digits_classifier_2'
+        'digits_classifier', 'mnist_classifier', 'digits_classifier_2',
+        'digits_classifier_relu', 'digits_classifier_relu_2',
+        'conv_digits_classifier', 'conv_digits_classifier_2'
     }
 
     opts = {'sgd', 'momentum', 'adam'}
@@ -42,6 +44,10 @@ def get_tests(test_problem, compare_with):
         for opt in opts:
             tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
 
+        if problem == 'matyas':
+            tests['matyas'][opt] = [make_opt(opt, lr) for lr in np.logspace(start=-5, stop=-9, num=5)]
+
+    print(tests.keys())
     return tests[test_problem][compare_with]
 
 
@@ -136,17 +142,21 @@ def testing(flags, opt, s_opts, optimizees):
 def run_test(flags):
     """This function runs testing according to flags."""
     experiment_path, opt, s_opts, optimizees = setup_experiment(flags)
-
-    if not flags.force and (experiment_path / 'results.pkl').exists():
-        print("You will overwrite existing results. Add -f/--force to force it.")
-        return
-
-    results = testing(flags, opt, s_opts, optimizees)
+    
+    prefix = flags.problem + "_" + flags.mode
 
     data = {
-        'results': results,
         'problem': flags.problem,
         'mode': flags.mode,
     }
 
-    util.dump_results(experiment_path, data)
+    if flags.mode == 'many':
+        data['compare_with'] = flags.compare_with
+        prefix += "_" + flags.compare_with
+
+    if not flags.force and (experiment_path / (prefix + 'results.pkl')).exists():
+        print("You will overwrite existing results. Add -f/--force to force it.")
+        return
+
+    data['results'] = testing(flags, opt, s_opts, optimizees)
+    util.dump_results(experiment_path, data, prefix=prefix)
