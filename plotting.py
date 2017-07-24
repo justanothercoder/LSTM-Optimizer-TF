@@ -103,8 +103,6 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
 
 
 def plot_test_results(flags, experiment_path, data):
-    print(data.keys())
-
     """This function plots tests results."""
     fig, axes = setup_test_plot(flags)
 
@@ -127,8 +125,6 @@ def plot_test_results(flags, experiment_path, data):
                                                         lrs_mean  - lrs_std,
                                                         alpha=0.3,
                                                         facecolor=p[-1].get_color())
-
-    print(fxs_mean.shape)
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
