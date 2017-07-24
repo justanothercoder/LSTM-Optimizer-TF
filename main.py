@@ -10,12 +10,13 @@ import cli
 
 
 if __name__ == '__main__':
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
     parser = cli.make_parser()
 
     flags = parser.parse_args()
     pprint.pprint(vars(flags))
+
+    if not hasattr(flags, 'debug') or not flags.debug:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
