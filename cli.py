@@ -34,7 +34,7 @@ def make_train_parser(parser):
                         help='loss function to use')
 
     parser.add_argument('--lambd', type=float, default=0)
-    parser.add_argument('--lambd-l1', type=float, default=1e-4)
+    parser.add_argument('--lambd-l1', type=float, default=0)
 
     parser.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
@@ -96,9 +96,9 @@ def make_plot_parser(parser):
     parser.add_argument('phase', type=str, choices=['train', 'test', 'cv'],
                         help='train or test phase')
     parser.add_argument('experiment_name', type=str, help='experiment name')
-    parser.add_argument('--plot_lr', action='store_true',
+    parser.add_argument('--no-plot-lr', action='store_false', dest='plot_lr',
                         help='plot learning rate')
-    parser.add_argument('--plot_moving', action='store_true',
+    parser.add_argument('--no-plot-moving', action='store_false', dest='plot_moving',
                         help='plot moving loss')
     parser.add_argument('-p', '--problem', type=str,
                         help='optimizee name')
@@ -143,10 +143,14 @@ def make_new_parser(parser):
                         help='cell to use: LSTM or GRU')
     parser.add_argument('--residual', action='store_true',
                         help='add residual connections in lstm')
-    parser.add_argument('--normalize_gradients', action='store_true',
-                        help='normalize_gradients')
-    parser.add_argument('-f', '--force', action='store_true')
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--normalize_gradients', action='store_true',
+                        help='normalize_gradients')
+    group.add_argument('--rmsprop_gradients', action='store_true',
+                        help='rmsprop_gradients')
+
+    parser.add_argument('-f', '--force', action='store_true')
     return parser
 
 
