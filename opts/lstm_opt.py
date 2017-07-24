@@ -17,6 +17,7 @@ class LSTMOpt(basic_model.BasicModel):
         add_skip=False, clip_delta=2,
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
+        rmsprop_gradients=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -35,6 +36,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.rnn_type = rnn_type
         self.residual = residual
         self.normalize_gradients = normalize_gradients
+        self.rmsprop_gradients = rmsprop_gradients
 
 
     def _build_pre(self):
@@ -112,6 +114,9 @@ class LSTMOpt(basic_model.BasicModel):
 
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
         s = a * m / (tf.sqrt(v) + self.eps)
+
+        if self.rmsprop_gradients and not self.normalize_gradients:
+            g = g / (tf.sqrt(v) + self.eps)
 
         features = [g, (g ** 2), m, v, s]
 
