@@ -13,7 +13,7 @@ problems = [
     'digits_classifier_relu', 'digits_classifier_relu_2',
     'mnist_classifier',
     'conv_digits_classifier', 'conv_digits_classifier_2',
-    'beale', 'booth', 'matyas'
+    'beale', 'booth', 'matyas', 'stoch_only'
 ]
 
 
@@ -34,6 +34,7 @@ def make_train_parser(parser):
                         help='loss function to use')
 
     parser.add_argument('--lambd', type=float, default=0)
+    parser.add_argument('--lambd-l1', type=float, default=1e-4)
 
     parser.add_argument('--n_steps', type=int, default=100, help='number of steps')
     parser.add_argument('--n_bptt_steps', type=int, default=20, help='number of bptt steps')
@@ -160,6 +161,7 @@ def make_parser():
     group.add_argument('--gpu', type=int, nargs='+', help='gpu id')
 
     run_parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
+    run_parser.add_argument('--debug', action='store_true')
 
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_train = subparsers.add_parser('train', parents=[run_parser],

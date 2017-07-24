@@ -52,6 +52,11 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         optimizees['stoch_linear'],
     ])
 
+    optimizees['stoch_only'] = transformers.ConcatAndSum([
+        optimizees['stoch_logreg'],
+        optimizees['stoch_linear'],
+    ])
+
     for name in optimizees:
         opt = optimizees[name]
 

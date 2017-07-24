@@ -41,8 +41,10 @@ def extract_test_run_info(rets, flags, key, normalize):
     l_test = int((1. - flags.frac) * vals.shape[1])
     vals = vals[:, l_test:]
 
-    mean = np.mean(vals, axis=0)
+    mean = np.nanmean(vals, axis=0)
     std = np.std(vals, axis=0)
+
+    print(mean[:-20])
 
     return vals, mean, std
 

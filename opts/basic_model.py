@@ -16,13 +16,14 @@ class BasicModel:
     """This class defines basic model."""
     # pylint: disable=too-many-instance-attributes
 
-    def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None):
+    def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None, debug=False):
         self.bid = 0
         self.name = name
 
         self.model_path = model_path or pathlib.Path('models') / name
         self.save_tf_data = save_tf_data
         self.snapshot_path = snapshot_path
+        self.debug = debug
 
 
     def log(self, message, verbosity, level=0):
@@ -265,7 +266,7 @@ class BasicModel:
 
     def build(self, optimizees, n_bptt_steps=20,
               loss_type='log', optimizer='adam',
-              lambd=0, inference_only=False, devices=None):
+              lambd=0, lambd_l1=1e-4, inference_only=False, devices=None):
         """Builds model"""
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-arguments
@@ -276,6 +277,7 @@ class BasicModel:
         self.loss_type = loss_type
         self.optimizer_type = optimizer
         self.lambd = lambd
+        self.lambd_l1 = lambd_l1
 
         self.session = tf.get_default_session()
 
@@ -382,14 +384,15 @@ class BasicModel:
                     if self.loss_type == 'log':
                         #loss = tf.reduce_mean(tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1]), axis=0))
                         loss = tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1])) / tf.cast(tf.shape(fxs)[0] * tf.shape(fxs)[1], tf.float32)
-                        #loss = tf.Print(loss, [
-                        #    loss, #tf.shape(fxs),
-                        #    tf.reduce_mean(tf.log(fxs)),
-                        #    tf.reduce_max(fxs), tf.reduce_min(fxs),
-                        #    tf.reduce_max(tf.log(fxs)), tf.reduce_min(tf.log(fxs)),
-                        #    tf.reduce_mean(tf.log(fxs[:1])), 
-                        #    tf.reduce_mean(tf.log(fxs)) - tf.reduce_mean(tf.log(fxs[:1])),
-                        #])
+                        if self.debug:
+                            loss = tf.Print(loss, [
+                                loss, #tf.shape(fxs),
+                                tf.reduce_mean(tf.log(fxs)),
+                                tf.reduce_max(fxs), tf.reduce_min(fxs),
+                                tf.reduce_max(tf.log(fxs)), tf.reduce_min(tf.log(fxs)),
+                                tf.reduce_mean(tf.log(fxs[:1])), 
+                                tf.reduce_mean(tf.log(fxs)) - tf.reduce_mean(tf.log(fxs[:1])),
+                            ])
                         lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
 
                         loss += lr_loss
@@ -397,6 +400,13 @@ class BasicModel:
                         loss = tf.reduce_mean(fxs)
                     else:
                         loss = fxs[-1]
+
+                    regs = [
+                        self.lambd_l1 * tf.norm(v, ord=1) 
+                        for v in tf.trainable_variables() 
+                        if 'bias' not in v.name
+                    ]
+                    loss += tf.add_n(regs)
 
                     self.loss[opt_name][dev] = loss
 

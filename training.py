@@ -58,6 +58,7 @@ def setup_experiment(flags):
     save_train_config(flags, experiment_path)
 
     opt = util.load_opt(model_path, experiment_path)
+    opt.debug = flags.debug
     return experiment_path, opt
 
 
@@ -77,6 +78,7 @@ def training(flags, opt):
               loss_type=flags.loss_type,
               optimizer=flags.optimizer,
               lambd=flags.lambd,
+              lambd_l1=flags.lambd_l1,
               devices=tf_utils.get_devices(flags))
 
     feed_dict = {

@@ -44,10 +44,9 @@ def get_tests(test_problem, compare_with):
         for opt in opts:
             tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
 
-        if problem == 'matyas':
-            tests['matyas'][opt] = [make_opt(opt, lr) for lr in np.logspace(start=-5, stop=-9, num=5)]
+        #if problem == 'matyas':
+        #    tests['matyas'][opt] = [make_opt(opt, lr) for lr in np.logspace(start=-5, stop=-9, num=5)]
 
-    print(tests.keys())
     return tests[test_problem][compare_with]
 
 

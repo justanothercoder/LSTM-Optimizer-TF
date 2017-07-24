@@ -59,7 +59,7 @@ class UniformRandomScaling(optimizee.Optimizee):
     
     def get_initial_x(self, batch_size=1):
         x = self.optim.get_initial_x(batch_size)
-        self.coef = np.random.uniform(-self.r, self.r, size=x.shape)
+        self.coef = np.exp(np.random.uniform(-self.r, self.r, size=x.shape))
         return x / self.coef
 
 
