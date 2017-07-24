@@ -5,12 +5,20 @@ from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBas
 from . import basic_model
 
 
-def normalize(d, gamma):
-    return d / (gamma * tf.norm(d, axis=-1, keep_dims=True))
+def normalize(d, gamma=1.0, eps=1e-8):
+    return d / (gamma * tf.norm(d, axis=-1, keep_dims=True) + eps)
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, num_units=20, num_layers=2, beta1=0.9, beta2=0.999, layer_norm=True, stop_grad=True, add_skip=False, clip_delta=2, rnn_type='lstm', residual=False, **kwargs):
+    def __init__(self,
+        num_units=20, num_layers=2,
+        beta1=0.9, beta2=0.999,
+        layer_norm=True, stop_grad=True,
+        add_skip=False, clip_delta=2,
+        rnn_type='lstm', residual=False,
+        normalize_gradients=False,
+        **kwargs):
+
         super(LSTMOpt, self).__init__(**kwargs)
 
         self.num_units = num_units
@@ -26,6 +34,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.clip_delta = clip_delta
         self.rnn_type = rnn_type
         self.residual = residual
+        self.normalize_gradients = normalize_gradients
 
 
     def _build_pre(self):
@@ -91,6 +100,9 @@ class LSTMOpt(basic_model.BasicModel):
 
         if self.stop_grad:
             g = tf.stop_gradient(g)
+
+        if self.normalize_gradients:
+            g = normalize(g)
 
         m = self.beta1 * m + (1 - self.beta1) * g
         v = self.beta2 * v + (1 - self.beta2) * (g ** 2)

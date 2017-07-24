@@ -143,6 +143,8 @@ def make_new_parser(parser):
                         help='cell to use: LSTM or GRU')
     parser.add_argument('--residual', action='store_true',
                         help='add residual connections in lstm')
+    parser.add_argument('--normalize_gradients', action='store_true',
+                        help='normalize_gradients')
     parser.add_argument('-f', '--force', action='store_true')
 
     return parser
