@@ -1,3 +1,4 @@
+import logging
 import functools
 import time
 import random
@@ -81,26 +82,6 @@ def dump_config(path, flags, options):
 
     with path.open('w') as conf:
         json.dump(config, conf, sort_keys=True, indent=4)
-
-
-def catch_keyboard_interrupt(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except KeyboardInterrupt:
-            pass
-    return wrapper
-
-
-def measure_time(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        t = time.time()
-        ret = func(*args, **kwargs)
-        t = time.time() - t
-        return ret, t
-    return wrapper
 
 
 def run_new(flags):
