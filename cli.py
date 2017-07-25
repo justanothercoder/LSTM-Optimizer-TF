@@ -23,7 +23,7 @@ def make_train_parser(parser):
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
 
     parser.add_argument('--optimizer', type=str,
-                        default='adam', choices=['adam', 'momentum'],
+                        default='adam', choices=['adam', 'momentum', 'yellowfin'],
                         help='optimizer to train LSTM')
 
     parser.add_argument('--train_lr', type=float, default=1e-4, help='learning rate')
