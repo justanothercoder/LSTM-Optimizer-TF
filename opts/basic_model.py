@@ -103,7 +103,8 @@ class BasicModel:
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
-        ret['loss'] = np.mean(losses)
+        #ret['loss'] = np.mean(losses)
+        ret['loss'] = np.nanmean(losses)
         ret['fxs'] = np.array(fxs)
         ret['lrs'] = np.array(lrs).mean(axis=1)
         ret['norms'] = np.array(norms)
@@ -253,7 +254,8 @@ class BasicModel:
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
-        ret['loss'] = np.mean(losses)
+        #ret['loss'] = np.mean(losses)
+        ret['loss'] = np.nanmean(losses)
         ret['fxs'] = fxs
 
         if self.save_tf_data:
