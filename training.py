@@ -11,13 +11,16 @@ import util
 import util.paths as paths
 import util.tf_utils as tf_utils
 
+from opts import model_trainer
+
 
 def save_train_config(flags, experiment_path):
     """This function dumps training config to directory where model lies."""
     training_options = {
         'batch_size', 'enable_random_scaling', 'loss_type',
         'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
-        'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd'
+        'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd',
+        'noisy_grad'
     }
     util.dump_config(experiment_path / 'config', flags, training_options)
 
@@ -87,14 +90,32 @@ def training(flags, opt):
     }
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-    rets = opt.train(n_epochs=flags.n_epochs,
-                     n_batches=flags.n_batches,
-                     batch_size=flags.batch_size,
-                     n_steps=flags.n_steps,
-                     train_lr=flags.train_lr,
-                     momentum=flags.momentum,
-                     eid=flags.eid,
-                     verbose=flags.verbose)
+
+    #rets = opt.train(n_epochs=flags.n_epochs,
+    #                 n_batches=flags.n_batches,
+    #                 batch_size=flags.batch_size,
+    #                 n_steps=flags.n_steps,
+    #                 train_lr=flags.train_lr,
+    #                 momentum=flags.momentum,
+    #                 eid=flags.eid,
+    #                 verbose=flags.verbose)
+    
+    trainer = model_trainer.Trainer()
+    try:
+        rets = trainer.setup_and_run(opt, 'train', session=session,
+                                     n_epochs=flags.n_epochs,
+                                     n_batches=flags.n_batches,
+                                     batch_size=flags.batch_size,
+                                     n_steps=flags.n_steps,
+                                     train_lr=flags.train_lr,
+                                     momentum=flags.momentum,
+                                     eid=flags.eid,
+                                     verbose=flags.verbose)
+    except tf.errors.InvalidArgumentError as e:
+        print("Op: ", e.op)
+        print("Input: ", e.op.inputs)
+        print(e)
+        raise
 
     return rets
 
