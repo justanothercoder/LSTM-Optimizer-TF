@@ -25,7 +25,7 @@ class Quadratic(optimizee.Optimizee):
     def loss(self, x, i):
         b = tf.expand_dims(self.b, -1)
 
-        f = (tf.matmul(self.W, tf.expand_dims(x, -1)) - b)**2
+        f = tf.square(tf.matmul(self.W, tf.expand_dims(x, -1)) - b)
         f = tf.reduce_mean(tf.squeeze(f, axis=-1), axis=-1)
         g = self.grad(x, f)
         return f, g

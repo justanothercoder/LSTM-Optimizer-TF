@@ -28,7 +28,7 @@ class Rosenbrock(optimizee.Optimizee):
         t0 = x[..., ::2]
         t1 = x[..., 1::2]
 
-        s = tf.reduce_sum((self.a - t0)**2 + self.b * (t1 - t0**2)**2, axis=-1)
+        s = tf.reduce_sum(tf.square(self.a - t0) + self.b * tf.square(t1 - tf.square(t0)), axis=-1)
         #return tf.clip_by_value(s, 0, 10**10)
         g = self.grad(x, s)
         return s, g

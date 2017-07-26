@@ -29,7 +29,7 @@ class StochasticLinearRegression(optimizee.Optimizee):
         xT = tf.transpose(self.x[i], perm=[0, 2, 1])
         score = tf.squeeze(tf.matmul(w, xT), axis=-2) + w0
 
-        f = tf.reduce_mean((score - self.y[i])**2, axis=-1) / tf.cast(tf.shape(w)[1], tf.float32) / 100
+        f = tf.reduce_mean(tf.square(score - self.y[i]), axis=-1) / tf.cast(tf.shape(w)[1], tf.float32) / 100
         g = self.grad(x, f)
         return f, g
 

@@ -41,7 +41,7 @@ class AdamOpt(basic_model.BasicModel):
         g = tf.stop_gradient(g)
 
         m = self.beta1 * m + (1 - self.beta1) * g
-        v = self.beta2 * v + (1 - self.beta2) * (g ** 2)
+        v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
 
         b1t *= self.beta1
         b2t *= self.beta2
