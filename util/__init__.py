@@ -92,9 +92,8 @@ def run_new(flags):
         print('Model already exists')
         return
 
-    dirs = ['train', 'test', 'cv/snapshots']
-    dirs = [str(model_path / d) for d in dirs]
-    paths.make_dirs(dirs)
+    dirs = [str(model_path / d) for d in ('train', 'test', 'cv/snapshots')]
+    paths.make_dirs(*dirs)
 
     model_parameters = {
         'num_layers', 'num_units',
