@@ -223,22 +223,30 @@ def plot_cv_results(flags, experiment_path, data):
     save_figure(fig, experiment_path / 'summary')
 
 
-def run_plot(flags):
-    """This function handles command-line arguments and runs plotting."""
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, flags.phase)
+def run_plot_test(flags):
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
 
-    if flags.phase == 'test':
-        prefix = flags.problem + '_' + flags.mode
+    for problem in flags.problems:
+        prefix = problem + '_' + flags.mode
         if flags.mode == 'many':
             flags.compare_with = flags.compare_with or 'momentum'
             prefix += '_' + flags.compare_with
-    else:
-        prefix = None
-    data = util.load_results(experiment_path, prefix=prefix)
+    
+        data = util.load_results(experiment_path, prefix=prefix)
+        plot_test_results(flags, experiment_path, data)
+
+
+def run_plot(flags):
+    """This function handles command-line arguments and runs plotting."""
+    if flags.phase == 'test':
+        run_plot_test(flags)
+        return
+
+    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, flags.phase)
+    data = util.load_results(experiment_path)
 
     plot_func = {
         'train': plot_training_results,
-        'test': plot_test_results,
         'cv': plot_cv_results
     }[flags.phase]
 
