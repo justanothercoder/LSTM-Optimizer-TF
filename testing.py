@@ -107,13 +107,12 @@ def setup_experiment(flags):
 
     opt = util.load_opt(model_path, train_experiment_path)
 
-    optimizees = optim.get_optimizees([flags.problem],
+    optimizees = optim.get_optimizees(flags.problems,
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
 
-    s_opts = get_tests(flags.problem, flags.compare_with)
-    return experiment_path, opt, s_opts, optimizees
+    return experiment_path, opt, optimizees
 
 
 @tf_utils.with_tf_graph
@@ -140,22 +139,33 @@ def testing(flags, opt, s_opts, optimizees):
 
 def run_test(flags):
     """This function runs testing according to flags."""
-    experiment_path, opt, s_opts, optimizees = setup_experiment(flags)
+    if flags.problems is None:
+        flags.problems = [
+            'rosenbrock', 'quadratic',
+            'beale', 'booth', 'matyas',
+            'logreg',
+            'stoch_logreg', 'stoch_linear'
+        ]
+
+    experiment_path, opt, optimizees = setup_experiment(flags)
+
+    for opt_name, optimizee in optimizees.items():
+        prefix = opt_name + "_" + flags.mode
+
+        data = {
+            'problem': opt_name,
+            'mode': flags.mode,
+        }
+
+        if flags.mode == 'many':
+            data['compare_with'] = flags.compare_with
+            prefix += "_" + flags.compare_with
+
+        if not flags.force and (experiment_path / (prefix + 'results.pkl')).exists():
+            print("You will overwrite existing results. Add -f/--force to force it.")
+            return
     
-    prefix = flags.problem + "_" + flags.mode
+        s_opts = get_tests(opt_name, flags.compare_with)
 
-    data = {
-        'problem': flags.problem,
-        'mode': flags.mode,
-    }
-
-    if flags.mode == 'many':
-        data['compare_with'] = flags.compare_with
-        prefix += "_" + flags.compare_with
-
-    if not flags.force and (experiment_path / (prefix + 'results.pkl')).exists():
-        print("You will overwrite existing results. Add -f/--force to force it.")
-        return
-
-    data['results'] = testing(flags, opt, s_opts, optimizees)
-    util.dump_results(experiment_path, data, prefix=prefix)
+        data['results'] = testing(flags, opt, s_opts, {opt_name: optimizee})
+        util.dump_results(experiment_path, data, prefix=prefix)
