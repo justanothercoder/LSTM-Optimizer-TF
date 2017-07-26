@@ -98,7 +98,8 @@ def run_new(flags):
     model_parameters = {
         'num_layers', 'num_units',
         'layer_norm', 'name', 'stop_grad',
-        'rnn_type', 'residual', 'normalize_gradients', 'rmsprop_gradients'
+        'rnn_type', 'residual', 'normalize_gradients', 'rmsprop_gradients',
+        'learn_init'
     }
 
     with config_path.open('w') as conf:

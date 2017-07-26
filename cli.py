@@ -61,8 +61,8 @@ def make_train_parser(parser):
 def make_test_parser(parser):
     """This function creates subparser for 'test' command."""
     parser.add_argument('eid', type=int, help='epoch id from which test optimizer')
-    parser.add_argument('problem', choices=problems, help='problem to run test on')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
+    parser.add_argument('problems', choices=problems, nargs='+', help='problem to run test on')
 
     parser.add_argument('--train-experiment', required=True, type=str,
                         dest='train_experiment_name',
@@ -100,7 +100,7 @@ def make_plot_parser(parser):
                         help='plot learning rate')
     parser.add_argument('--no-plot-moving', action='store_false', dest='plot_moving',
                         help='plot moving loss')
-    parser.add_argument('-p', '--problem', type=str,
+    parser.add_argument('-p', '--problems', type=str, nargs='+',
                         help='optimizee name')
     parser.add_argument('-m', '--mode', type=str, choices=['many', 'cv'],
                         help='mode of testing')
@@ -143,12 +143,16 @@ def make_new_parser(parser):
                         help='cell to use: LSTM or GRU')
     parser.add_argument('--residual', action='store_true',
                         help='add residual connections in lstm')
+    parser.add_argument('--learn_init', action='store_true',
+                        help='learn initial hidden state')
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--normalize_gradients', action='store_true',
                         help='normalize_gradients')
     group.add_argument('--rmsprop_gradients', action='store_true',
                         help='rmsprop_gradients')
+    group.add_argument('--use_both', action='store_true',
+                        help='use both normalized and unnormalized gradients')
 
     parser.add_argument('-f', '--force', action='store_true')
     return parser

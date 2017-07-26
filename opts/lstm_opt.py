@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper
 
 from . import basic_model
+from . import lstm_utils
 
 
 def normalize(d, gamma=1.0, eps=1e-8):
@@ -18,6 +19,7 @@ class LSTMOpt(basic_model.BasicModel):
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
         rmsprop_gradients=False,
+        learn_init=False, use_both=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -37,6 +39,8 @@ class LSTMOpt(basic_model.BasicModel):
         self.residual = residual
         self.normalize_gradients = normalize_gradients
         self.rmsprop_gradients = rmsprop_gradients
+        self.learn_init = learn_init
+        self.use_both = use_both
 
 
     def _build_pre(self):
@@ -77,7 +81,13 @@ class LSTMOpt(basic_model.BasicModel):
                 (tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
                 for size in self.lstm.state_size
             )
+
         self.input_state = [self.b1t, self.b2t, self.x, self.m, self.v, self.lstm_state, self.loglr]
+
+        if self.use_both:
+            self.m_norm = tf.placeholder(tf.float32, [None, None], name='m')
+            self.v_norm = tf.placeholder(tf.float32, [None, None], name='v')
+            self.input_state += [self.m_norm, self.v_norm]
 
     
     def _build_initial_state(self):
@@ -86,16 +96,33 @@ class LSTMOpt(basic_model.BasicModel):
         v = tf.zeros(shape=tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
         b2t = tf.ones([tf.shape(x)[0]])
-        lstm_state = self.lstm.zero_state(tf.size(x), tf.float32)
+
+        if self.learn_init:
+            lstm_state = lstm_utils.get_initial_cell_state(self.lstm, lstm_utils.make_variable_state_initializer(), tf.size(x), tf.float32)
+        else:
+            lstm_state = self.lstm.zero_state(tf.size(x), tf.float32)
         
         #loglr = tf.zeros(shape=tf.shape(x))
         loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2))
 
         self.initial_state = [b1t, b2t, x, m, v, lstm_state, loglr]
 
+        if self.use_both:
+            m_norm = tf.zeros(shape=tf.shape(x))
+            v_norm = tf.zeros(shape=tf.shape(x))
+            self.initial_state += [m_norm, v_norm]
+
 
     def _iter(self, f, i, state):
-        b1t, b2t, x, m, v, lstm_state, loglr = state
+        if self.use_both:
+            b1t, b2t, x, m, v, lstm_state, loglr, m_norm, v_norm = state
+        else:
+            b1t, b2t, x, m, v, lstm_state, loglr = state
+
+        def update(g, m, v):
+            new_m = self.beta1 * m + (1 - self.beta1) * g
+            new_v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
+            return new_m, new_v
 
         fx, g, g_norm = self._fg(f, x, i)
         x_shape = tf.shape(x)
@@ -106,19 +133,28 @@ class LSTMOpt(basic_model.BasicModel):
         if self.normalize_gradients:
             g = normalize(g)
 
-        m = self.beta1 * m + (1 - self.beta1) * g
-        v = self.beta2 * v + (1 - self.beta2) * (g ** 2)
+        m, v = update(g, m, v)
+        if self.use_both:
+            m_norm, v_norm = update(normalize(g), m_norm, v_norm)
+
+        #m = self.beta1 * m + (1 - self.beta1) * g
+        #v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
 
         b1t *= self.beta1
         b2t *= self.beta2
 
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
-        s = a * m / (tf.sqrt(v) + self.eps)
+        s = a * m / (tf.sqrt(v, name='v_sqrt') + self.eps)
+        if self.use_both:
+            s_norm = a * m_norm / (tf.sqrt(v_norm, name='v_norm_sqrt') + self.eps)
 
         if self.rmsprop_gradients and not self.normalize_gradients:
-            g = g / (tf.sqrt(v) + self.eps)
+            g = g / (tf.sqrt(v, name='v_sqrt') + self.eps)
 
-        features = [g, (g ** 2), m, v, s]
+        features = [g, tf.square(g), m, v, s]
+        if self.use_both:
+            g_n = normalize(g)
+            features += [g_n, tf.square(g_n), m_norm, v_norm, s_norm]
 
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
         last, lstm_state = self.lstm(prep, lstm_state)
@@ -132,6 +168,7 @@ class LSTMOpt(basic_model.BasicModel):
         loglr_add = tf.reshape(loglr_add, x_shape)
 
         loglr += loglr_add
+        loglr = tf.minimum(loglr, np.log(self.clip_delta))
 
         n_coords = tf.cast(x_shape[0], tf.float32)
         
@@ -144,8 +181,9 @@ class LSTMOpt(basic_model.BasicModel):
         
         d = normalize(d, 1. / n_coords)
 
-        lr = tf.exp(loglr)
+        lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
+        #x += tf.Print(d * lr, [tf.norm(d * lr)], message='move: ')
         x += d * lr
 
         return [b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm
