@@ -2,6 +2,7 @@
     This module defines basic model which defines structure of optimizer.
 """
 
+from collections import defaultdict
 import time
 import os
 import pathlib
@@ -335,17 +336,14 @@ class BasicModel:
 
 
     def _build_loop(self):
-        self.fxs = {}
-        self.states = {}
-        self.norms = {}
+        self.fxs = defaultdict(lambda: {})
+        self.states = defaultdict(lambda: {})
+        self.norms = defaultdict(lambda: {})
 
         with tf.variable_scope('loop_scope') as self.loop_scope:
             reused = False
 
             for opt_name, optimizee in self.optimizees.items():
-                self.fxs[opt_name] = {}
-                self.states[opt_name] = {}
-                self.norms[opt_name] = {}
                 for dev in self.devices:
                     with tf.device(dev):
                         states = []
@@ -356,6 +354,8 @@ class BasicModel:
 
                         for i in range(self.n_bptt_steps):
                             state, f, g_norm = self._iter(optimizee.loss, i, state)
+
+                            f = tf.check_numerics(f, "Inf/NaN function value")
 
                             fxs.append(f)
                             states.append(state)
@@ -386,15 +386,6 @@ class BasicModel:
                     if self.loss_type == 'log':
                         #loss = tf.reduce_mean(tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1]), axis=0))
                         loss = tf.reduce_sum(tf.log(fxs) - tf.log(fxs[:1])) / tf.cast(tf.shape(fxs)[0] * tf.shape(fxs)[1], tf.float32)
-                        if self.debug:
-                            loss = tf.Print(loss, [
-                                loss, #tf.shape(fxs),
-                                tf.reduce_mean(tf.log(fxs)),
-                                tf.reduce_max(fxs), tf.reduce_min(fxs),
-                                tf.reduce_max(tf.log(fxs)), tf.reduce_min(tf.log(fxs)),
-                                tf.reduce_mean(tf.log(fxs[:1])), 
-                                tf.reduce_mean(tf.log(fxs)) - tf.reduce_mean(tf.log(fxs[:1])),
-                            ])
                         lr_loss = -self.lambd * tf.reduce_mean(states - states[:1])
 
                         loss += lr_loss
@@ -417,7 +408,7 @@ class BasicModel:
         fx, g = f(x, i)
         #g = gradients.gradients(fx, x)[0]
         #g = gradients.gradients(tf.reduce_sum(fx), x)[0]
-        g_norm = tf.reduce_sum(g**2, axis=-1)
+        g_norm = tf.reduce_sum(tf.square(g), axis=-1)
         return fx, g, g_norm
 
 
@@ -463,18 +454,29 @@ class BasicModel:
                     gradients = self.optimizer.compute_gradients(
                         self.loss[opt_name][dev],
                         var_list=self.all_vars)
+
+                    #gradients = [(tf.clip_by_norm(tf.check_numerics(g, "Inf or Nan gradient"), 1), v) for g, v in gradients]
                     tower_grads.append(gradients)
 
             average_grads = []
             for grad_and_vars in zip(*tower_grads):
-                grad = tf.stack([g for g, _ in grad_and_vars], axis=0)
+                grad = tf.stack([
+                    #tf.check_numerics(tf.Print(g, [self.loss[opt_name][dev], g, self.fxs[opt_name][dev]], message='gradients', summarize=120), "Inf/NaN gradients")
+                    tf.check_numerics(g, "Inf/NaN gradients")
+                    for g, _ in grad_and_vars
+                ], axis=0)
                 grad = tf.reduce_mean(grad, axis=0)
 
                 v = grad_and_vars[0][1]
                 average_grads.append((grad, v))
 
             #self.apply_gradients[opt_name] = self.optimizer.apply_gradients(gradients)
-            self.apply_gradients[opt_name] = self.optimizer.apply_gradients(average_grads)
+            train_op = self.optimizer.apply_gradients(average_grads)
+            if self.debug:
+                check_op = tf.add_check_numerics_ops()
+                self.apply_gradients[opt_name] = tf.group(train_op, check_op)
+            else:
+                self.apply_gradients[opt_name] = train_op
 
             #for grad, var in gradients:
             #    if grad is not None:
