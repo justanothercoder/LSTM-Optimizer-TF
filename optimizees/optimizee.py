@@ -14,7 +14,7 @@ class Optimizee:
 
 
     def grad(self, x, f):
-        g = tf.gradients(tf.reduce_sum(f), x)[0]
+        g = tf.gradients(f, x)[0]
         return g
 
 
