@@ -1,8 +1,3 @@
-"""
-This module defines functions which create global parser
-and parsers for each of subcommands.
-"""
-
 import argparse
 
 problems = [
@@ -18,7 +13,6 @@ problems = [
 
 
 def make_train_parser(parser):
-    """This function creates subparser for 'train' command."""
     parser.add_argument('experiment_name', type=str, default='name of the experiment')
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
 
@@ -59,7 +53,6 @@ def make_train_parser(parser):
 
 
 def make_test_parser(parser):
-    """This function creates subparser for 'test' command."""
     parser.add_argument('eid', type=int, help='epoch id from which test optimizer')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
     parser.add_argument('problems', choices=problems, nargs='+', help='problem to run test on')
@@ -91,7 +84,6 @@ def make_test_parser(parser):
 
 
 def make_plot_parser(parser):
-    """This function creates subparser for 'plot' command."""
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('phase', type=str, choices=['train', 'test', 'cv'],
                         help='train or test phase')
@@ -115,7 +107,6 @@ def make_plot_parser(parser):
 
 
 def make_cv_parser(parser):
-    """This function creates subparser for 'cv' command."""
     methods = ['grid', 'random', 'bayesian']
 
     parser.add_argument('config', type=str,
@@ -129,7 +120,6 @@ def make_cv_parser(parser):
 
 
 def make_new_parser(parser):
-    """This function creates subparser for 'new' command."""
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('num_units', type=int, help='number of units in LSTM')
     parser.add_argument('num_layers', type=int, help='number of lstm layers')
@@ -148,18 +138,17 @@ def make_new_parser(parser):
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--normalize_gradients', action='store_true',
-                        help='normalize_gradients')
+                       help='normalize_gradients')
     group.add_argument('--rmsprop_gradients', action='store_true',
-                        help='rmsprop_gradients')
+                       help='rmsprop_gradients')
     group.add_argument('--use_both', action='store_true',
-                        help='use both normalized and unnormalized gradients')
+                       help='use both normalized and unnormalized gradients')
 
     parser.add_argument('-f', '--force', action='store_true')
     return parser
 
 
 def make_parser():
-    """This function assembles global parser from parsers for subcommands."""
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers(help='command to run', dest='command_name')
 
@@ -183,7 +172,7 @@ def make_parser():
     parser_new = make_new_parser(parser_new)
     parser_train = make_train_parser(parser_train)
     parser_test = make_test_parser(parser_test)
-    
+
     parser_cv = subparsers.add_parser('cv', parents=[parser_train], add_help=False,
                                       help='tune hyperparameters by validation')
     parser_cv = make_cv_parser(parser_cv)

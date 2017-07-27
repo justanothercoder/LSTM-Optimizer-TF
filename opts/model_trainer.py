@@ -5,6 +5,7 @@ import functools
 
 import numpy as np
 import tensorflow as tf
+from opts import distributed
 
 
 def log_execution_time(func):
@@ -42,12 +43,26 @@ class Trainer:
             self.logger.setLevel(15)
         elif kwargs['verbose'] == 0:
             self.logger.setLevel(30)
-            
+
+        
+        def extract(opt_name, key, pkey='inference'):
+            inf = model.ops[opt_name][pkey]
+
+            if hasattr(model, 'devices'):
+                inf = list(inf.values())[0]
+
+            return inf[key]
+
+
         self.run_op = {opt_name: [
-            model.ops[opt_name]['inference']['states'],
-            model.ops[opt_name]['losses'][0],
-            model.ops[opt_name]['inference']['values'],
-            model.ops[opt_name]['inference']['norms'],
+            #model.ops[opt_name]['inference']['states'],
+            #model.ops[opt_name]['losses'][0],
+            #model.ops[opt_name]['inference']['values'],
+            #model.ops[opt_name]['inference']['norms'],
+            extract(opt_name, 'states'),
+            extract(opt_name, 0, pkey='losses'),
+            extract(opt_name, 'values'),
+            extract(opt_name, 'norms'),
             model.ops[opt_name]['summaries']
         ] for opt_name in model.optimizees}
             

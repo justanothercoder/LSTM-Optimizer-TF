@@ -1,7 +1,3 @@
-"""
-    This module contains various plotting functions.
-"""
-
 import os
 import math
 import numpy as np
@@ -16,10 +12,6 @@ import util.paths as paths
 
 
 def save_figure(fig, filename):
-    """
-        This function saves figure to files.
-        First it saves to .svg and then converts to .png.
-    """
     filename = str(filename)
     fig.savefig('{filename}.svg'.format(filename=filename), format='svg')
     os.system('convert {filename}.svg {filename}.png'.format(filename=filename))
@@ -27,7 +19,6 @@ def save_figure(fig, filename):
 
 
 def extract_test_run_info(rets, flags, key, normalize):
-    """This function extracts function values, gradient norms and learning rates."""
     vals = []
     for ret in rets:
         value = ret[key]
@@ -50,8 +41,6 @@ def extract_test_run_info(rets, flags, key, normalize):
 
 
 def setup_test_plot(flags):
-    """This function setups plot."""
-
     nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr)
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
@@ -80,7 +69,6 @@ def setup_test_plot(flags):
 
 
 def plot(ax, vals, name, logscale=True, with_moving=False):
-    """This function plots values on ax."""
     alpha = 1.0
     if with_moving:
         alpha = 0.3
@@ -103,7 +91,6 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
 
 
 def plot_test_results(flags, experiment_path, data):
-    """This function plots tests results."""
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
@@ -121,10 +108,10 @@ def plot_test_results(flags, experiment_path, data):
         if trainable_opt and flags.plot_lr:
             p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
             axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
-                                                        lrs_mean + lrs_std,
-                                                        lrs_mean  - lrs_std,
-                                                        alpha=0.3,
-                                                        facecolor=p[-1].get_color())
+                                                         lrs_mean + lrs_std,
+                                                         lrs_mean  - lrs_std,
+                                                         alpha=0.3,
+                                                         facecolor=p[-1].get_color())
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
@@ -137,7 +124,6 @@ def plot_test_results(flags, experiment_path, data):
 
 
 def plot_training_results(flags, experiment_path, results):
-    """This function plots training results."""
     by_opt = lambda ret: ret['optimizee_name']
     train_results, test_results = results
 
@@ -194,8 +180,8 @@ def plot_training_results(flags, experiment_path, results):
     save_figure(fig, filename=experiment_path / 'training')
 
 
+#pylint: disable=unused-argument
 def plot_cv_results(flags, experiment_path, data):
-    """This function plots validation results."""
     data = data['results']
     keys = data['keys']
 
@@ -231,13 +217,12 @@ def run_plot_test(flags):
         if flags.mode == 'many':
             flags.compare_with = flags.compare_with or 'momentum'
             prefix += '_' + flags.compare_with
-    
+
         data = util.load_results(experiment_path, prefix=prefix)
         plot_test_results(flags, experiment_path, data)
 
 
 def run_plot(flags):
-    """This function handles command-line arguments and runs plotting."""
     if flags.phase == 'test':
         run_plot_test(flags)
         return

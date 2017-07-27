@@ -1,8 +1,3 @@
-"""
-    This module defines basic model which defines structure of optimizer.
-"""
-
-from collections import defaultdict
 import time
 import os
 import pathlib
@@ -14,9 +9,6 @@ import yellowfin
 
 
 class BasicModel:
-    """This class defines basic model."""
-    # pylint: disable=too-many-instance-attributes
-
     def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None, debug=False):
         self.bid = 0
         self.name = name
@@ -28,14 +20,14 @@ class BasicModel:
 
 
     def build_inputs(self):
-        x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
-        return [x]
+        self.x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
+        return [self.x]
 
 
     def build_initial_state(self):
         return self.input_state
 
-    
+
     def build_pre(self):
         self.loglr = tf.get_variable('lr', [], initializer=tf.constant_initializer(0))
 
@@ -57,16 +49,16 @@ class BasicModel:
             self.initial_state = self.build_initial_state()
 
             for opt_name, optimizee in optimizees.items():
-                with tf.variable_scope('inference_scope') as inf_scope:
+                with tf.variable_scope('inference_scope'):
                     inference = self.inference(optimizee, self.input_state, n_bptt_steps)
-                    
+
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
-                
+
                 ops[opt_name] = {
                     'inference': inference,
                     'losses': losses,
                 }
-                
+
                 #if not scope.reuse:
                 #    scope.reuse_variables()
 
@@ -127,7 +119,7 @@ class BasicModel:
         states = tf.stack([s[-1] for s in inference['states']])
 
         losses = []
-        
+
         if loss_type == 'log':
             loss = tf.reduce_mean(tf.log(values) - tf.log(values[:1]))
 
@@ -135,13 +127,13 @@ class BasicModel:
             losses.append(lr_loss)
 
         elif loss_type == 'sum':
-            loss = tf.reduce_mean(fxs)
+            loss = tf.reduce_mean(values)
         else:
-            loss = fxs[-1]
+            loss = values[-1]
 
         reg_loss = tf.add_n([
-            lambd_l1 * tf.norm(v, ord=1) 
-            for v in tf.trainable_variables() 
+            lambd_l1 * tf.norm(v, ord=1)
+            for v in tf.trainable_variables()
             if 'bias' not in v.name
         ])
         losses.append(reg_loss)
@@ -184,6 +176,7 @@ class BasicModel:
 
 
     def summary(self, ops):
+        #pylint: disable=unused-argument
         summaries = []
         return summaries
 
@@ -226,15 +219,12 @@ class BasicModel:
 
 
     def log(self, message, verbosity, level=0):
-        """logs message"""
         if verbosity <= self.verbose:
             message = '\t' * level + message
             print(message)
 
 
     def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
-        #pylint: disable=too-many-arguments
-        """Runs testing"""
         self.restore(eid)
         self.verbose = verbose
 
@@ -258,8 +248,6 @@ class BasicModel:
 
 
     def test_one_iteration(self, n_steps, opt_name):
-        #pylint: disable=too-many-locals
-        """Runs test on one batch"""
         self.bid += 1
         session = tf.get_default_session()
 
@@ -277,19 +265,29 @@ class BasicModel:
         lrs = []
         norms = []
 
+        def extract(opt_name, key, pkey='inference'):
+            inf = self.ops[opt_name][pkey]
+
+            if hasattr(self, 'devices'):
+                inf = list(inf.values())[0]
+
+            return inf[key]
+
+        run_op = [
+            extract(opt_name, 'states'),
+            extract(opt_name, 0, pkey='losses'),
+            extract(opt_name, 'values'),
+            extract(opt_name, 'norms'),
+            self.ops[opt_name]['summaries']
+        ]
+
+
         for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
-
-            states, loss, fx, g_norm, summaries_str = session.run([
-                self.ops[opt_name]['inference']['states'],
-                self.ops[opt_name]['losses'][0],
-                self.ops[opt_name]['inference']['values'],
-                self.ops[opt_name]['inference']['norms'],
-                self.ops[opt_name]['summaries']
-            ], feed_dict=feed_dict)
-
+ 
+            states, loss, fx, g_norm, summaries_str = session.run(run_op, feed_dict=feed_dict)
             state = states[-1]
 
             losses.append(loss)
@@ -318,9 +316,6 @@ class BasicModel:
               batch_size=100, n_steps=20,
               train_lr=1e-2, momentum=0.9,
               eid=0, test=True, verbose=1):
-        #pylint: disable=too-many-arguments
-        #pylint: disable=too-many-locals
-        """Runs training."""
         self.verbose = verbose
         self.lr = train_lr
         self.mu = momentum
@@ -397,8 +392,6 @@ class BasicModel:
 
 
     def train_one_iteration(self, n_steps, batch_size=1):
-        #pylint: disable=too-many-locals
-        """Runs training on one batch"""
         self.bid += 1
         session = tf.get_default_session()
 
@@ -416,7 +409,21 @@ class BasicModel:
 
         self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
 
-        dev = self.devices[0]
+        def extract(opt_name, key, pkey='inference'):
+            inf = self.ops[opt_name][pkey]
+
+            if hasattr(self, 'devices'):
+                inf = list(inf.values())[0]
+
+            return inf[key]
+
+        run_op = [
+                extract(opt_name, 'states'),
+                extract(opt_name, 0, pkey='losses'),
+                extract(opt_name, 'values'),
+                extract(opt_name, 'norms'),
+                self.ops[opt_name]['summaries']
+            ]
 
         for i in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
@@ -427,18 +434,7 @@ class BasicModel:
                 self.momentum: self.mu,
             })
 
-            #_, state, loss, fx, summaries_str = session.run([
-            #    self.apply_gradients[opt_name],
-            #    self.states[opt_name][-1],
-            #    self.loss[opt_name], self.fxs[opt_name], self.summaries[opt_name]
-            #], feed_dict=feed_dict)
-            _, state, loss, fx, summaries_str = session.run([
-                self.apply_gradients[opt_name],
-                self.states[opt_name][dev][-1],
-                self.loss[opt_name][dev],
-                self.fxs[opt_name][dev],
-                self.summaries[opt_name]
-            ], feed_dict=feed_dict)
+            _, state, loss, fx, summaries_str = session.run(run_op, feed_dict=feed_dict)
 
             if i == 0:
                 #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)

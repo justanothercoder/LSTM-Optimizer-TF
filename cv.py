@@ -1,8 +1,3 @@
-"""
-    This module defines several functions which perform parameter tuning
-    using validation set.
-"""
-
 import time
 import json
 import itertools
@@ -18,7 +13,6 @@ import util.tf_utils as tf_utils
 
 
 def get_score(rets):
-    """This function computes score given the results of testing."""
     by_opt = lambda ret: ret['optimizee_name']
     splits, opt_names = util.split_list(rets, by_opt)
 
@@ -32,7 +26,6 @@ def get_score(rets):
 
 
 def train_opt(opt, flags):
-    """This function runs training of optimizer given flags."""
     if not isinstance(flags, dict):
         flags = vars(flags)
 
@@ -59,10 +52,6 @@ def train_opt(opt, flags):
 
 
 def test_configuration(opt, optimizees, flags):
-    """
-        This function runs testing of optimizer with given flags.
-        Returns results and time of execution.
-    """
     test_start_time = time.time()
 
     test_rets = []
@@ -79,7 +68,6 @@ def test_configuration(opt, optimizees, flags):
 
 
 def make_opt(flags, optimizees, paths_, val_hash, devices=None):
-    """Initializes optimizer with given configuration."""
     opt = util.load_opt(paths_['model'], paths_['experiment'])
     opt.snapshots_path = paths_['snapshots'] / '{}.snapshot'.format(val_hash)
 
@@ -98,7 +86,6 @@ def make_opt(flags, optimizees, paths_, val_hash, devices=None):
 
 
 def get_paths(flags):
-    """Shortcut to get all needed paths from flags"""
     model_path = paths.model_path(flags.name)
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
     snapshots_path = paths.snapshots_path(experiment_path)
@@ -111,10 +98,6 @@ def get_paths(flags):
 
 def process_configuration(flags, optimizees, keys, val, results):
     #pylint: disable=too-many-locals
-    """
-        This function makes optimizer, trains it, tests and returns various
-        characteristics.
-    """
     mapping = dict(zip(keys, val))
 
     configuration = vars(flags)
@@ -149,18 +132,15 @@ def process_configuration(flags, optimizees, keys, val, results):
 
 
 def exhaustive_sampler(values):
-    """Samples all combinations of values."""
     yield from itertools.product(*values)
 
 
 def random_sampler(values, repeat):
-    """Samples random combinations of values."""
     yield from util.random_product(*values, repeat=repeat)
 
 
 @tf_utils.with_tf_graph
 def cv_iteration(flags, keys, val, results):
-    """Runs one iteration of cv"""
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
@@ -173,7 +153,6 @@ def cv_iteration(flags, keys, val, results):
 
 
 def abstract_cv(params, flags, sampler):
-    """Performs sampling of configurations and computes scores."""
 
     keys = params.keys()
     values = params.values()
@@ -207,23 +186,19 @@ def abstract_cv(params, flags, sampler):
 
 
 def grid_cv(params, flags):
-    """Performs exhaustive grid search over parameters."""
     return abstract_cv(params, flags, exhaustive_sampler)
 
 
 def random_cv(params, flags, num_tries=5):
-    """Performs random grid search over parameters."""
     sampler = lambda a: random_sampler(a, num_tries)
     return abstract_cv(params, flags, sampler)
 
 
 def bayesian_cv(*_):
-    """Performs bayesian cv."""
     raise NotImplementedError
 
 
 def run_cv(flags):
-    """Performs parameter tuning."""
     with open(flags.config, 'r') as conf:
         params = json.load(conf)
         params = OrderedDict(params)

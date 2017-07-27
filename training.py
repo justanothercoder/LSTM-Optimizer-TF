@@ -1,10 +1,4 @@
-"""
-This module defines run_train function which setups everything for training
-of the model.
-"""
-
 import re
-import inspect
 import tensorflow as tf
 import optimizees as optim
 
@@ -16,7 +10,6 @@ from opts import model_trainer, distributed
 
 
 def save_train_config(flags, experiment_path):
-    """This function dumps training config to directory where model lies."""
     training_options = {
         'batch_size', 'enable_random_scaling', 'loss_type',
         'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
@@ -27,7 +20,6 @@ def save_train_config(flags, experiment_path):
 
 
 def will_overwrite_snapshots(snapshots_path, eid):
-    """This function checks whether snapshots will be overwritten by running training."""
     if not snapshots_path.exists():
         return False
 
@@ -46,7 +38,6 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
 
 def setup_experiment(flags):
-    """Setups directories and loads optimizer"""
     model_path = paths.model_path(flags.name)
     experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'train')
     snapshots_path = paths.snapshots_path(experiment_path)
@@ -68,7 +59,6 @@ def setup_experiment(flags):
 
 @tf_utils.with_tf_graph
 def training(flags, opt):
-    """This function runs training of optimizer."""
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=True,
                                       random_scale=flags.enable_random_scaling,
@@ -77,7 +67,7 @@ def training(flags, opt):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt = distributed.DistributedModel(opt, tf_utils.get_devices(flags))
+    opt = distributed.distribute(opt, tf_utils.get_devices(flags))
 
     kwargs = util.get_kwargs(opt.build, flags)
     opt.build(optimizees, **kwargs)
@@ -88,22 +78,21 @@ def training(flags, opt):
     }
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-    
+
     trainer = model_trainer.Trainer()
     try:
         kwargs = util.get_kwargs(trainer.train, flags)
         rets = trainer.setup_and_run(opt, 'train', session=session, **kwargs)
-    except tf.errors.InvalidArgumentError as e:
-        print("Op: ", e.op)
-        print("Input: ", e.op.inputs)
-        print(e)
+    except tf.errors.InvalidArgumentError as error:
+        print("Op: ", error.op)
+        print("Input: ", error.op.inputs)
+        print(error)
         raise
 
     return rets
 
 
 def run_train(flags):
-    """Entry-point function: setups and runs experiment."""
     out = setup_experiment(flags)
     if out is None:
         return

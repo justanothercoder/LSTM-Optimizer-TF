@@ -1,5 +1,3 @@
-"""This module defines various testing functions."""
-
 from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
@@ -16,10 +14,6 @@ import optimizees as optim
 
 
 def get_tests(test_problem, compare_with):
-    """
-        This function returns set of non-trainable optimizees
-        to compare with on different experiments.
-    """
     def make_opt(name, learning_rate):
         #pylint: disable=missing-docstring
         return {
@@ -52,7 +46,6 @@ def get_tests(test_problem, compare_with):
 
 
 def run_cv_testing(opt, flags):
-    """Runs testing of different snapshots of LSTM optimizer."""
     results = OrderedDict()
     random_state = np.random.get_state()
 
@@ -70,7 +63,6 @@ def run_cv_testing(opt, flags):
 
 
 def run_many_testing(opt, s_opts, flags):
-    """Runs testing of LSTM with non-trainable optimizers."""
     results = OrderedDict()
     random_state = np.random.get_state()
 
@@ -83,13 +75,11 @@ def run_many_testing(opt, s_opts, flags):
 
 
 def save_test_config(flags, experiment_path):
-    """This function dumps testing config to directory where model lies."""
     testing_options = {'eid', 'n_batches', 'n_steps', 'verbose'}
     util.dump_config(experiment_path / 'config', flags, testing_options)
 
 
 def setup_experiment(flags):
-    """Setups directories and loads optimizer"""
     if flags.eid == 0:
         raise ValueError("eid must be > 0 if mode is testing")
 
@@ -116,11 +106,10 @@ def setup_experiment(flags):
 
 @tf_utils.with_tf_graph
 def testing(flags, opt, s_opts, optimizees):
-    """Runs testing"""
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt = distributed.DistributedModel(opt, tf_utils.get_devices(flags))
+    opt = distributed.distribute(opt, tf_utils.get_devices(flags))
     opt.build(optimizees, inference_only=True)
 
     for i, s_opt in enumerate(s_opts):
@@ -140,7 +129,6 @@ def testing(flags, opt, s_opts, optimizees):
 
 
 def run_test(flags):
-    """This function runs testing according to flags."""
     if flags.problems is None:
         flags.problems = [
             'rosenbrock', 'quadratic',

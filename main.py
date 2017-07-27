@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-"""
-This script is the entry point of program.
-It builds and runs parser on passed command-line arguments.
-Also it handles some environemnt variables.
-"""
 import pprint
 import os
 import cli
