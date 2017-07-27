@@ -43,18 +43,17 @@ class Trainer:
         elif kwargs['verbose'] == 0:
             self.logger.setLevel(30)
             
-        dev = model.devices[0]
         self.run_op = {opt_name: [
-            model.states[opt_name][dev],
-            model.loss[opt_name][dev],
-            model.fxs[opt_name][dev],
-            model.norms[opt_name][dev],
-            model.summaries[opt_name]
+            model.ops[opt_name]['inference']['states'],
+            model.ops[opt_name]['losses'][0],
+            model.ops[opt_name]['inference']['values'],
+            model.ops[opt_name]['inference']['norms'],
+            model.ops[opt_name]['summaries']
         ] for opt_name in model.optimizees}
             
         if mode == 'train':
             for opt_name in model.optimizees:
-                self.run_op[opt_name].append(model.apply_gradients[opt_name])
+                self.run_op[opt_name].append(model.ops[opt_name]['train_op'])
 
 
         getattr(self, mode)(**kwargs)
@@ -83,7 +82,7 @@ class Trainer:
               train_lr=1e-4, momentum=0.9,
               eid=0, test=True, verbose=1):
 
-        self.logger.info("Training model: {}".format(self.model.name))
+        self.logger.info("Training model: {}".format(self.model.name), extra={'epoch': 0, 'batch': 0})
 
         self.lr = train_lr
         self.mu = momentum

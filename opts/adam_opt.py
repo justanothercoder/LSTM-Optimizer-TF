@@ -12,29 +12,31 @@ class AdamOpt(basic_model.BasicModel):
         self.eps = eps
     
     
-    def _build_input(self):
+    def build_inputs(self):
         self.x = tf.placeholder(tf.float32, [None, None], name='x')
         self.m = tf.placeholder(tf.float32, [None, None], name='v')
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
         self.b1t = tf.placeholder(tf.float32, [None], name='beta1')
         self.b2t = tf.placeholder(tf.float32, [None], name='beta1')
         self.input_state = [self.x, self.m, self.v, self.b1t, self.b2t]
+        return self.input_state
     
     
-    def _build_initial_state(self):
+    def build_initial_state(self):
         x = self.x
         m = tf.zeros(tf.shape(x))
         v = tf.zeros(tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
         b2t = tf.ones([tf.shape(x)[0]])
         self.initial_state = [x, m, v, b1t, b2t]
+        return self.initial_state
 
 
-    def _build_pre(self):
+    def build_pre(self):
         pass
         
 
-    def _iter(self, f, i, state):
+    def step(self, f, i, state):
         x, m, v, b1t, b2t = state
 
         fx, g, g_norm = self._fg(f, x, i)

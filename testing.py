@@ -4,6 +4,7 @@ from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
 
+from opts import distributed
 from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
@@ -119,10 +120,13 @@ def testing(flags, opt, s_opts, optimizees):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+    opt = distributed.DistributedModel(opt, tf_utils.get_devices(flags))
+    opt.build(optimizees, inference_only=True)
 
-    for s_opt in s_opts:
-        s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+    for i, s_opt in enumerate(s_opts):
+        #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
+        with tf.variable_scope('s_opt_{}'.format(i)):
+            s_opt.build(optimizees, inference_only=True)
 
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer())

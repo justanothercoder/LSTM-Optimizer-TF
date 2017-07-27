@@ -8,15 +8,15 @@ class SgdOpt(basic_model.BasicModel):
         self.lr = lr
 
 
-    def _build_pre(self):
+    def build_pre(self):
         pass
         
-    def _build_input(self):
-        self.x = tf.placeholder(tf.float32, shape=[None, None])
-        self.input_state = [self.x]
+    def build_inputs(self):
+        x = tf.placeholder(tf.float32, shape=[None, None])
+        return [x]
 
 
-    def _iter(self, f, i, state):
+    def step(self, f, i, state):
         x, = state
 
         fx, g, g_norm = self._fg(f, x, i)

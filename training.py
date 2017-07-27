@@ -12,7 +12,7 @@ import util
 import util.paths as paths
 import util.tf_utils as tf_utils
 
-from opts import model_trainer
+from opts import model_trainer, distributed
 
 
 def save_train_config(flags, experiment_path):
@@ -77,13 +77,10 @@ def training(flags, opt):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt.build(optimizees,
-              n_bptt_steps=flags.n_bptt_steps,
-              loss_type=flags.loss_type,
-              optimizer=flags.optimizer,
-              lambd=flags.lambd,
-              lambd_l1=flags.lambd_l1,
-              devices=tf_utils.get_devices(flags))
+    opt = distributed.DistributedModel(opt, tf_utils.get_devices(flags))
+
+    kwargs = util.get_kwargs(opt.build, flags)
+    opt.build(optimizees, **kwargs)
 
     feed_dict = {
         opt.train_lr: flags.train_lr,

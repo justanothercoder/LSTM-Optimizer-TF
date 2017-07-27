@@ -43,7 +43,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.use_both = use_both
 
 
-    def _build_pre(self):
+    def build_pre(self):
         def make_cell(num_units, residual):
             if self.rnn_type == 'gru':
                 print("GRU")
@@ -63,7 +63,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.lstm = MultiRNNCell([make_cell(self.num_units, self.residual and i > 0) for i in range(self.num_layers)])
 
 
-    def _build_input(self):
+    def build_inputs(self):
         self.x = tf.placeholder(tf.float32, [None, None], name='x') # shape = (n_functions, n_coords)
         self.m = tf.placeholder(tf.float32, [None, None], name='m')
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
@@ -89,8 +89,10 @@ class LSTMOpt(basic_model.BasicModel):
             self.v_norm = tf.placeholder(tf.float32, [None, None], name='v')
             self.input_state += [self.m_norm, self.v_norm]
 
+        return self.input_state
+
     
-    def _build_initial_state(self):
+    def build_initial_state(self):
         x = self.x
         m = tf.zeros(shape=tf.shape(x))
         v = tf.zeros(shape=tf.shape(x))
@@ -112,8 +114,10 @@ class LSTMOpt(basic_model.BasicModel):
             v_norm = tf.zeros(shape=tf.shape(x))
             self.initial_state += [m_norm, v_norm]
 
+        return self.initial_state
 
-    def _iter(self, f, i, state):
+
+    def step(self, f, i, state):
         if self.use_both:
             b1t, b2t, x, m, v, lstm_state, loglr, m_norm, v_norm = state
         else:
@@ -159,7 +163,7 @@ class LSTMOpt(basic_model.BasicModel):
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
         last, lstm_state = self.lstm(prep, lstm_state)
 
-        last = tf.layers.dense(last, 2, use_bias=False, name=self.loop_scope.name) #, kernel_initializer=tf.truncated_normal_initializer(0.1))
+        last = tf.layers.dense(last, 2, use_bias=False, name=self.scope.name) #, kernel_initializer=tf.truncated_normal_initializer(0.1))
         #d, loglr = tf.unstack(last, axis=1)
 
         d, loglr_add = tf.unstack(last, axis=1)
