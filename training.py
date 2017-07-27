@@ -4,6 +4,7 @@ of the model.
 """
 
 import re
+import inspect
 import tensorflow as tf
 import optimizees as optim
 
@@ -90,27 +91,11 @@ def training(flags, opt):
     }
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
-
-    #rets = opt.train(n_epochs=flags.n_epochs,
-    #                 n_batches=flags.n_batches,
-    #                 batch_size=flags.batch_size,
-    #                 n_steps=flags.n_steps,
-    #                 train_lr=flags.train_lr,
-    #                 momentum=flags.momentum,
-    #                 eid=flags.eid,
-    #                 verbose=flags.verbose)
     
     trainer = model_trainer.Trainer()
     try:
-        rets = trainer.setup_and_run(opt, 'train', session=session,
-                                     n_epochs=flags.n_epochs,
-                                     n_batches=flags.n_batches,
-                                     batch_size=flags.batch_size,
-                                     n_steps=flags.n_steps,
-                                     train_lr=flags.train_lr,
-                                     momentum=flags.momentum,
-                                     eid=flags.eid,
-                                     verbose=flags.verbose)
+        kwargs = util.get_kwargs(trainer.train, flags)
+        rets = trainer.setup_and_run(opt, 'train', session=session, **kwargs)
     except tf.errors.InvalidArgumentError as e:
         print("Op: ", e.op)
         print("Input: ", e.op.inputs)
