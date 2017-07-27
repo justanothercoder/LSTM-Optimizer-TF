@@ -1,3 +1,4 @@
+import inspect
 import logging
 import functools
 import time
@@ -5,6 +6,17 @@ import random
 import json
 import pickle
 from . import paths
+
+
+def get_kwargs(func, flags):
+    if not isinstance(flags, dict):
+        flags = vars(flags)
+
+    accepted_kwargs = set(inspect.signature(func).parameters.keys())
+    print("Function: ", func)
+    print("Kwargs: ", accepted_kwargs)
+    kwargs = {k: v for k, v in flags.items() if k in accepted_kwargs}
+    return kwargs
 
 
 def random_product(*args, repeat=1):
