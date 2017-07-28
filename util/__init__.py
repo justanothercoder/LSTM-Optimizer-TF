@@ -13,8 +13,6 @@ def get_kwargs(func, flags):
         flags = vars(flags)
 
     accepted_kwargs = set(inspect.signature(func).parameters.keys())
-    print("Function: ", func)
-    print("Kwargs: ", accepted_kwargs)
     kwargs = {k: v for k, v in flags.items() if k in accepted_kwargs}
     return kwargs
 

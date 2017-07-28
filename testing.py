@@ -109,7 +109,6 @@ def testing(flags, opt, s_opts, optimizees):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt = distributed.distribute(opt, tf_utils.get_devices(flags))
     opt.build(optimizees, inference_only=True)
 
     for i, s_opt in enumerate(s_opts):
@@ -138,6 +137,7 @@ def run_test(flags):
         ]
 
     experiment_path, opt, optimizees = setup_experiment(flags)
+    opt = distributed.distribute(opt, tf_utils.get_devices(flags))
 
     for opt_name, optimizee in optimizees.items():
         prefix = opt_name + "_" + flags.mode

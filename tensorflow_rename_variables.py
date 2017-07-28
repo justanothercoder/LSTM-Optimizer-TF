@@ -1,3 +1,6 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys, getopt
 
 import tensorflow as tf
@@ -12,6 +15,7 @@ def rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run):
         for var_name, _ in tf.contrib.framework.list_variables(checkpoint_dir):
             # Load the variable
             var = tf.contrib.framework.load_variable(checkpoint_dir, var_name)
+            print(var_name)
 
             # Set the new name
             new_name = var_name
@@ -20,13 +24,15 @@ def rename(checkpoint_dir, replace_from, replace_to, add_prefix, dry_run):
             if add_prefix:
                 new_name = add_prefix + new_name
 
-            if new_name == var_name:
-                continue
+            #if new_name == var_name:
+            #    continue
 
             if dry_run:
-                print('%s would be renamed to %s.' % (var_name, new_name))
+                if var_name != new_name:
+                    print('%s would be renamed to %s.' % (var_name, new_name))
             else:
-                print('Renaming %s to %s.' % (var_name, new_name))
+                if var_name != new_name:
+                    print('Renaming %s to %s.' % (var_name, new_name))
                 # Rename the variable
                 var = tf.Variable(var, name=new_name)
 

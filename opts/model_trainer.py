@@ -71,7 +71,7 @@ class Trainer:
                 self.run_op[opt_name].append(model.ops[opt_name]['train_op'])
 
 
-        getattr(self, mode)(**kwargs)
+        return getattr(self, mode)(**kwargs)
 
 
     def test(self, eid, n_batches, n_steps=20, opt_name=None):
