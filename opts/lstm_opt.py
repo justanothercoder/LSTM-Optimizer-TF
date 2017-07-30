@@ -190,4 +190,7 @@ class LSTMOpt(basic_model.BasicModel):
         #x += tf.Print(d * lr, [tf.norm(d * lr)], message='move: ')
         x += d * lr
 
-        return [b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm
+        if self.use_both:
+            return [b1t, b2t, x, m, v, lstm_state, loglr, m_norm, v_norm], fx, g_norm
+        else:
+            return [b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm

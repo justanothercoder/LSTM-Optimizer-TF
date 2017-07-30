@@ -23,11 +23,11 @@ def distribute(model, devices):
             return losses
 
 
-        def grads(self, optimizer, losses):
+        def grads(self, optimizer, losses, **kwargs):
             tower_grads = []
             for dev in self.devices:
                 with tf.device(dev):
-                    grads = super(DistributedModel, self).grads(optimizer, losses[dev])
+                    grads = super(DistributedModel, self).grads(optimizer, losses[dev], **kwargs)
                     tower_grads.append(grads)
 
             average_grads = []

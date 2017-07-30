@@ -34,7 +34,8 @@ class BasicModel:
 
     def build(self, optimizees, n_bptt_steps=20,
               loss_type='log', optimizer='adam',
-              lambd=0., lambd_l1=0., inference_only=False):
+              lambd=0., lambd_l1=0., inference_only=False,
+              normalize_lstm_grads=False, grad_clip=1.):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
@@ -59,24 +60,28 @@ class BasicModel:
                     'losses': losses,
                 }
 
-                #if not scope.reuse:
-                #    scope.reuse_variables()
+                if not scope.reuse:
+                    scope.reuse_variables()
 
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
+        with tf.variable_scope('opt_scope', reuse=False) as scope:
             if not inference_only and self.all_vars:
                 self.optimizer = self.build_optimizer(optimizer)
 
                 for opt_name in optimizees:
                     losses = ops[opt_name]['losses']
 
-                    grads = self.grads(self.optimizer, losses)
+                    grads = self.grads(self.optimizer, losses, normalize_lstm_grads=normalize_lstm_grads, grad_clip=grad_clip)
                     train_op = self.train_op(self.optimizer, grads)
 
                     ops[opt_name].update({
                         'grads': grads,
                         'train_op': train_op
                     })
+
+                    if not scope.reuse:
+                        scope.reuse_variables()
 
             if self.save_tf_data:
                 self.train_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/train'), self.session.graph)
@@ -159,9 +164,18 @@ class BasicModel:
         return optimizer
 
 
-    def grads(self, optimizer, losses):
+    def grads(self, optimizer, losses, normalize_lstm_grads=False, grad_clip=1.):
         loss = tf.add_n(losses)
         grads = optimizer.compute_gradients(loss, var_list=self.all_vars)
+
+        if normalize_lstm_grads:
+            print("Using normalized meta-grads")
+            norm = tf.global_norm(grads)
+            grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
+
+        grads, _ = tf.clip_by_global_norm([g for g, _ in grads], grad_clip)
+        grads = list(zip(grads, self.all_vars))
+
         return grads
 
 

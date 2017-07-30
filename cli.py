@@ -8,7 +8,8 @@ problems = [
     'digits_classifier_relu', 'digits_classifier_relu_2',
     'mnist_classifier',
     'conv_digits_classifier', 'conv_digits_classifier_2',
-    'beale', 'booth', 'matyas', 'stoch_only'
+    'beale', 'booth', 'matyas', 'stoch_only',
+    'digits_classifier_3', 'digits_classifier_relu_3',
 ]
 
 
@@ -20,8 +21,11 @@ def make_train_parser(parser):
                         default='adam', choices=['adam', 'momentum', 'yellowfin'],
                         help='optimizer to train LSTM')
 
+    parser.add_argument('--normalize_lstm_grads', action='store_true')
+
     parser.add_argument('--train_lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
+    parser.add_argument('--grad_clip', type=float, default=1.)
 
     parser.add_argument('--loss_type', type=str,
                         choices=['log', 'sum', 'last'], default='log',
