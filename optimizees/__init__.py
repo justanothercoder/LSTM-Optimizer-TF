@@ -28,7 +28,9 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'digits_classifier_relu_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
         'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
         'conv_digits_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='digits'),
-        'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits')
+        'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits'),
+        'digits_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits'),
+        'digits_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([

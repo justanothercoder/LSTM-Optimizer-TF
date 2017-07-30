@@ -27,7 +27,8 @@ def get_tests(test_problem, compare_with):
         'stoch_logreg', 'stoch_linear',
         'digits_classifier', 'mnist_classifier', 'digits_classifier_2',
         'digits_classifier_relu', 'digits_classifier_relu_2',
-        'conv_digits_classifier', 'conv_digits_classifier_2'
+        'conv_digits_classifier', 'conv_digits_classifier_2',
+        'digits_classifier_3', 'digits_classifier_relu_3',
     }
 
     opts = {'sgd', 'momentum', 'adam'}
@@ -75,7 +76,7 @@ def run_many_testing(opt, s_opts, flags):
 
 
 def save_test_config(flags, experiment_path):
-    testing_options = {'eid', 'n_batches', 'n_steps', 'verbose'}
+    testing_options = {'eid', 'n_batches', 'n_steps', 'verbose', 'problems'}
     util.dump_config(experiment_path / 'config', flags, testing_options)
 
 
