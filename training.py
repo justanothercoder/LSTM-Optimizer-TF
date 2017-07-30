@@ -10,12 +10,11 @@ from opts import model_trainer, distributed
 
 
 def save_train_config(flags, experiment_path):
-    training_options = {
-        'batch_size', 'enable_random_scaling', 'loss_type',
-        'n_batches', 'n_bptt_steps', 'n_epochs', 'n_steps',
-        'optimizee', 'train_lr', 'momentum', 'optimizer', 'lambd',
-        'noisy_grad'
-    }
+    training_options = set(vars(flags.keys()))
+    
+    for k in {'name', 'experiment_name', 'gpu', 'cpu'}:
+        training_options.remove(k)
+
     util.dump_config(experiment_path / 'config', flags, training_options)
 
 
