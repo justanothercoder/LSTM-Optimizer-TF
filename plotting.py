@@ -220,12 +220,11 @@ def plot_cv_results(flags, experiment_path, data):
 
 
 def run_plot_test(flags):
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
+    experiment_path = paths.experiment_path(flags.name)
 
     for problem in flags.problems:
         prefix = problem + '_' + flags.mode
         if flags.mode == 'many':
-            flags.compare_with = flags.compare_with or 'momentum'
             prefix += '_' + flags.compare_with
 
         data = util.load_results(experiment_path, prefix=prefix)
@@ -237,12 +236,12 @@ def run_plot(flags):
         run_plot_test(flags)
         return
 
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, flags.phase)
-    data = util.load_results(experiment_path)
+    model_path = paths.model_path(flags.name)
+    data = util.load_results(model_path)
 
     plot_func = {
         'train': plot_training_results,
         'cv': plot_cv_results
     }[flags.phase]
 
-    plot_func(flags, experiment_path, data)
+    plot_func(flags, model_path, data)

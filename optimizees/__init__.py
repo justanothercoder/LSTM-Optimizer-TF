@@ -11,6 +11,18 @@ from .conv_classifier import ConvClassifier
 
 from . import transformers
 
+problems = [
+    'quadratic', 'rosenbrock', 'logreg',
+    'stoch_logreg', 'stoch_linear',
+    'mixed', 'mixed_stoch', 'mixed_nonstoch',
+    'digits_classifier', 'digits_classifier_2',
+    'digits_classifier_relu', 'digits_classifier_relu_2',
+    'mnist_classifier',
+    'conv_digits_classifier', 'conv_digits_classifier_2',
+    'beale', 'booth', 'matyas', 'stoch_only',
+    'digits_classifier_3', 'digits_classifier_relu_3',
+]
+
 
 def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy_grad=False):
     optimizees = {
