@@ -21,7 +21,7 @@ class BasicModel:
 
     def build_inputs(self):
         self.x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
-        return [self.x]
+        return dict(x=self.x)
 
 
     def build_initial_state(self):
@@ -103,10 +103,11 @@ class BasicModel:
         scope = tf.get_variable_scope()
 
         for i in range(n_bptt_steps):
-            state, value, gradient_norm = self.step(optimizee.loss, i, state)
+            step_info = self.step(optimizee.loss, i, state)
+            state = step_info['state']
 
-            values.append(value)
-            norms.append(gradient_norm)
+            values.append(step_info['value'])
+            norms.append(step_info['gradient_norm'])
             states.append(state)
 
             if not scope.reuse:
@@ -121,15 +122,19 @@ class BasicModel:
 
     def loss(self, inference, lambd=0., lambd_l1=0., loss_type='log'):
         values = tf.stack(inference['values'])
-        states = tf.stack([s[-1] for s in inference['states']])
+        try:
+            states = tf.stack([s['loglr'] for s in inference['states']])
+        except:
+            states = None
 
         losses = []
 
         if loss_type == 'log':
             loss = tf.reduce_mean(tf.log(values) - tf.log(values[:1]))
 
-            lr_loss = -lambd * tf.reduce_mean(states - states[:1])
-            losses.append(lr_loss)
+            if states is not None:
+                lr_loss = -lambd * tf.reduce_mean(states - states[:1])
+                losses.append(lr_loss)
 
         elif loss_type == 'sum':
             loss = tf.reduce_mean(values)
@@ -298,7 +303,8 @@ class BasicModel:
 
         for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
-            feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
+            #feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
+            feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
  
             states, loss, fx, g_norm, summaries_str = session.run(run_op, feed_dict=feed_dict)
@@ -306,7 +312,7 @@ class BasicModel:
 
             losses.append(loss)
             fxs.extend(fx)
-            lrs.extend([s[-1] for s in states])
+            lrs.extend([s.get('loglr') for s in states])
             norms.extend(g_norm)
 
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
@@ -315,7 +321,10 @@ class BasicModel:
         #ret['loss'] = np.mean(losses)
         ret['loss'] = np.nanmean(losses)
         ret['fxs'] = np.array(fxs)
-        ret['lrs'] = np.array(lrs).mean(axis=1)
+        try:
+            ret['lrs'] = np.array(lrs).mean(axis=1)
+        except:
+            ret['lrs'] = None
         ret['norms'] = np.array(norms)
 
         if self.save_tf_data:
@@ -480,12 +489,19 @@ class BasicModel:
 
 
     def step(self, f, i, state):
-        x, = state
+        x = state['x']
 
-        fx, g, g_norm = self._fg(f, x, i)
+        value, gradient, gradient_norm = self._fg(f, x, i)
 
-        x -= tf.exp(self.loglr) * g
-        return [x], fx, g_norm
+        x -= tf.exp(self.loglr) * gradient
+        new_state = dict(x=x)
+        
+        return {
+            'state': new_state,
+            'value': value,
+            'gradient': gradient,
+            'gradient_norm': gradient_norm
+        }
 
 
     def restore(self, eid):

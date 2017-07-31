@@ -78,7 +78,7 @@ class UniformRandomScaling(optimizee.Optimizee):
 
 
 class ConcatAndSum(optimizee.Optimizee):
-    def __init__(self, optimizee_list, weighted=True):
+    def __init__(self, optimizee_list, weighted=False):
         self.optim_list = optimizee_list
         self.weighted = weighted
 

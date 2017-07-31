@@ -13,18 +13,23 @@ class SgdOpt(basic_model.BasicModel):
         
     def build_inputs(self):
         x = tf.placeholder(tf.float32, shape=[None, None])
-        return [x]
+        return dict(x=x)
 
 
     def step(self, f, i, state):
-        x, = state
+        x = state['x']
 
         fx, g, g_norm = self._fg(f, x, i)
         g = tf.stop_gradient(g)
 
         x -= self.lr * g
 
-        return [x], fx, g_norm
+        return {
+            'state': dict(x=x),
+            'value': fx,
+            'gradient': g,
+            'gradient_norm': g_norm
+        }
 
     
     def restore(self, eid):

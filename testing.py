@@ -53,9 +53,9 @@ def run_cv_testing(opt, flags):
     for eid in range(flags.start_eid, flags.eid + 1, flags.step):
         np.random.set_state(random_state)
 
-        kwargs = util.get_kwargs(optimizer.test, flags)
+        kwargs = util.get_kwargs(opt.test, flags)
         kwargs['eid'] = eid
-        rets = opt.test(eid=eid, **kwargs)
+        rets = opt.test(**kwargs)
 
         name = '{name}_{eid}'.format(name=flags.name, eid=eid)
         results[name] = rets

@@ -10,7 +10,7 @@ from opts import model_trainer, distributed
 
 
 def save_train_config(flags, experiment_path):
-    training_options = set(vars(flags.keys()))
+    training_options = set(vars(flags).keys())
     
     for k in {'name', 'experiment_name', 'gpu', 'cpu'}:
         training_options.remove(k)

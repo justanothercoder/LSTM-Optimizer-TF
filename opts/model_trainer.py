@@ -185,7 +185,8 @@ class Trainer:
 
         for i in range(n_steps // self.model.n_bptt_steps):
             feed_dict = optimizee_params
-            feed_dict.update({inp: init for inp, init in zip(self.model.input_state, state)})
+            #feed_dict.update({inp: init for inp, init in zip(self.model.input_state, state)})
+            feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
             feed_dict.update({
                 self.model.train_lr: self.lr,
@@ -197,7 +198,7 @@ class Trainer:
 
             losses.append(loss)
             fxs.extend(fx)
-            lrs.extend([s[-1] for s in states])
+            lrs.extend([s.get('loglr', 0) for s in states])
             norms.extend(g_norm)
 
         self.log("First function value: {}".format(fxs[0][0]), level=15)

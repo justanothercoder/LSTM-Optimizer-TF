@@ -12,14 +12,14 @@ class MomentumOpt(basic_model.BasicModel):
     def build_inputs(self):
         self.x = tf.placeholder(tf.float32, [None, None], name='x')
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
-        self.input_state = [self.x, self.v]
+        self.input_state = dict(x=self.x, v=self.v)
         return self.input_state
     
     
     def build_initial_state(self):
         x = self.x
         v = tf.zeros(shape=tf.shape(x))
-        self.initial_state = [x, v]
+        self.initial_state = dict(x=x, v=v)
         return self.initial_state
 
 
@@ -28,7 +28,7 @@ class MomentumOpt(basic_model.BasicModel):
         
 
     def step(self, f, i, state):
-        x, v = state
+        x, v = state['x'], state['v']
 
         fx, g, g_norm = self._fg(f, x, i)
         g = tf.stop_gradient(g)
@@ -36,7 +36,12 @@ class MomentumOpt(basic_model.BasicModel):
         v = self.mu * v - self.lr * g
         x += v
 
-        return [x, v], fx, g_norm
+        return {
+            'state': dict(x=x, v=v),
+            'value': fx,
+            'gradient': g,
+            'gradient_norm': g_norm
+        }
     
     
     def restore(self, eid):

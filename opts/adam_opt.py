@@ -18,7 +18,7 @@ class AdamOpt(basic_model.BasicModel):
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
         self.b1t = tf.placeholder(tf.float32, [None], name='beta1')
         self.b2t = tf.placeholder(tf.float32, [None], name='beta1')
-        self.input_state = [self.x, self.m, self.v, self.b1t, self.b2t]
+        self.input_state = dict(x=self.x, m=self.m, v=self.v, b1t=self.b1t, b2t=self.b2t)
         return self.input_state
     
     
@@ -28,7 +28,7 @@ class AdamOpt(basic_model.BasicModel):
         v = tf.zeros(tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
         b2t = tf.ones([tf.shape(x)[0]])
-        self.initial_state = [x, m, v, b1t, b2t]
+        self.initial_state = dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t)
         return self.initial_state
 
 
@@ -37,7 +37,7 @@ class AdamOpt(basic_model.BasicModel):
         
 
     def step(self, f, i, state):
-        x, m, v, b1t, b2t = state
+        x, m, v, b1t, b2t = tuple(state[name] for name in ['x', 'm', 'v', 'b1t', 'b2t'])
 
         fx, g, g_norm = self._fg(f, x, i)
         g = tf.stop_gradient(g)
@@ -52,7 +52,13 @@ class AdamOpt(basic_model.BasicModel):
         s = self.lr * a * m / (tf.sqrt(v) + self.eps)
 
         x -= s
-        return [x, m, v, b1t, b2t], fx, g_norm
+
+        return {
+            'state': dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t),
+            'value': fx,
+            'gradient': g,
+            'gradient_norm': g_norm
+        }
     
     
     def restore(self, eid):

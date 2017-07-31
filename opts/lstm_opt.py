@@ -82,12 +82,20 @@ class LSTMOpt(basic_model.BasicModel):
                 for size in self.lstm.state_size
             )
 
-        self.input_state = [self.b1t, self.b2t, self.x, self.m, self.v, self.lstm_state, self.loglr]
+        self.input_state = {
+            'b1t': self.b1t,
+            'b2t': self.b2t,
+            'x': self.x,
+            'm': self.m,
+            'v': self.v,
+            'lstm_state': self.lstm_state,
+            'loglr': self.loglr
+        }
 
         if self.use_both:
             self.m_norm = tf.placeholder(tf.float32, [None, None], name='m')
             self.v_norm = tf.placeholder(tf.float32, [None, None], name='v')
-            self.input_state += [self.m_norm, self.v_norm]
+            self.input_state.update(m_norm=self.m_norm, v_norm=self.v_norm)
 
         return self.input_state
 
@@ -107,21 +115,30 @@ class LSTMOpt(basic_model.BasicModel):
         #loglr = tf.zeros(shape=tf.shape(x))
         loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2))
 
-        self.initial_state = [b1t, b2t, x, m, v, lstm_state, loglr]
+        self.initial_state = {
+            'b1t': b1t,
+            'b2t': b2t,
+            'x': x,
+            'm': m,
+            'v': v,
+            'lstm_state': lstm_state,
+            'loglr': loglr
+        }
 
         if self.use_both:
             m_norm = tf.zeros(shape=tf.shape(x))
             v_norm = tf.zeros(shape=tf.shape(x))
-            self.initial_state += [m_norm, v_norm]
+            self.initial_state.update(m_norm=m_norm, v_norm=v_norm)
 
         return self.initial_state
 
 
     def step(self, f, i, state):
+        b1t, b2t, x, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'x', 'm', 'v', 'lstm_state', 'loglr'])
+
         if self.use_both:
-            b1t, b2t, x, m, v, lstm_state, loglr, m_norm, v_norm = state
-        else:
-            b1t, b2t, x, m, v, lstm_state, loglr = state
+            m_norm = state['m_norm']
+            v_norm = state['v_norm']
 
         def update(g, m, v):
             new_m = self.beta1 * m + (1 - self.beta1) * g
@@ -136,6 +153,8 @@ class LSTMOpt(basic_model.BasicModel):
 
         if self.normalize_gradients:
             g = normalize(g)
+
+        g_unnorm = g
 
         m, v = update(g, m, v)
         if self.use_both:
@@ -190,7 +209,24 @@ class LSTMOpt(basic_model.BasicModel):
         #x += tf.Print(d * lr, [tf.norm(d * lr)], message='move: ')
         x += d * lr
 
+        new_state = {
+            'b1t': b1t,
+            'b2t': b2t,
+            'x': x,
+            'm': m,
+            'v': v,
+            'lstm_state': lstm_state,
+            'loglr': loglr
+        }
         if self.use_both:
-            return [b1t, b2t, x, m, v, lstm_state, loglr, m_norm, v_norm], fx, g_norm
-        else:
-            return [b1t, b2t, x, m, v, lstm_state, loglr], fx, g_norm
+            new_state.update({
+                'm_norm': m_norm,
+                'v_norm': v_norm
+            })
+
+        return {
+            'state': new_state,
+            'value': fx,
+            'gradient': g_unnorm,
+            'gradient_norm': g_norm
+        }

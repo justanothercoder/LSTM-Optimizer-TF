@@ -44,6 +44,9 @@ def setup_test_plot(flags):
     nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr)
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
+    if nrows == 1:
+        axes = (axes,)
+
     ax_f = axes[0]
     if not flags.stochastic:
         ax_g = axes[1]
@@ -106,12 +109,19 @@ def plot_test_results(flags, experiment_path, data):
             plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
 
         if trainable_opt and flags.plot_lr:
-            p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
-            axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
-                                                         lrs_mean + lrs_std,
-                                                         lrs_mean  - lrs_std,
-                                                         alpha=0.3,
-                                                         facecolor=p[-1].get_color())
+            #p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
+            #axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
+            #                                             lrs_mean + lrs_std,
+            #                                             lrs_mean  - lrs_std,
+            #                                             alpha=0.3,
+            #                                             facecolor=p[-1].get_color())
+
+            p = axes[2 - int(flags.stochastic)].semilogy(np.exp(lrs_mean), label=name)
+            #axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
+            #                                             np.exp(lrs_mean + lrs_std),
+            #                                             np.exp(lrs_mean - lrs_std),
+            #                                             alpha=0.3,
+            #                                             facecolor=p[-1].get_color())
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
