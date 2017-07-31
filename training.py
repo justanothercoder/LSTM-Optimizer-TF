@@ -1,4 +1,6 @@
 import re
+import sys
+import json
 import tensorflow as tf
 import optimizees as optim
 
@@ -7,15 +9,6 @@ import util.paths as paths
 import util.tf_utils as tf_utils
 
 from opts import model_trainer, distributed
-
-
-def save_train_config(flags, experiment_path):
-    training_options = set(vars(flags).keys())
-    
-    for k in {'name', 'experiment_name', 'gpu', 'cpu'}:
-        training_options.remove(k)
-
-    util.dump_config(experiment_path / 'config', flags, training_options)
 
 
 def will_overwrite_snapshots(snapshots_path, eid):
@@ -30,7 +23,6 @@ def will_overwrite_snapshots(snapshots_path, eid):
         max_eid = max(int(eid) for eid in eids)
 
     if eids and eid < max_eid:
-        print("You will overwrite existing checkpoints. Add -f to force it.")
         return True
 
     return False
@@ -38,22 +30,28 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
 def setup_experiment(flags):
     model_path = paths.model_path(flags.name)
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'train')
-    snapshots_path = paths.snapshots_path(experiment_path)
 
-    print("Running experiment: ", flags.experiment_name)
-    print("Experiment path: ", experiment_path)
-    print("Snapshots path: ", snapshots_path)
+    print("Training model: ", flags.name)
+    print("Model path: ", model_path) 
+    print("Snapshots path: ", model_path / 'snapshots')
 
-    if not flags.force and will_overwrite_snapshots(snapshots_path, flags.eid):
-        return None
+    if not flags.force and will_overwrite_snapshots(model_path / 'snapshots', flags.eid):
+        print("You will overwrite existing checkpoints. Add -f to force it.")
+        sys.exit(1)
 
-    paths.make_dirs(experiment_path, snapshots_path)
-    save_train_config(flags, experiment_path)
+    if flags.eid >= flags.n_epochs:
+        print("Error: eid >= n_epochs")
+        sys.exit(1)
 
-    opt = util.load_opt(model_path, experiment_path)
+    open_mode = 'w' if flags.force else 'a'
+    with (model_path / 'train_config.json').open(open_mode) as conf:
+        bad_kws = {'name', 'experiment_name', 'gpu', 'cpu', 'command_name', 'debug', 'force', 'verbose'}
+        training_options = {k: v for k, v in vars(flags).items() if k not in bad_kws}
+        json.dump(training_options, conf, sort_keys=True, indent=4)
+    
+    opt = util.load_opt(model_path)
     opt.debug = flags.debug
-    return experiment_path, opt
+    return opt, model_path
 
 
 @tf_utils.with_tf_graph
@@ -92,11 +90,7 @@ def training(flags, opt):
 
 
 def run_train(flags):
-    out = setup_experiment(flags)
-    if out is None:
-        return
-
-    experiment_path, opt = out
-
+    opt, model_path = setup_experiment(flags)
     rets = training(flags, opt)
-    util.dump_results(experiment_path, rets)
+
+    util.dump_results(model_path, rets)
