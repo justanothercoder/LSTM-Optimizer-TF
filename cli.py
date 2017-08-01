@@ -105,17 +105,17 @@ def make_new_parser(parser):
     parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('num_units', type=int, help='number of units in LSTM')
     parser.add_argument('num_layers', type=int, help='number of lstm layers')
-    parser.add_argument('--layer_norm', action='store_true',
+    parser.add_argument('--no-layer-norm', action='store_false', dest='layer_norm',
                         help='enable layer normalization')
-    parser.add_argument('--add_skip', action='store_true',
+    parser.add_argument('--no-add-skip', action='store_false', dest='add_skip',
                         help='add adam output to LSTM output')
     parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
                         help='whether to compute second derivatives')
-    parser.add_argument('--rnn_type', type=str, choices=['lstm', 'gru'], default='lstm',
+    parser.add_argument('--rnn-type', type=str, choices=['lstm', 'gru'], default='lstm',
                         help='cell to use: LSTM or GRU')
-    parser.add_argument('--residual', action='store_true',
+    parser.add_argument('--no-residual', action='store_false', dest='residual',
                         help='add residual connections in lstm')
-    parser.add_argument('--learn_init', action='store_true',
+    parser.add_argument('--learn-init', action='store_true',
                         help='learn initial hidden state')
 
     group = parser.add_mutually_exclusive_group()
