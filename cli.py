@@ -77,7 +77,7 @@ def make_test_parser(parser):
     parser.add_argument('--n_batches', type=int, default=20, help='number of batches per epoch')
 
     parser.add_argument('--compare_with', type=str, default='adam',
-                        choices=['sgd', 'momentum', 'adam'], help='baseline for optimizer')
+                        choices=['sgd', 'momentum', 'adam', 'adamng'], help='baseline for optimizer')
 
     parser.add_argument('--start_eid', type=int, default=100,
                         help='epoch from which start to run cv')

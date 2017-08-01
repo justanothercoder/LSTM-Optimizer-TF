@@ -6,6 +6,7 @@ from opts import distributed
 from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
+from opts.adamng_opt import AdamNGOpt
 
 import util
 import util.tf_utils as tf_utils
@@ -19,7 +20,8 @@ def get_tests(test_problem, compare_with):
         return {
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
-            'adam': AdamOpt
+            'adam': AdamOpt,
+            'adamng': AdamNGOpt
         }[name](lr=learning_rate, name='{}_lr_{}'.format(name, learning_rate))
 
     problems = {
@@ -31,7 +33,7 @@ def get_tests(test_problem, compare_with):
         'digits_classifier_3', 'digits_classifier_relu_3',
     }
 
-    opts = {'sgd', 'momentum', 'adam'}
+    opts = {'sgd', 'momentum', 'adam', 'adamng'}
 
     lrs = np.logspace(start=-1, stop=-5, num=5)
     tests = {}
