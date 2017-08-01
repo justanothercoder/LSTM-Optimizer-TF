@@ -70,13 +70,12 @@ def load_results(path, prefix=None):
     return results
 
 
-def load_opt(model_path, experiment_path):
-    config_path = paths.config_path(model_path)
-    with config_path.open('r') as conf:
+def load_opt(model_path):
+    with (model_path / 'config.json').open('r') as conf:
         flags = json.load(conf)
 
-    flags['model_path'] = experiment_path
-    flags['snapshot_path'] = paths.snapshots_path(experiment_path)
+    flags['model_path'] = model_path
+    flags['snapshot_path'] = model_path / 'snapshots'
 
     from opts.lstm_opt import LSTMOpt
     opt = LSTMOpt(**flags)
@@ -101,16 +100,10 @@ def run_new(flags):
     if not flags.force and model_path.exists():
         print('Model already exists')
         return
+    
+    paths.make_dirs(str(model_path), str(model_path / 'snapshots'))
 
-    dirs = [str(model_path / d) for d in ('train', 'test', 'cv/snapshots')]
-    paths.make_dirs(*dirs)
-
-    model_parameters = {
-        'num_layers', 'num_units',
-        'layer_norm', 'name', 'stop_grad',
-        'rnn_type', 'residual', 'normalize_gradients', 'rmsprop_gradients',
-        'learn_init', 'use_both'
-    }
+    model_parameters = {k for k in vars(flags) if k not in {'force', 'command_name'}}
 
     with config_path.open('w') as conf:
         d = {k: v for k, v in vars(flags).items() if k in model_parameters}

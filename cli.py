@@ -1,20 +1,6 @@
 import argparse
 
-problems = [
-    'quadratic', 'rosenbrock', 'logreg',
-    'stoch_logreg', 'stoch_linear',
-    'mixed', 'mixed_stoch', 'mixed_nonstoch',
-    'digits_classifier', 'digits_classifier_2',
-    'digits_classifier_relu', 'digits_classifier_relu_2',
-    'mnist_classifier',
-    'conv_digits_classifier', 'conv_digits_classifier_2',
-    'beale', 'booth', 'matyas', 'stoch_only',
-    'digits_classifier_3', 'digits_classifier_relu_3',
-]
-
-
 def make_train_parser(parser):
-    parser.add_argument('experiment_name', type=str, default='name of the experiment')
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
 
     parser.add_argument('--optimizer', type=str,
@@ -41,8 +27,7 @@ def make_train_parser(parser):
     parser.add_argument('--n_batches', type=int, default=100, help='number of batches per epoch')
     parser.add_argument('--batch_size', type=int, default=100, help='batch size')
 
-    parser.add_argument('-opt', '--optimizee', type=str, nargs='+',
-                        choices=problems, default='all',
+    parser.add_argument('-opt', '--optimizee', type=str, nargs='+', default='all',
                         help='space separated list of optimizees or all')
 
     parser.add_argument('--enable_random_scaling', action='store_true',
@@ -57,16 +42,10 @@ def make_train_parser(parser):
 
 
 def make_test_parser(parser):
+    parser.add_argument('experiment_name', type=str, help='name of the experiment')
     parser.add_argument('eid', type=int, help='epoch id from which test optimizer')
     parser.add_argument('mode', type=str, choices=['many', 'cv'], help='which mode to run')
-    parser.add_argument('problems', choices=problems, nargs='+', help='problem to run test on')
-
-    parser.add_argument('--train-experiment', required=True, type=str,
-                        dest='train_experiment_name',
-                        help='name of the training experiment')
-    parser.add_argument('--test-experiment', required=True, type=str,
-                        dest='experiment_name',
-                        help='name of the experiment')
+    parser.add_argument('problems', type=str, nargs='+', help='problem to run test on')
 
     parser.add_argument('--enable_random_scaling', action='store_true',
                         help='enable random scaling of problems')
@@ -88,10 +67,9 @@ def make_test_parser(parser):
 
 
 def make_plot_parser(parser):
-    parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('phase', type=str, choices=['train', 'test', 'cv'],
                         help='train or test phase')
-    parser.add_argument('experiment_name', type=str, help='experiment name')
+    parser.add_argument('name', type=str, help='name of the model')
     parser.add_argument('--no-plot-lr', action='store_false', dest='plot_lr',
                         help='plot learning rate')
     parser.add_argument('--no-plot-moving', action='store_false', dest='plot_moving',

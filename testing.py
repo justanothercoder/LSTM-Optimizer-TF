@@ -1,4 +1,6 @@
 from collections import OrderedDict
+import sys
+import json
 import numpy as np
 import tensorflow as tf
 
@@ -77,34 +79,37 @@ def run_many_testing(opt, s_opts, flags):
     return results
 
 
-def save_test_config(flags, experiment_path):
-    testing_options = {'eid', 'n_batches', 'n_steps', 'verbose', 'problems'}
-    util.dump_config(experiment_path / 'config', flags, testing_options)
-
-
 def setup_experiment(flags):
     if flags.eid == 0:
-        raise ValueError("eid must be > 0 if mode is testing")
+        raise ValueError("eid must be > 0")
 
     model_path = paths.model_path(flags.name)
-    train_experiment_path = paths.experiment_path(flags.name, flags.train_experiment_name, 'train')
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'test')
+    experiment_path = paths.experiment_path(flags.experiment_name)
 
     print("Model path: ", model_path)
-    print("Train experiment path: ", train_experiment_path)
-    print("Test experiment path: ", experiment_path)
+    print("Experiment path: ", experiment_path)
 
     paths.make_dirs(experiment_path)
-    save_test_config(flags, experiment_path)
+    
+    for opt_name in flags.problems:
+        prefix = opt_name + "_" + flags.mode
 
-    opt = util.load_opt(model_path, train_experiment_path)
+        if flags.mode == 'many':
+            prefix += "_" + flags.compare_with
 
-    optimizees = optim.get_optimizees(flags.problems,
-                                      clip_by_value=False,
-                                      random_scale=flags.enable_random_scaling,
-                                      noisy_grad=flags.noisy_grad)
+        if not flags.force and (experiment_path / (prefix + '_results.pkl')).exists():
+            print("You will overwrite existing results. Add -f/--force to force it.")
+            sys.exit(1)
 
-    return experiment_path, opt, optimizees
+
+    with (experiment_path / 'config').open('w') as conf:
+        testing_options = {'eid', 'n_batches', 'n_steps', 'problems'}
+        config = {k: v for k, v in vars(flags).items() if k in testing_options}
+        config['model_path'] = str(model_path)
+        json.dump(config, conf, sort_keys=True, indent=4)
+
+    opt = util.load_opt(model_path)
+    return experiment_path, opt
 
 
 @tf_utils.with_tf_graph
@@ -131,7 +136,7 @@ def testing(flags, opt, s_opts, optimizees):
 
 
 def run_test(flags):
-    if flags.problems is None:
+    if flags.problems is None or flags.problems == 'all':
         flags.problems = [
             'rosenbrock', 'quadratic',
             'beale', 'booth', 'matyas',
@@ -139,26 +144,31 @@ def run_test(flags):
             'stoch_logreg', 'stoch_linear'
         ]
 
-    experiment_path, opt, optimizees = setup_experiment(flags)
+    
+    for problem in flags.problems:
+        assert problem in optim.problems
+
+    experiment_path, opt = setup_experiment(flags)
+
     opt = distributed.distribute(opt, tf_utils.get_devices(flags))
+    optimizees = optim.get_optimizees(flags.problems,
+                                      clip_by_value=False,
+                                      random_scale=flags.enable_random_scaling,
+                                      noisy_grad=flags.noisy_grad)
 
     for opt_name, optimizee in optimizees.items():
-        prefix = opt_name + "_" + flags.mode
+        s_opts = get_tests(opt_name, flags.compare_with)
+        results = testing(flags, opt, s_opts, {opt_name: optimizee})
 
         data = {
             'problem': opt_name,
             'mode': flags.mode,
+            'results': results
         }
 
+        prefix = opt_name + "_" + flags.mode
         if flags.mode == 'many':
             data['compare_with'] = flags.compare_with
             prefix += "_" + flags.compare_with
 
-        if not flags.force and (experiment_path / (prefix + 'results.pkl')).exists():
-            print("You will overwrite existing results. Add -f/--force to force it.")
-            return
-    
-        s_opts = get_tests(opt_name, flags.compare_with)
-
-        data['results'] = testing(flags, opt, s_opts, {opt_name: optimizee})
         util.dump_results(experiment_path, data, prefix=prefix)
