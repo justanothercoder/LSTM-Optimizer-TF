@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-import pprint
 import os
+import pprint
+import random
+import numpy as np
 import cli
 
 
@@ -12,6 +14,10 @@ if __name__ == '__main__':
 
     if not hasattr(flags, 'debug') or not flags.debug:
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+    if hasattr(flags, 'seed') and flags.seed is not None:
+        random.seed(flags.seed)
+        np.random.seed(flags.seed)
 
     if hasattr(flags, 'cpu') and flags.cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""

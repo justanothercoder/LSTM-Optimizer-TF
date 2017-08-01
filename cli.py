@@ -62,6 +62,8 @@ def make_test_parser(parser):
                         help='epoch from which start to run cv')
     parser.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of results')
+    parser.add_argument('--use-moving-averages', action='store_true')
+    parser.add_argument('--seed', type=int, default=None, help='random seed to set in the beginning (for the reproducibility)')
 
     return parser
 

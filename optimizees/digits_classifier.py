@@ -16,6 +16,7 @@ class DIGITSClassifier(optimizee.Optimizee):
             dataset = fetch_mldata('MNIST original', data_home='/srv/hd1/data/vyanush/')
 
         self.X, self.Y = dataset.data, dataset.target
+        self.X = self.X.astype(np.float32)
         self.X = StandardScaler().fit_transform(self.X).astype(np.float32)
 
         self.num_units = num_units
