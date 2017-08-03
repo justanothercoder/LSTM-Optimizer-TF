@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 class DIGITSClassifier(optimizee.Optimizee):
     name = 'digits_classifier'
 
-    def __init__(self, num_units=20, num_layers=1, dataset_name='digits', activation='sigmoid'):
+    def __init__(self, num_units=20, num_layers=1, dataset_name='digits', activation='sigmoid', return_func=False):
         if dataset_name == 'digits':
             dataset = load_digits(n_class=10)
         elif dataset_name == 'mnist':
@@ -22,6 +22,7 @@ class DIGITSClassifier(optimizee.Optimizee):
         self.num_units = num_units
         self.num_layers = num_layers
         self.activation = activation
+        self.return_func = return_func
 
 
     def get_x_dim(self):
@@ -50,9 +51,9 @@ class DIGITSClassifier(optimizee.Optimizee):
         # self.x[i].shape == (batch_size, data_size, n_inputs)
         pred = tf.transpose(self.x[i], perm=[0, 2, 1])
 
-        for i in range(1, len(dims)):
-            n_inputs = dims[i - 1]
-            n_outputs = dims[i]
+        for j in range(1, len(dims)):
+            n_inputs = dims[j - 1]
+            n_outputs = dims[j]
             dim = n_inputs * n_outputs
 
             W = tf.slice(x, [0, s], [batch_size, dim])
@@ -62,7 +63,7 @@ class DIGITSClassifier(optimizee.Optimizee):
 
             pred = tf.matmul(W, pred) + b
 
-            if i + 1 < len(dims):
+            if j + 1 < len(dims):
                 #pred = tf.nn.sigmoid(pred)
                 pred = activation(pred)
 
@@ -75,8 +76,11 @@ class DIGITSClassifier(optimizee.Optimizee):
         acc = tf.reduce_mean(tf.cast(tf.equal(tf.cast(p, tf.int32), self.y[i]), tf.float32), axis=1)
 
         g = self.grad(x, f)
-        #return f, g
-        return acc, g
+
+        if self.return_func:
+            return f, g
+        else:
+            return acc, g
 
 
     def get_initial_x(self, batch_size=1):
