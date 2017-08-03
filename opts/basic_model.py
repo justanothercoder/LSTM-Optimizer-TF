@@ -36,12 +36,14 @@ class BasicModel:
               loss_type='log', optimizer='adam',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              use_moving_averages=False):
+              use_moving_averages=False, **kwargs):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps
         ops = {}
+
+        self.kwargs = kwargs
 
         with tf.variable_scope('opt_scope') as scope:
             self.scope = scope
@@ -106,9 +108,7 @@ class BasicModel:
 
 
     def inference(self, optimizee, input_state, n_bptt_steps):
-        values = []
-        norms = []
-        states = []
+        steps_info = []
 
         state = input_state
         scope = tf.get_variable_scope()
@@ -117,18 +117,24 @@ class BasicModel:
             step_info = self.step(optimizee.loss, i, state)
             state = step_info['state']
 
-            values.append(step_info['value'])
-            norms.append(step_info['gradient_norm'])
-            states.append(state)
-
             if not scope.reuse:
                 scope.reuse_variables()
 
-        return {
-            'values': values,
-            'norms': norms,
-            'states': states,
+            steps_info.append(step_info)
+
+        ret = {
+            'values': [info['value'] for info in steps_info],
+            'norms': [info['gradient_norm'] for info in steps_info],
+            'states': [info['state'] for info in steps_info],
         }
+
+        if steps_info[0].get('cos_step_adam') is not None:
+            ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
+
+        if steps_info[0]['state'].get('loglr') is not None:
+            ret['lrs'] = [info['state']['loglr'] for info in steps_info]
+
+        return ret
 
 
     def loss(self, inference, lambd=0., lambd_l1=0., loss_type='log'):
@@ -254,7 +260,7 @@ class BasicModel:
             print(message)
 
 
-    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
+    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1, include_x=False):
         self.restore(eid)
         self.verbose = verbose
 
@@ -269,7 +275,7 @@ class BasicModel:
                 opt_name = random.choice(opt_names)
 
             batch_time = time.time()
-            ret = self.test_one_iteration(n_steps, opt_name)
+            ret = self.test_one_iteration(n_steps, opt_name, include_x=include_x)
             batch_time = time.time() - batch_time
             self.log("Time: {}".format(batch_time), verbosity=1, level=1)
             rets.append(ret)
@@ -277,7 +283,7 @@ class BasicModel:
         return rets
 
 
-    def test_one_iteration(self, n_steps, opt_name):
+    def test_one_iteration(self, n_steps, opt_name, include_x=False):
         self.bid += 1
         session = tf.get_default_session()
 
@@ -290,27 +296,39 @@ class BasicModel:
 
         optimizee_params = optimizee.get_new_params()
 
+        inf = self.ops[opt_name]['inference']
+        losses = self.ops[opt_name]['losses']
+
+        if hasattr(self, 'devices'):
+            inf = list(inf.values())[0]
+            losses = list(losses.values())[0]
+
+        run_op = {
+            'loss': losses[0],
+            'summaries': self.ops[opt_name]['summaries'],
+            'states': inf['states'],
+            'values': inf['values'],
+            'norms': inf['norms'],
+        }
+
+        steps_info = {
+            'values': [],
+            'norms': [],
+        }
+
+        if inf.get('cosines'):
+            run_op['cosines'] = inf['cosines']
+            steps_info['cosines'] = []
+
+        if inf.get('lrs'):
+            run_op['lrs'] = inf['lrs']
+            steps_info['lrs'] = []
+
+        if include_x:
+            run_op['x'] = [info['x'] for info in inf['states']]
+            steps_info['x'] = []
+
         losses = []
-        fxs = []
-        lrs = []
-        norms = []
-
-        def extract(opt_name, key, pkey='inference'):
-            inf = self.ops[opt_name][pkey]
-
-            if hasattr(self, 'devices'):
-                inf = list(inf.values())[0]
-
-            return inf[key]
-
-        run_op = [
-            extract(opt_name, 'states'),
-            extract(opt_name, 0, pkey='losses'),
-            extract(opt_name, 'values'),
-            extract(opt_name, 'norms'),
-            self.ops[opt_name]['summaries']
-        ]
-
 
         for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
@@ -318,25 +336,22 @@ class BasicModel:
             feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
  
-            states, loss, fx, g_norm, summaries_str = session.run(run_op, feed_dict=feed_dict)
-            state = states[-1]
+            info = session.run(run_op, feed_dict=feed_dict)
+            state = info['states'][-1]
+            summaries_str = info['summaries']
 
-            losses.append(loss)
-            fxs.extend(fx)
-            lrs.extend([s.get('loglr') for s in states])
-            norms.extend(g_norm)
+            losses.append(info['loss'])
+
+            for k in steps_info:
+                steps_info[k].extend(info[k])
 
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
-        #ret['loss'] = np.mean(losses)
         ret['loss'] = np.nanmean(losses)
-        ret['fxs'] = np.array(fxs)
-        try:
-            ret['lrs'] = np.array(lrs).mean(axis=1)
-        except:
-            ret['lrs'] = None
-        ret['norms'] = np.array(norms)
+
+        for k in steps_info:
+            ret[k] = np.array(steps_info[k])
 
         if self.save_tf_data:
             for summary_str in summaries_str:
@@ -452,10 +467,12 @@ class BasicModel:
             return inf[key]
 
         run_op = [
+                self.ops[opt_name]['train_op'],
                 extract(opt_name, 'states'),
                 extract(opt_name, 0, pkey='losses'),
                 extract(opt_name, 'values'),
                 extract(opt_name, 'norms'),
+                extract(opt_name, 'cosines'),
                 self.ops[opt_name]['summaries']
             ]
 
@@ -468,7 +485,7 @@ class BasicModel:
                 self.momentum: self.mu,
             })
 
-            _, state, loss, fx, summaries_str = session.run(run_op, feed_dict=feed_dict)
+            _, state, loss, fx, g_norm, cos_step_grad, summaries_str = session.run(run_op, feed_dict=feed_dict)
 
             if i == 0:
                 #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
@@ -476,6 +493,8 @@ class BasicModel:
 
             losses.append(loss)
             fxs.extend(fx)
+            norms.extend(g_norm)
+            cosines.extend(cos_step_grad)
 
         self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)

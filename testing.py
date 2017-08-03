@@ -16,6 +16,25 @@ import util.paths as paths
 import optimizees as optim
 
 
+def pickle_test_results(filename, data):
+    f = hpy.File(str(filename), 'w')
+
+    f.attrs['problem'] = data['problem']
+    f.attrs['mode'] = data['mode']
+
+    if data.get('compare_with') is not None:
+        f.attrs['compare_with'] = data['compare_with']
+
+    for opt_name, rets in data['results'].items():
+        grp = f.create_group(opt_name)
+        for i, ret in enumerate(rets):
+            for key, value in ret.items():
+                data = grp.create_dataset('{}/{}'.format(i, key), value.shape, dtype=value.dtype)
+                data[...] = value
+
+    f.close()
+    
+
 def get_tests(test_problem, compare_with):
     def make_opt(name, learning_rate):
         #pylint: disable=missing-docstring
@@ -117,7 +136,7 @@ def testing(flags, opt, s_opts, optimizees):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt.build(optimizees, inference_only=True)
+    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only)
 
     for i, s_opt in enumerate(s_opts):
         #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
@@ -156,7 +175,10 @@ def run_test(flags):
                                       random_scale=flags.enable_random_scaling,
                                       noisy_grad=flags.noisy_grad)
 
-    for opt_name, optimizee in optimizees.items():
+    for opt_name in flags.problems:
+        optimizee = optimizees[opt_name]
+        print("Running testing on: ", opt_name)
+
         s_opts = get_tests(opt_name, flags.compare_with)
         results = testing(flags, opt, s_opts, {opt_name: optimizee})
 

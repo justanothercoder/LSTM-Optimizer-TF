@@ -51,18 +51,15 @@ class Trainer:
             if hasattr(model, 'devices'):
                 inf = list(inf.values())[0]
 
-            return inf[key]
+            return inf.get(key, [])
 
 
         self.run_op = {opt_name: [
-            #model.ops[opt_name]['inference']['states'],
-            #model.ops[opt_name]['losses'][0],
-            #model.ops[opt_name]['inference']['values'],
-            #model.ops[opt_name]['inference']['norms'],
             extract(opt_name, 'states'),
             extract(opt_name, 0, pkey='losses'),
             extract(opt_name, 'values'),
             extract(opt_name, 'norms'),
+            extract(opt_name, 'cosines'),
             model.ops[opt_name]['summaries']
         ] for opt_name in model.optimizees}
             
@@ -179,7 +176,7 @@ class Trainer:
 
         optimizee_params = optimizee.get_new_params(batch_size)
 
-        losses, fxs, norms, lrs = [], [], [], []
+        losses, fxs, norms, lrs, cosines = [], [], [], [], []
 
         self.log("Optimizee: {}".format(opt_name), level=15)
 
@@ -193,13 +190,14 @@ class Trainer:
                 self.model.momentum: self.mu,
             })
 
-            states, loss, fx, g_norm, summaries_str = self.session.run(self.run_op[opt_name], feed_dict=feed_dict)[:5]
+            states, loss, fx, g_norm, cos_step_adam, summaries_str = self.session.run(self.run_op[opt_name], feed_dict=feed_dict)[:5]
             state = states[-1]
 
             losses.append(loss)
             fxs.extend(fx)
             lrs.extend([s.get('loglr', 0) for s in states])
             norms.extend(g_norm)
+            cosines.extend(cos_step_adam)
 
         self.log("First function value: {}".format(fxs[0][0]), level=15)
         self.log("Last function value: {}".format(fxs[-1][0]), level=15)
@@ -220,7 +218,8 @@ class Trainer:
             'loss': np.nanmean(losses),
             'fxs': np.array(fxs),
             'lrs': np.array(lrs).mean(axis=1),
-            'norms': np.array(norms)
+            'norms': np.array(norms),
+            'cosines': np.array(cosines),
         }
 
 

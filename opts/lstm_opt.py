@@ -151,10 +151,10 @@ class LSTMOpt(basic_model.BasicModel):
         if self.stop_grad:
             g = tf.stop_gradient(g)
 
+        g_unnorm = g
+
         if self.normalize_gradients:
             g = normalize(g)
-
-        g_unnorm = g
 
         m, v = update(g, m, v)
         if self.use_both:
@@ -194,7 +194,7 @@ class LSTMOpt(basic_model.BasicModel):
         loglr = tf.minimum(loglr, np.log(self.clip_delta))
 
         n_coords = tf.cast(x_shape[0], tf.float32)
-        
+
         #d = d / (tf.norm(d, axis=-1, keep_dims=True) * n_coords)
         if self.add_skip:
             #d += -s / (tf.norm(s, axis=-1, keep_dims=True) * n_coords)
@@ -202,6 +202,10 @@ class LSTMOpt(basic_model.BasicModel):
             #d += normalize(-s, 1. / n_coords)
             d += -s
         
+        if self.kwargs.get('adam_only', False):
+            print("ADAMONLY")
+            d = -s
+
         d = normalize(d, 1. / n_coords)
 
         lr = tf.exp(loglr, name='lr')
@@ -224,9 +228,26 @@ class LSTMOpt(basic_model.BasicModel):
                 'v_norm': v_norm
             })
 
+        adam_norm = tf.norm(-s, axis=1)
+        step_norm = tf.norm(d, axis=1)
+
+        adam_normed = tf.nn.l2_normalize(-s, 1)
+        step_normed = tf.nn.l2_normalize(d, 1)
+                
+        cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
+        cos_step_adam = cos_
+
+        #cos_step_adam = tf.where(
+        #        tf.equal(tf.less(adam_norm, 1e-12), tf.less(step_norm, 1e-12)),
+        #        tf.ones_like(cos_),
+        #        cos_)
+        #cos_step_adam = tf.Print(cos_step_adam, [adam_normed, step_normed, cos_step_adam], message='cos_step_adam')
+
         return {
             'state': new_state,
             'value': fx,
             'gradient': g_unnorm,
-            'gradient_norm': g_norm
+            'gradient_norm': g_norm,
+            #'cos_step_adam': tf.reduce_sum(normalize(-s) * normalize(d), axis=1)
+            'cos_step_adam': cos_step_adam
         }

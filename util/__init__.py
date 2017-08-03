@@ -5,6 +5,7 @@ import time
 import random
 import json
 import pickle
+import h5py as hpy
 from . import paths
 
 
@@ -54,6 +55,12 @@ def dump_results(path, results, prefix=None):
         filename = prefix + filename
 
     results_path = path / filename
+
+    try:
+        from pympler import asizeof
+        print("Results size: {}MB".format(asizeof.asizeof(results) / 2**20))
+    except:
+        pass
 
     with results_path.open('wb') as f:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)

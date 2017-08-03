@@ -22,8 +22,10 @@ def extract_test_run_info(rets, flags, key, normalize):
     vals = []
     for ret in rets:
         value = ret[key]
+
         if key == 'lrs':
-            value = np.mean(value, axis=1)
+            #value = np.mean(value, axis=1)
+            value = np.mean(value, axis=(1,2))
         if normalize:
             value = value / ret[key][:1]
         vals.append(value.reshape(-1, 1))
@@ -41,7 +43,7 @@ def extract_test_run_info(rets, flags, key, normalize):
 
 
 def setup_test_plot(flags):
-    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr)
+    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
     if nrows == 1:
@@ -97,16 +99,21 @@ def plot_test_results(flags, experiment_path, data):
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
-        fxs, fxs_mean, _ = extract_test_run_info(rets, flags, 'fxs', not flags.stochastic)
+        print(rets[0].keys())
+        fxs, fxs_mean, _ = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
         _, norms_mean, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
         if trainable_opt:
             _, lrs_mean, lrs_std = extract_test_run_info(rets, flags, 'lrs', False)
+            _, cos_mean, cos_std = extract_test_run_info(rets, flags, 'cosines', False)
 
         plot(axes[0], fxs_mean, name, with_moving=flags.stochastic)
         if not flags.stochastic:
             plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
+
+        if trainable_opt:
+            p = axes[3 - int(flags.stochastic)].plot(cos_mean, label=name)
 
         if trainable_opt and flags.plot_lr:
             #p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
