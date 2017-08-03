@@ -21,6 +21,7 @@ problems = [
     'conv_digits_classifier', 'conv_digits_classifier_2',
     'beale', 'booth', 'matyas', 'stoch_only',
     'digits_classifier_3', 'digits_classifier_relu_3',
+    'vgg-cifar-10'
 ]
 
 
@@ -43,6 +44,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits'),
         'digits_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits'),
         'digits_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
+        'vgg-cifar-10': ConvClassifier(dataset_name='cifar-10', arch='vgg19')
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([

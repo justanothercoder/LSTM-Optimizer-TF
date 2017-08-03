@@ -45,20 +45,20 @@ def get_tests(test_problem, compare_with):
             'adamng': AdamNGOpt
         }[name](lr=learning_rate, name='{}_lr_{}'.format(name, learning_rate))
 
-    problems = {
-        'rosenbrock', 'quadratic', 'beale', 'booth', 'matyas', 'logreg',
-        'stoch_logreg', 'stoch_linear',
-        'digits_classifier', 'mnist_classifier', 'digits_classifier_2',
-        'digits_classifier_relu', 'digits_classifier_relu_2',
-        'conv_digits_classifier', 'conv_digits_classifier_2',
-        'digits_classifier_3', 'digits_classifier_relu_3',
-    }
+    #problems = {
+    #    'rosenbrock', 'quadratic', 'beale', 'booth', 'matyas', 'logreg',
+    #    'stoch_logreg', 'stoch_linear',
+    #    'digits_classifier', 'mnist_classifier', 'digits_classifier_2',
+    #    'digits_classifier_relu', 'digits_classifier_relu_2',
+    #    'conv_digits_classifier', 'conv_digits_classifier_2',
+    #    'digits_classifier_3', 'digits_classifier_relu_3',
+    #}
 
     opts = {'sgd', 'momentum', 'adam', 'adamng'}
 
     lrs = np.logspace(start=-1, stop=-5, num=5)
     tests = {}
-    for problem in problems:
+    for problem in optim.problems:
         tests[problem] = {}
         for opt in opts:
             tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
@@ -136,7 +136,7 @@ def testing(flags, opt, s_opts, optimizees):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only)
+    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1)
 
     for i, s_opt in enumerate(s_opts):
         #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
@@ -163,7 +163,6 @@ def run_test(flags):
             'stoch_logreg', 'stoch_linear'
         ]
 
-    
     for problem in flags.problems:
         assert problem in optim.problems
 
