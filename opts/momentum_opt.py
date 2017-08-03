@@ -27,20 +27,14 @@ class MomentumOpt(basic_model.BasicModel):
         pass
         
 
-    def step(self, f, i, state):
+    def step(self, g, state):
         x, v = state['x'], state['v']
 
-        fx, g, g_norm = self._fg(f, x, i)
-        g = tf.stop_gradient(g)
- 
         v = self.mu * v - self.lr * g
         x += v
 
         return {
             'state': dict(x=x, v=v),
-            'value': fx,
-            'gradient': g,
-            'gradient_norm': g_norm
         }
     
     

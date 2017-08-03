@@ -16,19 +16,12 @@ class SgdOpt(basic_model.BasicModel):
         return dict(x=x)
 
 
-    def step(self, f, i, state):
+    def step(self, g, state):
         x = state['x']
-
-        fx, g, g_norm = self._fg(f, x, i)
-        g = tf.stop_gradient(g)
-
         x -= self.lr * g
 
         return {
             'state': dict(x=x),
-            'value': fx,
-            'gradient': g,
-            'gradient_norm': g_norm
         }
 
     

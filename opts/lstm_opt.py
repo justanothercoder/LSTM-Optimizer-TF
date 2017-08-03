@@ -14,7 +14,7 @@ class LSTMOpt(basic_model.BasicModel):
     def __init__(self,
         num_units=20, num_layers=2,
         beta1=0.9, beta2=0.999,
-        layer_norm=True, stop_grad=True,
+        layer_norm=True,
         add_skip=False, clip_delta=2,
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
@@ -31,7 +31,6 @@ class LSTMOpt(basic_model.BasicModel):
         self.beta2 = beta2
         self.eps = 1e-8
 
-        self.stop_grad = stop_grad
         self.add_skip = add_skip
         self.layer_norm = layer_norm
         self.clip_delta = clip_delta
@@ -132,59 +131,55 @@ class LSTMOpt(basic_model.BasicModel):
 
         return self.initial_state
 
+    
+    def adam_update(self, g, m, v):
+        new_m = self.beta1 * m + (1 - self.beta1) * g
+        new_v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
+        return new_m, new_v
 
-    def step(self, f, i, state):
+
+    def adam_step(self, m, v, a):
+        s = a * m / (tf.sqrt(v, name='v_sqrt') + self.eps)
+        return s
+
+
+    def step(self, g, state):
         b1t, b2t, x, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'x', 'm', 'v', 'lstm_state', 'loglr'])
 
         if self.use_both:
             m_norm = state['m_norm']
             v_norm = state['v_norm']
 
-        def update(g, m, v):
-            new_m = self.beta1 * m + (1 - self.beta1) * g
-            new_v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
-            return new_m, new_v
-
-        fx, g, g_norm = self._fg(f, x, i)
         x_shape = tf.shape(x)
-
-        if self.stop_grad:
-            g = tf.stop_gradient(g)
-
-        g_unnorm = g
 
         if self.normalize_gradients:
             g = normalize(g)
 
-        m, v = update(g, m, v)
-        if self.use_both:
-            m_norm, v_norm = update(normalize(g), m_norm, v_norm)
+        m, v = self.adam_update(g, m, v)
 
-        #m = self.beta1 * m + (1 - self.beta1) * g
-        #v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
+        if self.use_both:
+            g_norm = normalize(g)
+            m_norm, v_norm = self.adam_update(g_norm, m_norm, v_norm)
 
         b1t *= self.beta1
         b2t *= self.beta2
 
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
-        s = a * m / (tf.sqrt(v, name='v_sqrt') + self.eps)
-        if self.use_both:
-            s_norm = a * m_norm / (tf.sqrt(v_norm, name='v_norm_sqrt') + self.eps)
+        s = self.adam_step(m, v, a)
 
         if self.rmsprop_gradients and not self.normalize_gradients:
             g = g / (tf.sqrt(v, name='v_sqrt') + self.eps)
-
+        
         features = [g, tf.square(g), m, v, s]
+        
         if self.use_both:
-            g_n = normalize(g)
-            features += [g_n, tf.square(g_n), m_norm, v_norm, s_norm]
+            s_norm = self.adam_step(m_norm, v_norm, a)
+            features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
 
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
         last, lstm_state = self.lstm(prep, lstm_state)
 
-        last = tf.layers.dense(last, 2, use_bias=False, name=self.scope.name) #, kernel_initializer=tf.truncated_normal_initializer(0.1))
-        #d, loglr = tf.unstack(last, axis=1)
-
+        last = tf.layers.dense(last, 2, use_bias=False, name=self.scope.name)
         d, loglr_add = tf.unstack(last, axis=1)
 
         d = tf.reshape(d, x_shape)
@@ -195,11 +190,7 @@ class LSTMOpt(basic_model.BasicModel):
 
         n_coords = tf.cast(x_shape[0], tf.float32)
 
-        #d = d / (tf.norm(d, axis=-1, keep_dims=True) * n_coords)
         if self.add_skip:
-            #d += -s / (tf.norm(s, axis=-1, keep_dims=True) * n_coords)
-            #d = s
-            #d += normalize(-s, 1. / n_coords)
             d += -s
         
         if self.kwargs.get('adam_only', False):
@@ -210,7 +201,6 @@ class LSTMOpt(basic_model.BasicModel):
 
         lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
-        #x += tf.Print(d * lr, [tf.norm(d * lr)], message='move: ')
         x += d * lr
 
         new_state = {
@@ -228,26 +218,18 @@ class LSTMOpt(basic_model.BasicModel):
                 'v_norm': v_norm
             })
 
-        adam_norm = tf.norm(-s, axis=1)
-        step_norm = tf.norm(d, axis=1)
-
         adam_normed = tf.nn.l2_normalize(-s, 1)
         step_normed = tf.nn.l2_normalize(d, 1)
                 
         cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
         cos_step_adam = cos_
-
         #cos_step_adam = tf.where(
-        #        tf.equal(tf.less(adam_norm, 1e-12), tf.less(step_norm, 1e-12)),
+        #        tf.less(tf.reduce_sum(tf.abs(adam_normed - step_normed), axis=1), 1e-8),
         #        tf.ones_like(cos_),
-        #        cos_)
-        #cos_step_adam = tf.Print(cos_step_adam, [adam_normed, step_normed, cos_step_adam], message='cos_step_adam')
+        #        cos_
+        #        )
 
         return {
             'state': new_state,
-            'value': fx,
-            'gradient': g_unnorm,
-            'gradient_norm': g_norm,
-            #'cos_step_adam': tf.reduce_sum(normalize(-s) * normalize(d), axis=1)
             'cos_step_adam': cos_step_adam
         }

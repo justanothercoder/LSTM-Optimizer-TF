@@ -36,7 +36,7 @@ class BasicModel:
               loss_type='log', optimizer='adam',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              use_moving_averages=False, **kwargs):
+              use_moving_averages=False, stop_grad=True, **kwargs):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
@@ -54,7 +54,7 @@ class BasicModel:
 
             for opt_name, optimizee in optimizees.items():
                 with tf.variable_scope('inference_scope'):
-                    inference = self.inference(optimizee, self.input_state, n_bptt_steps)
+                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad)
 
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
 
@@ -107,18 +107,27 @@ class BasicModel:
                 self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
-    def inference(self, optimizee, input_state, n_bptt_steps):
+    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
         steps_info = []
 
         state = input_state
         scope = tf.get_variable_scope()
 
         for i in range(n_bptt_steps):
-            step_info = self.step(optimizee.loss, i, state)
+            x = state['x']
+            value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
+            if stop_grad:
+                gradient = tf.stop_gradient(gradient)
+
+            step_info = self.step(gradient, state)
             state = step_info['state']
 
             if not scope.reuse:
                 scope.reuse_variables()
+
+            step_info['value'] = value
+            step_info['gradient'] = gradient
+            step_info['gradient_norm'] = gradient_norm
 
             steps_info.append(step_info)
 
@@ -537,7 +546,9 @@ class BasicModel:
     def restore(self, eid):
         snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
-        self.saver.restore(self.session, './' + str(snapshot_path))
+
+        #self.saver = tf.train.import_meta_graph(str(snapshot_path) + '.meta')
+        self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
 
@@ -549,7 +560,7 @@ class BasicModel:
         print("Saving to ", filename)
 
         self.saver.save(self.session, str(filename), global_step=eid)
-        os.unlink("{}-{}.meta".format(filename, eid))
+        #os.unlink("{}-{}.meta".format(filename, eid))
         if os.path.lexists(str(sfilename)):
             os.unlink(str(sfilename))
         os.symlink("epoch-{}".format(eid), str(sfilename))
