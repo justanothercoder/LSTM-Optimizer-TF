@@ -44,28 +44,27 @@ class Trainer:
         elif kwargs['verbose'] == 0:
             self.logger.setLevel(30)
 
-        
-        def extract(opt_name, key, pkey='inference'):
-            inf = model.ops[opt_name][pkey]
+
+        self.run_op = {}
+
+        for opt_name in model.optimizees:
+            inf = model.ops[opt_name]['inference']
+            losses = model.ops[opt_name]['losses']
 
             if hasattr(model, 'devices'):
                 inf = list(inf.values())[0]
+                losses = list(losses.values())[0]
+        
+            self.run_op[opt_name] = {
+                'loss': losses[0],
+                'summaries': model.ops[opt_name]['summaries'],
+                'states': inf['states'],
+                'values': inf['values'],
+                'norms': inf['norms'],
+            }
 
-            return inf.get(key, [])
-
-
-        self.run_op = {opt_name: [
-            extract(opt_name, 'states'),
-            extract(opt_name, 0, pkey='losses'),
-            extract(opt_name, 'values'),
-            extract(opt_name, 'norms'),
-            extract(opt_name, 'cosines'),
-            model.ops[opt_name]['summaries']
-        ] for opt_name in model.optimizees}
-            
-        if mode == 'train':
-            for opt_name in model.optimizees:
-                self.run_op[opt_name].append(model.ops[opt_name]['train_op'])
+            if mode == 'train':
+                self.run_op[opt_name]['train_op'] = model.ops[opt_name]['train_op']
 
 
         return getattr(self, mode)(**kwargs)
@@ -132,6 +131,10 @@ class Trainer:
 
                     if np.isnan(ret['loss']):
                         self.log("Loss is NaN", level=40)
+                        raise "Loss is NaN"
+                    elif np.isinf(ret['loss']):
+                        self.log("Loss is +-INF", level=40)
+                        raise "Loss is +-INF"
                         #print(ret['fxs'])
 
                     if loss is not None:
@@ -175,14 +178,19 @@ class Trainer:
         state = self.session.run(self.model.initial_state, feed_dict={self.model.x: x})
 
         optimizee_params = optimizee.get_new_params(batch_size)
+        
+        steps_info = {
+            'values': [],
+            'norms': [],
+        }
 
-        losses, fxs, norms, lrs, cosines = [], [], [], [], []
+        losses = []
+        fxs = []
 
         self.log("Optimizee: {}".format(opt_name), level=15)
 
         for i in range(n_steps // self.model.n_bptt_steps):
             feed_dict = optimizee_params
-            #feed_dict.update({inp: init for inp, init in zip(self.model.input_state, state)})
             feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
             feed_dict.update({
@@ -190,14 +198,12 @@ class Trainer:
                 self.model.momentum: self.mu,
             })
 
-            states, loss, fx, g_norm, cos_step_adam, summaries_str = self.session.run(self.run_op[opt_name], feed_dict=feed_dict)[:5]
-            state = states[-1]
+            info = self.session.run(self.run_op[opt_name], feed_dict=feed_dict)
+            state = info['states'][-1]
+            summaries_str = info['summaries']
 
-            losses.append(loss)
-            fxs.extend(fx)
-            lrs.extend([s.get('loglr', 0) for s in states])
-            norms.extend(g_norm)
-            cosines.extend(cos_step_adam)
+            losses.append(info['loss'])
+            fxs.extend(info['values'])
 
         self.log("First function value: {}".format(fxs[0][0]), level=15)
         self.log("Last function value: {}".format(fxs[-1][0]), level=15)
@@ -217,9 +223,6 @@ class Trainer:
             'optimizee_name': opt_name,
             'loss': np.nanmean(losses),
             'fxs': np.array(fxs),
-            'lrs': np.array(lrs).mean(axis=1),
-            'norms': np.array(norms),
-            'cosines': np.array(cosines),
         }
 
 
