@@ -156,7 +156,7 @@ class BasicModel:
         losses = []
 
         if loss_type == 'log':
-            loss = tf.reduce_mean(tf.log(values) - tf.log(values[:1]))
+            loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
 
             if states is not None:
                 lr_loss = -lambd * tf.reduce_mean(states - states[:1])
