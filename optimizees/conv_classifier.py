@@ -128,34 +128,38 @@ class ConvClassifier(optimizee.Optimizee):
         self.s = 0
 
         # self.x[i].shape == (data_size, w, h, n_filters)
-        pred = self.conv(x   , w, self.X.shape[-1], 64)
-        pred = self.conv(pred, w, 64, 64)
+        N1 = 16 # true = 64
+        pred = self.conv(x   , w, self.X.shape[-1], N1)
+        pred = self.conv(pred, w, N1, N1)
         pred = self.pooling(pred, padding='VALID')
         
-        pred = self.conv(pred, w, 64, 128)
-        pred = self.conv(pred, w, 128, 128)
+        N2 = 32 # true = 128
+        pred = self.conv(pred, w, N1, N2)
+        pred = self.conv(pred, w, N2, N2)
         pred = self.pooling(pred, padding='VALID')
         
-        pred = self.conv(pred, w, 128, 256)
-        pred = self.conv(pred, w, 256, 256)
-        pred = self.conv(pred, w, 256, 256)
-        pred = self.conv(pred, w, 256, 256)
+        N3 = 64 # true = 256
+        pred = self.conv(pred, w, N2, N3)
+        pred = self.conv(pred, w, N3, N3)
+        pred = self.conv(pred, w, N3, N3)
+        pred = self.conv(pred, w, N3, N3)
         pred = self.pooling(pred, padding='VALID')
         
-        pred = self.conv(pred, w, 256, 512)
-        pred = self.conv(pred, w, 512, 512)
-        pred = self.conv(pred, w, 512, 512)
-        pred = self.conv(pred, w, 512, 512)
+        N4 = 128 # true = 512
+        pred = self.conv(pred, w, N3, N4)
+        pred = self.conv(pred, w, N4, N4)
+        pred = self.conv(pred, w, N4, N4)
+        pred = self.conv(pred, w, N4, N4)
         pred = self.pooling(pred, padding='VALID')
         
-        pred = self.conv(pred, w, 512, 512)
-        pred = self.conv(pred, w, 512, 512)
-        pred = self.conv(pred, w, 512, 512)
-        pred = self.conv(pred, w, 512, 512)
+        pred = self.conv(pred, w, N4, N4)
+        pred = self.conv(pred, w, N4, N4)
+        pred = self.conv(pred, w, N4, N4)
+        pred = self.conv(pred, w, N4, N4)
         pred = self.pooling(pred, padding='VALID')
 
         pred = tf.reduce_mean(pred, axis=(1, 2)) # global average pooling
-        pred = self.fc(pred, w, 512, 10)
+        pred = self.fc(pred, w, N4, 10)
 
         if not self.counted_x_len:
             self.x_len = self.s
