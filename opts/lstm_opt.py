@@ -19,7 +19,7 @@ class LSTMOpt(basic_model.BasicModel):
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
         rmsprop_gradients=False,
-        learn_init=False, use_both=False,
+        learn_init=False, use_both=False, with_log_features=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -40,6 +40,7 @@ class LSTMOpt(basic_model.BasicModel):
         self.rmsprop_gradients = rmsprop_gradients
         self.learn_init = learn_init
         self.use_both = use_both
+        self.with_log_features = with_log_features
 
 
     def build_pre(self):
@@ -171,10 +172,15 @@ class LSTMOpt(basic_model.BasicModel):
             g = g / (tf.sqrt(v, name='v_sqrt') + self.eps)
         
         features = [g, tf.square(g), m, v, s]
+        if self.with_log_features:
+            features += [tf.log(tf.square(g) + self.eps), tf.log(v + self.eps)]
         
         if self.use_both:
             s_norm = self.adam_step(m_norm, v_norm, a)
             features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
+
+            if self.with_log_features:
+                features += [tf.log(tf.square(g_norm + self.eps)), tf.log(v_norm + self.eps)]
 
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
         last, lstm_state = self.lstm(prep, lstm_state)

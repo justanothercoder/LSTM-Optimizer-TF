@@ -35,6 +35,8 @@ def make_train_parser(parser):
 
     parser.add_argument('--noisy_grad', action='store_true',
                         help='add normal noise to gradients of non-stochastic problems')
+    parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
+                        help='whether to compute second derivatives')
 
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
 
@@ -79,7 +81,7 @@ def make_plot_parser(parser):
                         help='plot moving loss')
     parser.add_argument('-p', '--problems', type=str, nargs='+',
                         help='optimizee name')
-    parser.add_argument('-m', '--mode', type=str, choices=['many', 'cv'],
+    parser.add_argument('-m', '--mode', type=str, choices=['many', 'cv'], default='many',
                         help='mode of testing')
     parser.add_argument('-f', '--frac', type=float, default=1.0,
                         help='fraction of data to plot')
@@ -112,14 +114,14 @@ def make_new_parser(parser):
                         help='enable layer normalization')
     parser.add_argument('--no-add-skip', action='store_false', dest='add_skip',
                         help='add adam output to LSTM output')
-    parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
-                        help='whether to compute second derivatives')
     parser.add_argument('--rnn-type', type=str, choices=['lstm', 'gru'], default='lstm',
                         help='cell to use: LSTM or GRU')
     parser.add_argument('--no-residual', action='store_false', dest='residual',
                         help='add residual connections in lstm')
     parser.add_argument('--learn-init', action='store_true',
                         help='learn initial hidden state')
+    parser.add_argument('--with-log-features', action='store_true',
+                        help='add logarithmic features')
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--normalize_gradients', action='store_true',
