@@ -1,27 +1,41 @@
+import pickle
 import numpy as np
 import tensorflow as tf
-from . import optimizee
-
 from sklearn.datasets import load_digits, fetch_mldata
 from sklearn.preprocessing import StandardScaler
+
+from . import optimizee
+
+def get_dataset(dataset_name):
+    def standartize(X):
+        return StandardScaler().fit_transform(X).astype(np.float32)
+
+    if dataset_name == 'digits':
+        dataset = load_digits(n_class=10)
+        X, Y = dataset.data, dataset.target
+        X = standartize(X)
+        return X.reshape(-1, 8, 8, 1), Y
+
+    elif dataset_name == 'mnist':
+        dataset = fetch_mldata('MNIST original', data_home='/srv/hd1/data/vyanush/')
+        X, Y = dataset.data, dataset.target
+        X = standartize(X)
+        return X.reshape(-1, 28, 28, 1), Y
+
+    elif dataset_name == 'cifar-10':
+        with open('cifar-10/data_batch_1', 'rb') as f:
+            data = pickle.load(f, encoding='bytes')
+            
+        X, Y = data['data'], data['labels']
+        X = standartize(X)
+        return X.reshape(-1, 32, 32, 3), Y
 
 
 class ConvClassifier(optimizee.Optimizee):
     name = 'conv_classifier'
 
     def __init__(self, num_filters=20, num_layers=1, dataset_name='digits', activation='relu'):
-        if dataset_name == 'digits':
-            dataset = load_digits(n_class=10)
-        elif dataset_name == 'mnist':
-            dataset = fetch_mldata('MNIST original', data_home='/srv/hd1/data/vyanush/')
-
-        self.X, self.Y = dataset.data, dataset.target
-        self.X = StandardScaler().fit_transform(self.X).astype(np.float32)
-
-        if dataset_name == 'digits':
-            self.X = self.X.reshape(-1, 8, 8, 1)
-        elif dataset_name == 'mnist':
-            self.X = self.X.reshape(-1, 28, 28, 1)
+        self.X, self.Y = get_dataset(dataset_name)
 
         self.num_filters = num_filters
         self.num_layers = num_layers
@@ -34,7 +48,7 @@ class ConvClassifier(optimizee.Optimizee):
 
 
     def build(self):
-        with tf.variable_scope('digits_classifier'):
+        with tf.variable_scope('conv_classifier'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.x = tf.placeholder(tf.float32, [None, None, None, None, None, None], name='X') # n_bptt_steps * batch_size * data_size * num_features
             self.y = tf.placeholder(tf.int32, [None, None, None], name='y')
