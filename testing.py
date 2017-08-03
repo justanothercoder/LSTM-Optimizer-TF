@@ -141,7 +141,7 @@ def testing(flags, opt, s_opts, optimizees):
     for i, s_opt in enumerate(s_opts):
         #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
         with tf.variable_scope('s_opt_{}'.format(i)):
-            s_opt.build(optimizees, inference_only=True)
+            s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
 
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer())
