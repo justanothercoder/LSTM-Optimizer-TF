@@ -135,6 +135,13 @@ def make_new_parser(parser):
     return parser
 
 
+def make_explore_parser(parser):
+    parser.add_argument('name')
+    parser.add_argument('eid')
+
+    return parser
+
+
 def make_parser():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     subparsers = parser.add_subparsers(help='command to run', dest='command_name')
@@ -155,6 +162,7 @@ def make_parser():
     parser_test = subparsers.add_parser('test', parents=[run_parser],
                                         help='run trained optimizer on some problem')
     parser_plot = subparsers.add_parser('plot', help='plot dumped results')
+    parser_explore = subparsers.add_parser('explore', help='look at the weights of network')
 
     parser_new = make_new_parser(parser_new)
     parser_train = make_train_parser(parser_train)
@@ -164,5 +172,6 @@ def make_parser():
                                       help='tune hyperparameters by validation')
     parser_cv = make_cv_parser(parser_cv)
     parser_plot = make_plot_parser(parser_plot)
+    parser_explore = make_explore_parser(parser_explore)
 
     return parser
