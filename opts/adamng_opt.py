@@ -36,11 +36,8 @@ class AdamNGOpt(basic_model.BasicModel):
         pass
         
 
-    def step(self, f, i, state):
+    def step(self, g, state):
         x, m, v, b1t, b2t = tuple(state[name] for name in ['x', 'm', 'v', 'b1t', 'b2t'])
-
-        fx, g, g_norm = self._fg(f, x, i)
-        g = tf.stop_gradient(g)
 
         g = g / tf.norm(g, 2)
 
@@ -57,9 +54,6 @@ class AdamNGOpt(basic_model.BasicModel):
 
         return {
             'state': dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t),
-            'value': fx,
-            'gradient': g,
-            'gradient_norm': g_norm
         }
     
     
