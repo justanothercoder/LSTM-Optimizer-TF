@@ -20,7 +20,7 @@ class LSTMOptimizer:
         with tf.variable_scope('lstm_opt_scope') as scope:
             self.opt.build_pre()
 
-        self.state = defaultdict()
+        self.eid = eid
 
 
     def prepare_states(self):
@@ -83,21 +83,33 @@ class LSTMOptimizer:
         _, _, gradient = self.pack(self.grads)
         gradient = tf.reshape(gradient, [1, -1])
 
-        old_x = self.state['x']
-        with tf.variable_scope('step_scope') as scope:
-            self.opt.scope = scope
-            new_state = self.opt.step(gradient, self.state)['state']
-        new_x = new_state['x']
+        old_x = self.state['x'][0]
+        with tf.variable_scope('opt_scope') as self.scope:
+            self.opt.scope = self.scope
+            with tf.variable_scope('inference_scope'):
+                new_state = self.opt.step(gradient, self.state)['state']
 
-        step = (new_x - old_x)[0]
-        steps_and_vars = list(zip(self.unpack(-step), self.tvars))
+        new_x = new_state['x'][0]
 
-        for k in new_state:
-            if k not in {'x', 'lstm_state'}:
+        #step = (new_x - old_x)
+        #steps_and_vars = list(zip(self.unpack(-step), self.tvars))
+
+        for k in self.state:
+            if k != 'x' and not k.startswith('lstm_state'):
                 uop = tf.assign(self.state[k], new_state[k])
                 self.update_ops.append(uop)
+            else:
+                print(k)
 
-        return steps_and_vars
+        for i, (c, h) in enumerate(new_state['lstm_state']):
+            uop = tf.assign(self.state['lstm_state_{}_c'.format(i)], c)
+            self.update_ops.append(uop)
+            
+            uop = tf.assign(self.state['lstm_state_{}_h'.format(i)], h)
+            self.update_ops.append(uop)
+
+        #return steps_and_vars
+        return new_x
 
 
     def compute_gradients(self, loss, var_list, global_step=None,
@@ -110,13 +122,33 @@ class LSTMOptimizer:
                                                grad_loss=grad_loss)
 
 
+    def restore(self):
+        lstm_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope.name)
+        #var_list = {var.name.replace('step_scope', 'opt_scope/inference_scope'): var for var in lstm_vars}
+        var_list = lstm_vars
+
+        sess = tf.get_default_session()
+
+        self.opt.saver = tf.train.Saver(var_list=var_list)
+        self.opt.session = sess
+        self.opt.restore(self.eid)
+
+
+
     def apply_gradients(self, grads_and_vars, global_step=None, name=None):
         self.grads, self.tvars = zip(*[(g, v) for g, v in grads_and_vars if g is not None])
 
-        steps_and_vars = self.prepare_grads()
-        apply_op = self.grad_opt.apply_gradients(steps_and_vars, global_step=global_step, name=name)
+        #steps_and_vars = self.prepare_grads()
+        new_x = self.prepare_grads()
+
+        #apply_op = self.grad_opt.apply_gradients(steps_and_vars, global_step=global_step, name=name)
+        apply_ops = []
+        for v, new_v in zip(self.tvars, self.unpack(new_x)):
+            uop = tf.assign(v, new_v)
+            apply_ops.append(uop)
         
-        with tf.control_dependencies([apply_op]):
+        #with tf.control_dependencies([apply_op]):
+        with tf.control_dependencies(apply_ops):
             train_op = tf.group(*self.update_ops)
         return train_op
 
