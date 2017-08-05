@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import sys
 import json
+import random
 import numpy as np
 import tensorflow as tf
 
@@ -61,10 +62,11 @@ def get_tests(test_problem, compare_with):
     for problem in optim.problems:
         tests[problem] = {}
         for opt in opts:
-            tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
+            if problem.startswith('mnist') or problem.startswith('digits'):
+                tests[problem][opt] = [make_opt(opt, 1e-3)]
+            else:
+                tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
 
-        #if problem == 'matyas':
-        #    tests['matyas'][opt] = [make_opt(opt, lr) for lr in np.logspace(start=-5, stop=-9, num=5)]
 
     return tests[test_problem][compare_with]
 
@@ -92,6 +94,10 @@ def run_many_testing(opt, s_opts, flags):
 
     for optimizer in [opt] + s_opts:
         np.random.set_state(random_state)
+        
+        #if hasattr(flags, 'seed') and flags.seed is not None:
+        #    tf.set_random_seed(flags.seed)
+
         kwargs = util.get_kwargs(optimizer.test, flags)
         results[optimizer.name] = optimizer.test(include_x=True, **kwargs)
 
@@ -155,6 +161,9 @@ def testing(flags, opt, s_opts, optimizees):
 
 
 def run_test(flags):
+    if not hasattr(flags, 'seed') or flags.seed is None:
+        flags.seed = random.getstate()
+
     if flags.problems is None or flags.problems == 'all':
         flags.problems = [
             'rosenbrock', 'quadratic',
