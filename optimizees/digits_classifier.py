@@ -10,6 +10,8 @@ class DIGITSClassifier(optimizee.Optimizee):
     name = 'digits_classifier'
 
     def __init__(self, num_units=20, num_layers=1, dataset_name='digits', activation='sigmoid', return_func=False):
+        self.dataset_name = dataset_name
+
         if dataset_name == 'digits':
             dataset = load_digits(n_class=10)
         elif dataset_name == 'mnist':
@@ -40,10 +42,8 @@ class DIGITSClassifier(optimizee.Optimizee):
         batch_size = tf.shape(x)[0]
         activation = getattr(tf.nn, self.activation)
 
-        weights = []
         n_inputs = self.X.shape[1]
 
-        fs = []
         s = 0
 
         dims = [n_inputs] + [self.num_units] * self.num_layers + [10]
@@ -51,31 +51,32 @@ class DIGITSClassifier(optimizee.Optimizee):
         # self.x[i].shape == (batch_size, data_size, n_inputs)
         pred = tf.transpose(self.x[i], perm=[0, 2, 1])
 
-        for j in range(1, len(dims)):
-            n_inputs = dims[j - 1]
-            n_outputs = dims[j]
-            dim = n_inputs * n_outputs
+        with tf.device('/gpu:0'):
+            for j in range(1, len(dims)):
+                n_inputs = dims[j - 1]
+                n_outputs = dims[j]
+                dim = n_inputs * n_outputs
 
-            W = tf.slice(x, [0, s], [batch_size, dim])
-            W = tf.reshape(W, [batch_size, n_outputs, n_inputs])
-            b = tf.slice(x, [0, s + dim], [batch_size, n_outputs])
-            b = tf.expand_dims(b, axis=-1)
+                W = tf.slice(x, [0, s], [batch_size, dim])
+                W = tf.reshape(W, [batch_size, n_outputs, n_inputs])
+                b = tf.slice(x, [0, s + dim], [batch_size, n_outputs])
+                b = tf.expand_dims(b, axis=-1)
 
-            pred = tf.matmul(W, pred) + b
+                pred = tf.matmul(W, pred) + b
 
-            if j + 1 < len(dims):
-                #pred = tf.nn.sigmoid(pred)
-                pred = activation(pred)
+                if j + 1 < len(dims):
+                    #pred = tf.nn.sigmoid(pred)
+                    pred = activation(pred)
 
-            s += (n_inputs + 1) * n_outputs
+                s += (n_inputs + 1) * n_outputs
 
-        pred = tf.transpose(pred, perm=[0, 2, 1]) # shape = (batch_size, data_size, n_classes)
-        f = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y[i], logits=pred), axis=-1)
-    
-        p = tf.argmax(tf.nn.softmax(pred), axis=-1)
-        acc = tf.reduce_mean(tf.cast(tf.equal(tf.cast(p, tf.int32), self.y[i]), tf.float32), axis=1)
+            pred = tf.transpose(pred, perm=[0, 2, 1]) # shape = (batch_size, data_size, n_classes)
+            f = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y[i], logits=pred), axis=-1)
+        
+            p = tf.argmax(tf.nn.softmax(pred), axis=-1)
+            acc = tf.reduce_mean(tf.cast(tf.equal(tf.cast(p, tf.int32), self.y[i]), tf.float32), axis=1)
 
-        g = self.grad(x, f)
+            g = self.grad(x, f)
 
         if self.return_func:
             return f, g
@@ -84,7 +85,11 @@ class DIGITSClassifier(optimizee.Optimizee):
 
 
     def get_initial_x(self, batch_size=1):
-        self.batch_size = np.random.randint(low=1, high=self.X.shape[0] // 4 + 1)
+        if self.dataset_name == 'mnist':
+            self.batch_size = np.random.randint(low=1, high=256)
+        else:
+            self.batch_size = np.random.randint(low=1, high=self.X.shape[0] // 4 + 1)
+
         print("Digits classifier; batch_size: ", self.batch_size)
 
         self.x_len = 0

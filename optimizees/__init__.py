@@ -27,7 +27,15 @@ problems = [
     'beale', 'booth', 'matyas', 'stoch_only',
     'digits_classifier_3', 'digits_classifier_relu_3',
     'vgg-cifar-10',
-    'lstm_ptb'
+    'lstm_ptb',
+    
+    'digits_classifier_6',
+    'digits_classifier_12',
+    'digits_classifier_18',
+
+    'mnist_classifier_6',
+    'mnist_classifier_12',
+    'mnist_classifier_18',
 ]
 
 
@@ -53,7 +61,14 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'vgg-cifar-10': ConvClassifier(dataset_name='cifar-10', arch='vgg19'),
         
         '_digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
-        'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000)
+        'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
+
+        'mnist_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist'),
+        'mnist_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist'),
+        'mnist_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist'),
+        'digits_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='digits'),
+        'digits_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='digits'),
+        'digits_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='digits'),
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([
