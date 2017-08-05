@@ -1,6 +1,40 @@
+import numpy as np
 import tensorflow as tf
 
+
 class Optimizee:
+    def __init__(self):
+        self.coord_vector = None
+        self.coord_pos = 0
+        self.coord_vars = {}
+        self.vars_ = set()
+    
+    
+    def custom_getter(self, getter, name, shape=None, *args, **kwargs):
+        #print('getter', name, shape)
+
+        def dim_to_int(dim):
+            if isinstance(dim, tf.Dimension):
+                dim = dim.value
+            return dim
+
+        if kwargs.get('trainable', True):
+            shape = [dim_to_int(d) for d in shape]
+            dim = np.prod(shape)
+
+            #print(shape, dim)
+            var = tf.reshape(self.coord_vector[0, self.coord_pos: self.coord_pos + dim], shape)
+
+            pos = (self.coord_pos, self.coord_pos + dim)
+            self.coord_pos += dim
+            var = tf.identity(var, name=name)
+
+            self.coord_vars[name] = {'var': var, 'initializer': kwargs['initializer'], 'pos': pos, 'shape': shape}
+            return var
+        else:
+            return getter(name, shape, *args, **kwargs)
+
+
     def build(self):
         raise NotImplementedError
 

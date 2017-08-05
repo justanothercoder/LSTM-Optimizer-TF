@@ -7,6 +7,7 @@ class Beale(optimizee.Optimizee):
     name = 'beale'
 
     def __init__(self, low=2, high=10):
+        super(Beale, self).__init__()
         self.low = low
         self.high = high
 

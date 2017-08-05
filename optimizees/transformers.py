@@ -5,6 +5,7 @@ from . import optimizee
 
 class ClipByValue(optimizee.Optimizee):
     def __init__(self, optimizee, clip_low, clip_high):
+        super(ClipByValue, self).__init__()
         self.optim = optimizee
         self.clip_low = clip_low
         self.clip_high = clip_high
@@ -41,6 +42,7 @@ class ClipByValue(optimizee.Optimizee):
 
 class UniformRandomScaling(optimizee.Optimizee):
     def __init__(self, optimizee, r=3.0):
+        super(UniformRandomScaling, self).__init__()
         self.optim = optimizee
         self.r = r
 
@@ -79,6 +81,7 @@ class UniformRandomScaling(optimizee.Optimizee):
 
 class ConcatAndSum(optimizee.Optimizee):
     def __init__(self, optimizee_list, weighted=False):
+        super(ConcatAndSum, self).__init__()
         self.optim_list = optimizee_list
         self.weighted = weighted
 
@@ -145,6 +148,7 @@ class ConcatAndSum(optimizee.Optimizee):
 
 class NormalNoisyGrad(optimizee.Optimizee):
     def __init__(self, opt, stddev=0.1):
+        super(NormalNoisyGrad, self).__init__()
         self.stddev = stddev
         self.opt = opt
 

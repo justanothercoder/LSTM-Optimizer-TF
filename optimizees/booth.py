@@ -4,9 +4,10 @@ from . import optimizee
 
 
 class Booth(optimizee.Optimizee):
-    name = 'beale'
+    name = 'booth'
 
     def __init__(self, low=2, high=10):
+        super(Booth, self).__init__()
         self.low = low
         self.high = high
 

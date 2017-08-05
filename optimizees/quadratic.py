@@ -7,6 +7,7 @@ class Quadratic(optimizee.Optimizee):
     name = 'quadratic'
 
     def __init__(self, low=20, high=100):
+        super(Quadratic, self).__init__()
         self.low = low
         self.high = high
 

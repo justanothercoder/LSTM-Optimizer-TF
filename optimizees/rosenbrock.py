@@ -7,6 +7,7 @@ class Rosenbrock(optimizee.Optimizee):
     name = 'rosenbrock'
 
     def __init__(self, low=2, high=10):
+        super(Rosenbrock, self).__init__()
         self.low = low
         self.high = high
 

@@ -17,25 +17,39 @@ problems = [
     'stoch_logreg', 'stoch_linear',
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
 
-    'digits_classifier', 'digits_classifier_2',
-    'digits_classifier_relu', 'digits_classifier_relu_2',
-    'mnist_classifier',
-
     '_digits_classifier',
 
     'conv_digits_classifier', 'conv_digits_classifier_2',
     'beale', 'booth', 'matyas', 'stoch_only',
-    'digits_classifier_3', 'digits_classifier_relu_3',
     'vgg-cifar-10',
     'lstm_ptb',
-    
+
+    'digits_classifier',
+    'digits_classifier_2',
+    'digits_classifier_3',
     'digits_classifier_6',
     'digits_classifier_12',
     'digits_classifier_18',
 
+    'digits_classifier_relu',
+    'digits_classifier_relu_2',
+    'digits_classifier_relu_3',
+    'digits_classifier_relu_6',
+    'digits_classifier_relu_12',
+    'digits_classifier_relu_18',
+    
+    '_mnist_classifier',
+    'mnist_classifier',
+    'mnist_classifier_3',
     'mnist_classifier_6',
     'mnist_classifier_12',
     'mnist_classifier_18',
+    
+    'mnist_classifier_relu',
+    'mnist_classifier_relu_3',
+    'mnist_classifier_relu_6',
+    'mnist_classifier_relu_12',
+    'mnist_classifier_relu_18',
 ]
 
 
@@ -49,26 +63,46 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
-        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
-        'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
-        'digits_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
-        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
-        'conv_digits_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='digits'),
-        'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits'),
-        'digits_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits'),
-        'digits_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
-        'vgg-cifar-10': ConvClassifier(dataset_name='cifar-10', arch='vgg19'),
         
         '_digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
         'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
-
-        'mnist_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist'),
-        'mnist_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist'),
-        'mnist_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist'),
+        
+        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
+        'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
+        'digits_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits'),
         'digits_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='digits'),
         'digits_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='digits'),
         'digits_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='digits'),
+
+        '_mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist', return_func=True),
+        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
+        'mnist_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='mnist'),
+        'mnist_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist'),
+        'mnist_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist'),
+        'mnist_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist'),
+        
+        'mnist_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist', activation='relu'),
+        
+        'digits_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='digits', activation='relu'),
+        
+        'conv_digits_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='digits'),
+        'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits'),
+        'vgg-cifar-10': ConvClassifier(dataset_name='cifar-10', arch='vgg19'),
+
+        'conv_mnist_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='mnist'),
+        'conv_mnist_classifier_3': ConvClassifier(num_filters=100, num_layers=3, dataset_name='mnist'),
+        'conv_mnist_classifier_6': ConvClassifier(num_filters=100, num_layers=6, dataset_name='mnist'),
+        'conv_mnist_classifier_12': ConvClassifier(num_filters=100, num_layers=12, dataset_name='mnist'),
+        'conv_mnist_classifier_18': ConvClassifier(num_filters=100, num_layers=18, dataset_name='mnist'),
     }
 
     optimizees['mixed'] = transformers.ConcatAndSum([

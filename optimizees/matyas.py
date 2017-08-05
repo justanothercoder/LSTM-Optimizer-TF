@@ -7,6 +7,7 @@ class Matyas(optimizee.Optimizee):
     name = 'matyas'
 
     def __init__(self, low=2, high=10):
+        super(Matyas, self).__init__()
         self.low = low
         self.high = high
 
