@@ -93,7 +93,7 @@ def run_many_testing(opt, s_opts, flags):
     for optimizer in [opt] + s_opts:
         np.random.set_state(random_state)
         kwargs = util.get_kwargs(optimizer.test, flags)
-        results[optimizer.name] = optimizer.test(**kwargs)
+        results[optimizer.name] = optimizer.test(include_x=True, **kwargs)
 
     return results
 
@@ -168,7 +168,8 @@ def run_test(flags):
 
     experiment_path, opt = setup_experiment(flags)
 
-    opt = distributed.distribute(opt, tf_utils.get_devices(flags))
+    #opt = distributed.distribute(opt, tf_utils.get_devices(flags))
+    opt = distributed.distribute(opt, ['/cpu:0'])
     optimizees = optim.get_optimizees(flags.problems,
                                       clip_by_value=False,
                                       random_scale=flags.enable_random_scaling,
