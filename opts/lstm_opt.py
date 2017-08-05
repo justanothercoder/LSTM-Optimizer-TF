@@ -207,12 +207,12 @@ class LSTMOpt(basic_model.BasicModel):
 
         lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
-        x += d * lr
+        #x += d * lr
 
         new_state = {
             'b1t': b1t,
             'b2t': b2t,
-            'x': x,
+            'x': x + d * lr,
             'm': m,
             'v': v,
             'lstm_state': lstm_state,

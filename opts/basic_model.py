@@ -44,6 +44,7 @@ class BasicModel:
         ops = {}
 
         self.kwargs = kwargs
+        vars_opt = set()
 
         with tf.variable_scope('opt_scope') as scope:
             self.scope = scope
@@ -55,6 +56,8 @@ class BasicModel:
             for opt_name, optimizee in optimizees.items():
                 with tf.variable_scope('inference_scope'):
                     inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad)
+                    vars_opt |= set(optimizee.vars_)
+                    
 
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
 
@@ -69,6 +72,8 @@ class BasicModel:
         with tf.variable_scope('opt_scope', reuse=False) as scope:
             ema = tf.train.ExponentialMovingAverage(decay=0.999)
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
+            self.all_vars = set(self.all_vars) - vars_opt
+
             averages_op = ema.apply(self.all_vars)
 
             if not inference_only and self.all_vars:
