@@ -98,8 +98,6 @@ class LSTMOptimizer:
             if k != 'x' and not k.startswith('lstm_state'):
                 uop = tf.assign(self.state[k], new_state[k])
                 self.update_ops.append(uop)
-            else:
-                print(k)
 
         for i, (c, h) in enumerate(new_state['lstm_state']):
             uop = tf.assign(self.state['lstm_state_{}_c'.format(i)], c)
@@ -124,8 +122,17 @@ class LSTMOptimizer:
 
     def restore(self):
         lstm_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope.name)
-        #var_list = {var.name.replace('step_scope', 'opt_scope/inference_scope'): var for var in lstm_vars}
-        var_list = lstm_vars
+
+
+        var_list = {}
+        for var in lstm_vars:
+            new_name = var.name.replace(self.scope.name, 'opt_scope')
+            if new_name.endswith(':0'):
+                new_name = new_name[:-2]
+            print(new_name)
+            var_list[new_name] = var
+
+        #var_list = lstm_vars
 
         sess = tf.get_default_session()
 
@@ -171,8 +178,8 @@ class LSTMOptimizer:
                     " that do not support gradients, between variables %s and loss %s." %
                     ([str(v) for _, v in grads_and_vars], loss))
 
-        for g, v in grads_and_vars:
-            print("g ", g)
-            print("v ", v)
+        #for g, v in grads_and_vars:
+        #    print("g ", g)
+        #    print("v ", v)
 
         return self.apply_gradients(grads_and_vars)
