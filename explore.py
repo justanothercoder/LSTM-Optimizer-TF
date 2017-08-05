@@ -40,6 +40,9 @@ def plot_hist(flags, weights, opt):
 
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(15, 12))
 
+    if ncols == 1:
+        axes = tuple((ax,) for ax in axes)
+
     for i in range(nrows):
         for j in range(ncols):
             axes[i][j].set_ylim(0, 1)
