@@ -21,29 +21,39 @@ def save_figure(fig, filename):
 def extract_test_run_info(rets, flags, key, normalize):
     vals = []
     for ret in rets:
-        value = ret[key]
-
-        if key == 'lrs':
+        if key == 'lrs_mean':
             #value = np.mean(value, axis=1)
-            value = np.mean(value, axis=(1,2))
+            value = ret['lrs']
+            value = value.mean(axis=2)
+        elif key == 'lrs_max':
+            value = ret['lrs']
+            value = value.max(axis=2)
+        else:
+            value = ret[key]
+
+        if key == 'x':
+            value = np.sum(np.diff(value, axis=0)**2, axis=2)
+
         if normalize:
             value = value / ret[key][:1]
         vals.append(value.reshape(-1, 1))
     vals = np.concatenate(vals, axis=-1).T
+    print(vals.shape)
 
     l_test = int((1. - flags.frac) * vals.shape[1])
     vals = vals[:, l_test:]
 
     mean = np.nanmean(vals, axis=0)
     std = np.std(vals, axis=0)
+    mx = np.nanmax(vals, axis=0)
 
     print(mean[:-20])
 
-    return vals, mean, std
+    return vals, mean, std, mx
 
 
 def setup_test_plot(flags):
-    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1
+    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1 + 1
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
     if nrows == 1:
@@ -100,20 +110,24 @@ def plot_test_results(flags, experiment_path, data):
 
     for name, rets in data['results'].items():
         print(rets[0].keys())
-        fxs, fxs_mean, _ = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
-        _, norms_mean, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
+        fxs, fxs_mean, _, _ = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
+        _, norms_mean, _, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
+        _, diff_mean, _, _ = extract_test_run_info(rets, flags, 'x', False)
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
         if trainable_opt:
-            _, lrs_mean, lrs_std = extract_test_run_info(rets, flags, 'lrs', False)
-            _, cos_mean, cos_std = extract_test_run_info(rets, flags, 'cosines', False)
+            _, lrs_mean, lrs_std, _ = extract_test_run_info(rets, flags, 'lrs_mean', False)
+            _, lrs_max, lrs_std, lrs_mx = extract_test_run_info(rets, flags, 'lrs_max', False)
+            _, cos_mean, cos_std, _  = extract_test_run_info(rets, flags, 'cosines', False)
 
-        plot(axes[0], fxs_mean, name, with_moving=flags.stochastic)
+        cur_ax = 0
+
+        plot(axes[cur_ax], fxs_mean, name, with_moving=flags.stochastic)
+        cur_ax += 1
+        
         if not flags.stochastic:
-            plot(axes[1], norms_mean, name, with_moving=flags.stochastic)
-
-        if trainable_opt:
-            p = axes[3 - int(flags.stochastic)].plot(cos_mean, label=name)
+            plot(axes[cur_ax], norms_mean, name, with_moving=flags.stochastic)
+            cur_ax += 1
 
         if trainable_opt and flags.plot_lr:
             #p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
@@ -123,12 +137,24 @@ def plot_test_results(flags, experiment_path, data):
             #                                             alpha=0.3,
             #                                             facecolor=p[-1].get_color())
 
-            p = axes[2 - int(flags.stochastic)].semilogy(np.exp(lrs_mean), label=name)
+            p = axes[cur_ax].semilogy(np.exp(lrs_mx), label=name)
+            p = axes[cur_ax].semilogy(np.exp(lrs_max), label=name)
+            p = axes[cur_ax].semilogy(np.exp(lrs_mean), label=name)
             #axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
             #                                             np.exp(lrs_mean + lrs_std),
             #                                             np.exp(lrs_mean - lrs_std),
             #                                             alpha=0.3,
             #                                             facecolor=p[-1].get_color())
+
+            cur_ax += 1
+        
+        if trainable_opt:
+            p = axes[cur_ax].plot(cos_mean, label=name)
+            cur_ax += 1
+        
+        #axes[rur_ax].plot(diff_mean, label=name)
+
+
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
