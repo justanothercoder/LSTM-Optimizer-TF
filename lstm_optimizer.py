@@ -27,9 +27,10 @@ class LSTMOptimizer:
         self.shapes, self.sizes, vector = self.pack(self.tvars)
         n_coords = np.sum(self.sizes)
 
-        #input_state = self.opt.build_inputs()
-        self.opt.x = tf.reshape(vector, [1, -1])
+        input_state = self.opt.build_inputs()
+        #self.opt.x = tf.reshape(vector, [1, -1])
         initial_state = self.opt.build_initial_state()
+        initial_state = tf.get_default_session().run(initial_state, feed_dict={self.opt.x: np.zeros((1, n_coords))})
     
         self.state = {}
 
@@ -37,10 +38,10 @@ class LSTMOptimizer:
             if k in {'x', 'lstm_state'}:
                 continue
 
-            if k in {'m', 'v', 'm_norm', 'v_norm', 'loglr'}:
-                v.set_shape([1] + vector.get_shape().as_list())
-            elif k in {'b1t', 'b2t'}:
-                v.set_shape([1])
+            #if k in {'m', 'v', 'm_norm', 'v_norm', 'loglr'}:
+            #    v.set_shape([1] + vector.get_shape().as_list())
+            #elif k in {'b1t', 'b2t'}:
+            #    v.set_shape([1])
                 
             self.state[k] = tf.Variable(v)
             
@@ -49,8 +50,8 @@ class LSTMOptimizer:
         lstm_state = []
             
         for i, (c, h) in enumerate(initial_state['lstm_state']):
-            c.set_shape([n_coords, c.get_shape()[1]])
-            h.set_shape([n_coords, h.get_shape()[1]])
+            #c.set_shape([n_coords, c.get_shape()[1]])
+            #h.set_shape([n_coords, h.get_shape()[1]])
 
             c_ = tf.Variable(c) 
             h_ = tf.Variable(h)
@@ -91,7 +92,7 @@ class LSTMOptimizer:
 
         new_x = new_state['x'][0]
 
-        #step = (new_x - old_x)
+        step = (new_x - old_x)
         #steps_and_vars = list(zip(self.unpack(-step), self.tvars))
 
         for k in self.state:
@@ -107,7 +108,7 @@ class LSTMOptimizer:
             self.update_ops.append(uop)
 
         #return steps_and_vars
-        return new_x
+        return step
 
 
     def compute_gradients(self, loss, var_list, global_step=None,
@@ -123,13 +124,12 @@ class LSTMOptimizer:
     def restore(self):
         lstm_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope.name)
 
-
         var_list = {}
         for var in lstm_vars:
             new_name = var.name.replace(self.scope.name, 'opt_scope')
             if new_name.endswith(':0'):
                 new_name = new_name[:-2]
-            print(new_name)
+            #print(new_name)
             var_list[new_name] = var
 
         #var_list = lstm_vars
@@ -141,17 +141,16 @@ class LSTMOptimizer:
         self.opt.restore(self.eid)
 
 
-
     def apply_gradients(self, grads_and_vars, global_step=None, name=None):
         self.grads, self.tvars = zip(*[(g, v) for g, v in grads_and_vars if g is not None])
 
         #steps_and_vars = self.prepare_grads()
-        new_x = self.prepare_grads()
+        step = self.prepare_grads()
 
         #apply_op = self.grad_opt.apply_gradients(steps_and_vars, global_step=global_step, name=name)
         apply_ops = []
-        for v, new_v in zip(self.tvars, self.unpack(new_x)):
-            uop = tf.assign(v, new_v)
+        for v, s in zip(self.tvars, self.unpack(step)):
+            uop = tf.assign(v, v + s)
             apply_ops.append(uop)
         
         #with tf.control_dependencies([apply_op]):
