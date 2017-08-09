@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 import yellowfin
 
-
 class BasicModel:
     def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None, debug=False):
         self.bid = 0
@@ -68,13 +67,17 @@ class BasicModel:
 
                 if not scope.reuse:
                     scope.reuse_variables()
+        
+        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
 
         with tf.variable_scope('opt_scope', reuse=False) as scope:
-            ema = tf.train.ExponentialMovingAverage(decay=0.999)
+            if not is_rnnprop:
+                ema = tf.train.ExponentialMovingAverage(decay=0.999)
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
-            self.all_vars = set(self.all_vars) - vars_opt
+            self.all_vars = list(set(self.all_vars) - vars_opt)
 
-            averages_op = ema.apply(self.all_vars)
+            if not is_rnnprop:
+                averages_op = ema.apply(self.all_vars)
 
             if not inference_only and self.all_vars:
                 self.optimizer = self.build_optimizer(optimizer)
@@ -117,15 +120,32 @@ class BasicModel:
 
         state = input_state
         scope = tf.get_variable_scope()
+                
+        def opt_loss(i, x):
+            opt_loss = optimizee.loss(x[None], i)[0]
+            print(opt_loss.get_shape())
+            return opt_loss
+
+        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
 
         for i in range(n_bptt_steps):
-            x = state['x']
-            value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
-            if stop_grad:
-                gradient = tf.stop_gradient(gradient)
 
-            step_info = self.step(gradient, state)
-            state = step_info['state']
+            if is_rnnprop:
+                x = state[3]
+                
+                value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i)
+                if stop_grad:
+                    gradient = tf.stop_gradient(gradient)
+
+                step_info = self.step(opt_loss, i, state)
+            else:
+                x = state['x']
+                value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
+                if stop_grad:
+                    gradient = tf.stop_gradient(gradient)
+
+                step_info = self.step(gradient, state)
+                state = step_info['state']
 
             if not scope.reuse:
                 scope.reuse_variables()
@@ -142,10 +162,10 @@ class BasicModel:
             'states': [info['state'] for info in steps_info],
         }
 
-        if steps_info[0].get('cos_step_adam') is not None:
+        if not is_rnnprop and steps_info[0].get('cos_step_adam') is not None:
             ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
 
-        if steps_info[0]['state'].get('loglr') is not None:
+        if not is_rnnprop and steps_info[0]['state'].get('loglr') is not None:
             ret['lrs'] = [info['state']['loglr'] for info in steps_info]
 
         return ret
@@ -305,8 +325,13 @@ class BasicModel:
 
         optimizee = self.optimizees[opt_name]
 
+        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
+
         x = optimizee.get_initial_x()
-        state = session.run(self.initial_state, feed_dict={self.x: x})
+        if is_rnnprop:
+            state = session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
+        else:
+            state = session.run(self.initial_state, feed_dict={self.x: x})
 
         optimizee_params = optimizee.get_new_params()
 
@@ -338,7 +363,7 @@ class BasicModel:
             run_op['lrs'] = inf['lrs']
             steps_info['lrs'] = []
 
-        if include_x:
+        if include_x and not is_rnnprop:
             run_op['x'] = [info['x'] for info in inf['states']]
             steps_info['x'] = []
 
@@ -346,8 +371,10 @@ class BasicModel:
 
         for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
-            #feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
-            feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
+            if is_rnnprop:
+                feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
+            else:
+                feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
  
             info = session.run(run_op, feed_dict=feed_dict)

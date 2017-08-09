@@ -11,6 +11,8 @@ from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
 from opts.adamng_opt import AdamNGOpt
 
+from opts.rnnprop_opt import RNNPropOpt
+
 import util
 import util.tf_utils as tf_utils
 import util.paths as paths
@@ -36,7 +38,7 @@ def pickle_test_results(filename, data):
     f.close()
     
 
-def get_tests(test_problem, compare_with):
+def get_tests(test_problem, compare_with, with_rnnprop=False):
     def make_opt(name, learning_rate):
         #pylint: disable=missing-docstring
         return {
@@ -57,15 +59,18 @@ def get_tests(test_problem, compare_with):
 
     opts = {'sgd', 'momentum', 'adam', 'adamng'}
 
-    lrs = np.logspace(start=-1, stop=-5, num=5)
+    lrs = np.logspace(start=-1, stop=-4, num=4)
     tests = {}
     for problem in optim.problems:
         tests[problem] = {}
         for opt in opts:
-            if problem.startswith('mnist') or problem.startswith('digits'):
-                tests[problem][opt] = [make_opt(opt, 1e-3)]
-            else:
+            #if problem.startswith('mnist') or problem.startswith('digits'):
+            #    tests[problem][opt] = [make_opt(opt, 1e-3)]
+            #else:
                 tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
+
+                if with_rnnprop:
+                    tests[problem][opt].append(RNNPropOpt(eid=600))
 
 
     return tests[test_problem][compare_with]
@@ -99,7 +104,8 @@ def run_many_testing(opt, s_opts, flags):
         #    tf.set_random_seed(flags.seed)
 
         kwargs = util.get_kwargs(optimizer.test, flags)
-        results[optimizer.name] = optimizer.test(include_x=True, **kwargs)
+        #results[optimizer.name] = optimizer.test(include_x=True, **kwargs)
+        results[optimizer.name] = optimizer.test(include_x=False, **kwargs)
 
     return results
 
@@ -149,6 +155,9 @@ def testing(flags, opt, s_opts, optimizees):
         with tf.variable_scope('s_opt_{}'.format(i)):
             s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
 
+        if hasattr(s_opt, 'eid'):
+            s_opt.restore(s_opt.eid)
+
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer())
 
@@ -173,7 +182,12 @@ def run_test(flags):
         ]
 
     for problem in flags.problems:
-        assert problem in optim.problems
+        try:
+            assert problem in optim.problems
+        except Exception as e:
+            print('problem: ', problem)
+            raise
+
 
     experiment_path, opt = setup_experiment(flags)
 
@@ -188,7 +202,7 @@ def run_test(flags):
         optimizee = optimizees[opt_name]
         print("Running testing on: ", opt_name)
 
-        s_opts = get_tests(opt_name, flags.compare_with)
+        s_opts = get_tests(opt_name, flags.compare_with, with_rnnprop=flags.with_rnnprop)
         results = testing(flags, opt, s_opts, {opt_name: optimizee})
 
         data = {

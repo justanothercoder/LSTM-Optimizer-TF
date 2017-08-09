@@ -12,6 +12,9 @@ from .lstm_ptb import LSTM_PTB
 
 from . import transformers
 
+from . import from_rnnprop
+from .rnnprop_adapt import RNNPropAdapter
+
 problems = [
     'quadratic', 'rosenbrock', 'logreg',
     'stoch_logreg', 'stoch_linear',
@@ -51,6 +54,37 @@ problems = [
     'mnist_classifier_relu_12',
     'mnist_classifier_relu_18',
 ]
+
+
+rnnprop_problems = [
+    'mnist-nn-l2-sigmoid-100',
+    'mnist-nn-l2-relu-100',
+    'mnist-nn-l2-elu-100',
+    'mnist-nn-l2-tanh-100',
+
+    'mnist-nn-sigmoid-100',
+    'mnist-nn-relu-100',
+    'mnist-nn-elu-100',
+    'mnist-nn-tanh-100',
+    'mnist-nn-l2-sigmoid-100',
+    'mnist-nn-l3-sigmoid-100',
+    'mnist-nn-l4-sigmoid-100',
+    'mnist-nn-l5-sigmoid-100',
+    'mnist-nn-l6-sigmoid-100',
+    'mnist-nn-l7-sigmoid-100',
+    'mnist-nn-l8-sigmoid-100',
+    'mnist-nn-l9-sigmoid-100',
+    'mnist-nn-l10-sigmoid-100',
+    'vgg-mnist-fc1-conv2-pool1-100',
+    'vgg-cifar-fc1-conv2-pool1-100',
+    'vgg-mnist-fc2-conv4-pool2-100',
+    'vgg-cifar-fc2-conv4-pool2-100',
+    'sin_lstm',
+    'sin_lstm-x2',
+    'sin_lstm-no001',
+]
+
+problems.extend(rnnprop_problems)
 
 
 def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy_grad=False):
@@ -104,6 +138,39 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'conv_mnist_classifier_12': ConvClassifier(num_filters=100, num_layers=12, dataset_name='mnist'),
         'conv_mnist_classifier_18': ConvClassifier(num_filters=100, num_layers=18, dataset_name='mnist'),
     }
+
+
+    optimizees.update({
+        '_mnist-nn-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid'), reshape_f=True),
+
+        'mnist-nn-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid')),
+        'mnist-nn-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu')),
+        'mnist-nn-elu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='elu')),
+        'mnist-nn-tanh-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='tanh')),
+
+        'mnist-nn-l2-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=2)),
+        'mnist-nn-l2-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu', n_l=2)),
+        'mnist-nn-l2-elu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='elu', n_l=2)),
+        'mnist-nn-l2-tanh-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='tanh', n_l=2)),
+
+        'mnist-nn-l2-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=2)),
+        'mnist-nn-l3-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=3)),
+        'mnist-nn-l4-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=4)),
+        'mnist-nn-l5-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=5)),
+        'mnist-nn-l6-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=6)),
+        'mnist-nn-l7-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=7)),
+        'mnist-nn-l8-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=8)),
+        'mnist-nn-l9-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=9)),
+        'mnist-nn-l10-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid', n_l=10)),
+        'vgg-mnist-fc1-conv2-pool1-100': RNNPropAdapter(from_rnnprop.vgg.VGGModel(input_data='mnist', n_batches=128, fc_num=1, conv_num=2, pool_num=1)),
+        'vgg-cifar-fc1-conv2-pool1-100': RNNPropAdapter(from_rnnprop.vgg.VGGModel(input_data='cifar10', n_batches=128, fc_num=1, conv_num=2, pool_num=1)),
+        'vgg-mnist-fc2-conv4-pool2-100': RNNPropAdapter(from_rnnprop.vgg.VGGModel(input_data='mnist', n_batches=128, fc_num=2, conv_num=4, pool_num=2)),
+        'vgg-cifar-fc2-conv4-pool2-100': RNNPropAdapter(from_rnnprop.vgg.VGGModel(input_data='cifar10', n_batches=128, fc_num=2, conv_num=4, pool_num=2)),
+        'sin_lstm': RNNPropAdapter(from_rnnprop.lstm.SinLSTMModel()),
+        'sin_lstm-x2': RNNPropAdapter(from_rnnprop.lstm.SinLSTMModel(n_lstm=2)),
+        'sin_lstm-no001': RNNPropAdapter(from_rnnprop.lstm.SinLSTMModel(noise_scale=0.01)),
+    })
+    
 
     optimizees['mixed'] = transformers.ConcatAndSum([
         optimizees['quadratic'],

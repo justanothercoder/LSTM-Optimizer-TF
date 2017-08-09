@@ -68,6 +68,8 @@ def make_test_parser(parser):
     parser.add_argument('--use-moving-averages', action='store_true')
     parser.add_argument('--seed', type=int, default=None, help='random seed to set in the beginning (for the reproducibility)')
 
+    parser.add_argument('--with-rnnprop', action='store_true')
+
     return parser
 
 
