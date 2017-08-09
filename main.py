@@ -42,5 +42,8 @@ if __name__ == '__main__':
     elif flags.command_name == 'explore':
         import explore
         explore.run_explore(flags)
+    elif flags.command_name == 'tftest':
+        import tftesting
+        tftesting.run_tftest(flags)
     else:
         parser.print_help()

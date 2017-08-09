@@ -21,15 +21,18 @@ def save_figure(fig, filename):
 def extract_test_run_info(rets, flags, key, normalize):
     vals = []
     for ret in rets:
-        if key == 'lrs_mean':
+        if key == 'lrs_mean' and ret.get('lrs') is not None:
             #value = np.mean(value, axis=1)
             value = ret['lrs']
             value = value.mean(axis=2)
-        elif key == 'lrs_max':
+        elif key == 'lrs_max' and ret.get('lrs') is not None:
             value = ret['lrs']
             value = value.max(axis=2)
         else:
-            value = ret[key]
+            if ret.get(key) is not None:
+                value = ret[key]
+            else:
+                return [], [], [], []
 
         if key == 'x':
             value = np.sum(np.diff(value, axis=0)**2, axis=2)
@@ -38,7 +41,7 @@ def extract_test_run_info(rets, flags, key, normalize):
             value = value / ret[key][:1]
         vals.append(value.reshape(-1, 1))
     vals = np.concatenate(vals, axis=-1).T
-    print(vals.shape)
+    #print(vals.shape)
 
     l_test = int((1. - flags.frac) * vals.shape[1])
     vals = vals[:, l_test:]
@@ -47,7 +50,7 @@ def extract_test_run_info(rets, flags, key, normalize):
     std = np.std(vals, axis=0)
     mx = np.nanmax(vals, axis=0)
 
-    print(mean[:-20])
+    #print(mean[:-20])
 
     return vals, mean, std, mx
 
@@ -109,10 +112,10 @@ def plot_test_results(flags, experiment_path, data):
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
-        print(rets[0].keys())
+        #print(rets[0].keys())
         fxs, fxs_mean, _, _ = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
         _, norms_mean, _, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
-        _, diff_mean, _, _ = extract_test_run_info(rets, flags, 'x', False)
+        #_, diff_mean, _, _ = extract_test_run_info(rets, flags, 'x', False)
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
         if trainable_opt:
@@ -122,7 +125,7 @@ def plot_test_results(flags, experiment_path, data):
 
         cur_ax = 0
 
-        plot(axes[cur_ax], fxs_mean, name, with_moving=flags.stochastic)
+        plot(axes[cur_ax], fxs_mean, name, with_moving=flags.stochastic and flags.plot_moving)
         cur_ax += 1
         
         if not flags.stochastic:
