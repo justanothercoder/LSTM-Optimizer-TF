@@ -12,8 +12,9 @@ GATE_GRAPH = 2
 
 
 class LSTMOptimizer:
-    def __init__(self, model_path, eid):
+    def __init__(self, model_path, eid, clip_delta=2):
         self.opt = util.load_opt(model_path)
+        self.opt.clip_delta = clip_delta
         self.opt.kwargs = {}
         self.grad_opt = tf.train.GradientDescentOptimizer(1.0)
 
@@ -21,6 +22,7 @@ class LSTMOptimizer:
             self.opt.build_pre()
 
         self.eid = eid
+        self.prepared_grads = False
 
 
     def prepare_states(self):
@@ -87,7 +89,7 @@ class LSTMOptimizer:
         old_x = self.state['x'][0]
         with tf.variable_scope('opt_scope') as self.scope:
             self.opt.scope = self.scope
-            with tf.variable_scope('inference_scope'):
+            with tf.variable_scope('inference_scope', reuse=self.prepared_grads):
                 new_state = self.opt.step(gradient, self.state)['state']
 
         new_x = new_state['x'][0]
@@ -108,6 +110,7 @@ class LSTMOptimizer:
             self.update_ops.append(uop)
 
         #return steps_and_vars
+        self.prepared_grads = True
         return step
 
 
@@ -123,6 +126,7 @@ class LSTMOptimizer:
 
     def restore(self):
         lstm_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope.name)
+        self.lstm_vars = lstm_vars
 
         var_list = {}
         for var in lstm_vars:
