@@ -10,7 +10,7 @@ HOME = '/srv/hd1/data/vyanush/'
 
 def get_dataset(dataset_name):
     def standartize(X):
-        return StandardScaler().fit_transform(X).astype(np.float32)
+        return StandardScaler().fit_transform(X.astype(np.float32))
 
     if dataset_name == 'digits':
         dataset = load_digits(n_class=10)

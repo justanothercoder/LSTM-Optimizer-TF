@@ -98,7 +98,7 @@ class DIGITSClassifier(optimizee.Optimizee):
         #w = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
         w = np.zeros(self.x_len)
 
-        print(w.shape)
+        print("x_len: ", w.shape)
 
         for name, d in self.coord_vars.items():
             start, end = d['pos']
