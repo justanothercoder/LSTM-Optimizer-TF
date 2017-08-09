@@ -19,7 +19,8 @@ class LSTMOpt(basic_model.BasicModel):
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
         rmsprop_gradients=False,
-        learn_init=False, use_both=False, with_log_features=False,
+        learn_init=False, use_both=False, with_log_features=False, only_log_features=False,
+        weight_norm=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -41,6 +42,9 @@ class LSTMOpt(basic_model.BasicModel):
         self.learn_init = learn_init
         self.use_both = use_both
         self.with_log_features = with_log_features
+        self.only_log_features = only_log_features
+
+        self.weight_norm = weight_norm
 
 
     def build_pre(self):
@@ -144,6 +148,22 @@ class LSTMOpt(basic_model.BasicModel):
         return s
 
 
+    def get_features(self, g, m, v, a):
+        g2 = tf.square(g)
+        log_g2 = tf.log(g2 + self.eps)
+        log_v = tf.log(v + self.eps)
+        s = self.adam_step(m, v, a)
+
+        if self.only_log_features:
+            features = [g, log_g2, m, log_v, s]
+        elif self.with_log_features:
+            features = [g, g2, m, v, s, log_g2, log_v]
+        else:
+            features = [g, g2, m, v, s]
+
+        return features
+
+
     def step(self, g, state):
         b1t, b2t, x, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'x', 'm', 'v', 'lstm_state', 'loglr'])
 
@@ -171,28 +191,48 @@ class LSTMOpt(basic_model.BasicModel):
         if self.rmsprop_gradients and not self.normalize_gradients:
             g = g / (tf.sqrt(v, name='v_sqrt') + self.eps)
         
-        features = [g, tf.square(g), m, v, s]
-        if self.with_log_features:
-            features += [tf.log(tf.square(g) + self.eps), tf.log(v + self.eps)]
-        
+        #features = [g, tf.square(g), m, v, s]
+        #if self.with_log_features:
+        #    features += [tf.log(tf.square(g) + self.eps), tf.log(v + self.eps)]
+        #
+        #if self.use_both:
+        #    s_norm = self.adam_step(m_norm, v_norm, a)
+        #    features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
+
+        #    if self.with_log_features:
+        #        features += [tf.log(tf.square(g_norm + self.eps)), tf.log(v_norm + self.eps)]
+
+        features = self.get_features(g, m, v, a)
         if self.use_both:
-            s_norm = self.adam_step(m_norm, v_norm, a)
-            features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
-
-            if self.with_log_features:
-                features += [tf.log(tf.square(g_norm + self.eps)), tf.log(v_norm + self.eps)]
-
+            features += self.get_features(g_norm, m_norm, v_norm, a)
+        
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
-        last, lstm_state = self.lstm(prep, lstm_state)
 
+        
+        if self.weight_norm:
+            def custom_getter(getter, name, *args, **kwargs):
+                shape = kwargs['shape']
+                if shape is not None and kwargs.get('trainable', False):
+                    del kwargs['shape']
+                    g = getter(name + '_norm', shape=(shape[:-1] + [1]), *args, **kwargs)
+                    v = getter(name + '_direction', shape=shape, *args, **kwargs)
+
+                    normed_v = v / tf.norm(v, axis=-1, keep_dims=True)
+                    return g * normed_v
+                else:
+                    return getter(name, *args, **kwargs)
+
+            scope = tf.get_variable_scope()
+            scope.set_custom_getter(custom_getter)
+        
+        last, lstm_state = self.lstm(prep, lstm_state)
         last = tf.layers.dense(last, 2, use_bias=False, name=self.scope.name)
+
         d, loglr_add = tf.unstack(last, axis=1)
 
         d = tf.reshape(d, x_shape)
         loglr_add = tf.reshape(loglr_add, x_shape)
-
-        loglr += loglr_add
-        loglr = tf.minimum(loglr, np.log(self.clip_delta))
+        loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
 
         n_coords = tf.cast(x_shape[0], tf.float32)
 
@@ -209,10 +249,12 @@ class LSTMOpt(basic_model.BasicModel):
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
         #x += d * lr
 
+        new_x = x + d * lr
+
         new_state = {
             'b1t': b1t,
             'b2t': b2t,
-            'x': x + d * lr,
+            'x': new_x,
             'm': m,
             'v': v,
             'lstm_state': lstm_state,

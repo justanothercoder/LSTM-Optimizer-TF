@@ -122,8 +122,13 @@ def make_new_parser(parser):
                         help='add residual connections in lstm')
     parser.add_argument('--learn-init', action='store_true',
                         help='learn initial hidden state')
-    parser.add_argument('--with-log-features', action='store_true',
+    parser.add_argument('--weight-norm', action='store_true', help='enable weight normalization')
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--with-log-features', action='store_true',
                         help='add logarithmic features')
+    group.add_argument('--only-log-features', action='store_true')
+    
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--normalize_gradients', action='store_true',
