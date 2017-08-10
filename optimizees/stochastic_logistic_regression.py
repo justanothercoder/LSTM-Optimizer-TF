@@ -40,8 +40,12 @@ class StochasticLogisticRegression(optimizee.Optimizee):
 
     def get_initial_x(self, batch_size=1):
         self.num_features = np.random.randint(low=1, high=self.max_features)
-        self.data_size    = np.random.randint(low=1, high=self.max_data_size)
-        self.batch_size   = np.random.randint(low=1, high=self.data_size + 1)
+        self.data_size    = np.random.randint(low=100, high=self.max_data_size)
+        self.batch_size   = np.random.randint(low=1, high=self.data_size // 10 + 2)
+    
+        #print("Logistic regression")
+        #print("Data size: ", self.data_size)
+        #print("Batch size: ", self.batch_size)
     
         self.w  = np.random.normal(size=(batch_size, self.num_features))
         self.w0 = np.random.normal(size=(batch_size, 1))
@@ -70,6 +74,9 @@ class StochasticLogisticRegression(optimizee.Optimizee):
             if self.s + self.batch_size > self.data_size:
                 self.s = 0
             pos_cur, pos_next = self.s, self.s + self.batch_size
+
+            pos_cur = np.random.randint(low=0, high=self.X.shape[1] - self.batch_size)
+            pos_next = pos_cur + self.batch_size
 
             x[i] = self.X[:, pos_cur:pos_next]
             y[i] = self.Y[:, pos_cur:pos_next]
