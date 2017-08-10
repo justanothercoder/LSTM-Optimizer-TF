@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper
+from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell
 
 from . import basic_model
 from . import lstm_utils
@@ -20,7 +20,7 @@ class LSTMOpt(basic_model.BasicModel):
         normalize_gradients=False,
         rmsprop_gradients=False,
         learn_init=False, use_both=False, with_log_features=False, only_log_features=False,
-        weight_norm=False,
+        weight_norm=False, ema_step=False, ema_lr=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -45,6 +45,8 @@ class LSTMOpt(basic_model.BasicModel):
         self.only_log_features = only_log_features
 
         self.weight_norm = weight_norm
+        self.ema_step = ema_step
+        self.ema_lr = ema_lr
 
 
     def build_pre(self):
@@ -58,7 +60,8 @@ class LSTMOpt(basic_model.BasicModel):
                     cell = LayerNormBasicLSTMCell(num_units, layer_norm=True)
                 else:
                     print("LSTM Without layer norm")
-                    cell = LSTMCell(num_units)
+                    #cell = LSTMCell(num_units)
+                    cell = LSTMBlockCell(num_units)
 
             if residual:
                 cell = ResidualWrapper(cell)
@@ -212,10 +215,11 @@ class LSTMOpt(basic_model.BasicModel):
         if self.weight_norm:
             def custom_getter(getter, name, *args, **kwargs):
                 shape = kwargs['shape']
-                if shape is not None and kwargs.get('trainable', False):
+                if name.find('bias') == -1 and shape is not None and kwargs.get('trainable', False):
                     del kwargs['shape']
-                    g = getter(name + '_norm', shape=(shape[:-1] + [1]), *args, **kwargs)
-                    v = getter(name + '_direction', shape=shape, *args, **kwargs)
+                    initializer = kwargs.pop('initializer')
+                    g = getter(name + '_norm', shape=(shape[:-1] + [1]), initializer=tf.ones_initializer(), *args, **kwargs)
+                    v = getter(name + '_direction', shape=shape, initializer=initializer, *args, **kwargs)
 
                     normed_v = v / tf.norm(v, axis=-1, keep_dims=True)
                     return g * normed_v
@@ -232,7 +236,11 @@ class LSTMOpt(basic_model.BasicModel):
 
         d = tf.reshape(d, x_shape)
         loglr_add = tf.reshape(loglr_add, x_shape)
-        loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
+
+        if self.ema_lr:
+            loglr = tf.minimum(loglr * 0.9 + 0.1 * loglr_add, np.log(self.clip_delta))
+        else:
+            loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
 
         n_coords = tf.cast(x_shape[0], tf.float32)
 
