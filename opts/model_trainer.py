@@ -91,7 +91,10 @@ class Trainer:
     def train(self, n_epochs, n_batches,
               batch_size=100, n_steps=20,
               train_lr=1e-4, momentum=0.9,
-              eid=0, test=True, verbose=1):
+              eid=0, test=True, verbose=1, masked_train=False, masked_train_p=0.2):
+
+        self.masked_train = masked_train
+        self.masked_train_p = masked_train_p
 
         self.logger.info("Training model: {}".format(self.model.name), extra={'epoch': 0, 'batch': 0})
 
@@ -189,6 +192,9 @@ class Trainer:
 
         self.log("Optimizee: {}".format(opt_name), level=15)
 
+        n_unrolls = n_steps // self.model.n_bptt_steps
+        mask = np.random.binomial(n=1, p=self.masked_train_p, size=n_unrolls)
+
         for i in range(n_steps // self.model.n_bptt_steps):
             feed_dict = optimizee_params
             feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
@@ -198,7 +204,11 @@ class Trainer:
                 self.model.momentum: self.mu,
             })
 
-            info = self.session.run(self.run_op[opt_name], feed_dict=feed_dict)
+            run_op = self.run_op[opt_name].copy()
+            if self.masked_train and mask[i] == 0:
+                del run_op['train_op']
+
+            info = self.session.run(run_op, feed_dict=feed_dict)
             state = info['states'][-1]
             summaries_str = info['summaries']
 

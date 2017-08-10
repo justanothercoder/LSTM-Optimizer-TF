@@ -70,7 +70,7 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
                 tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
 
                 if with_rnnprop:
-                    tests[problem][opt].append(RNNPropOpt(eid=600))
+                    tests[problem][opt].append(RNNPropOpt(eid=1500))
 
 
     return tests[test_problem][compare_with]
@@ -148,7 +148,7 @@ def testing(flags, opt, s_opts, optimizees):
     for optimizee in optimizees.values():
         optimizee.build()
 
-    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1)
+    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1, ema_step=flags.ema_step, ema_lr=flags.ema_lr)
 
     for i, s_opt in enumerate(s_opts):
         #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))

@@ -37,6 +37,8 @@ def make_train_parser(parser):
                         help='add normal noise to gradients of non-stochastic problems')
     parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
                         help='whether to compute second derivatives')
+    parser.add_argument('--masked-train', action='store_true')
+    parser.add_argument('--masked-train-p', type=float, default=0.2)
 
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
 
@@ -69,6 +71,9 @@ def make_test_parser(parser):
     parser.add_argument('--seed', type=int, default=None, help='random seed to set in the beginning (for the reproducibility)')
 
     parser.add_argument('--with-rnnprop', action='store_true')
+
+    parser.add_argument('--ema-step', action='store_true')
+    parser.add_argument('--ema-lr', action='store_true')
 
     return parser
 
