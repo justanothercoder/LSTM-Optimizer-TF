@@ -58,10 +58,13 @@ class Trainer:
             self.run_op[opt_name] = {
                 'loss': losses[0],
                 'summaries': model.ops[opt_name]['summaries'],
-                'states': inf['states'],
                 'values': inf['values'],
                 'norms': inf['norms'],
+                'final_state': inf['final_state']
             }
+
+            if inf.get('states') is not None:
+                self.run_op[opt_name]['states'] = inf['states']
 
             if mode == 'train':
                 self.run_op[opt_name]['train_op'] = model.ops[opt_name]['train_op']
@@ -91,7 +94,7 @@ class Trainer:
     def train(self, n_epochs, n_batches,
               batch_size=100, n_steps=20,
               train_lr=1e-4, momentum=0.9,
-              eid=0, test=True, verbose=1, masked_train=False, masked_train_p=0.2):
+              eid=0, test=True, verbose=1, masked_train='none', masked_train_p=0.2):
 
         self.masked_train = masked_train
         self.masked_train_p = masked_train_p
@@ -193,7 +196,16 @@ class Trainer:
         self.log("Optimizee: {}".format(opt_name), level=15)
 
         n_unrolls = n_steps // self.model.n_bptt_steps
-        mask = np.random.binomial(n=1, p=self.masked_train_p, size=n_unrolls)
+        if self.masked_train == 'random':
+            mask = np.random.binomial(n=1, p=self.masked_train_p, size=n_unrolls)
+        elif self.masked_train == 'first-last':
+            mask = np.ones(n_unrolls)
+            left = int(self.masked_train_p / 2 * n_unrolls)
+            right = n_unrolls - int(self.masked_train_p / 2 * n_unrolls)
+            mask[left:right] = 0 
+        else:
+            mask = np.ones(n_unrolls)
+
 
         for i in range(n_steps // self.model.n_bptt_steps):
             feed_dict = optimizee_params
@@ -205,11 +217,12 @@ class Trainer:
             })
 
             run_op = self.run_op[opt_name].copy()
-            if self.masked_train and mask[i] == 0:
+            if mask[i] == 0:
                 del run_op['train_op']
 
             info = self.session.run(run_op, feed_dict=feed_dict)
-            state = info['states'][-1]
+            #state = info['states'][-1]
+            state = info['final_state']
             summaries_str = info['summaries']
 
             losses.append(info['loss'])

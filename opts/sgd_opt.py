@@ -16,7 +16,7 @@ class SgdOpt(basic_model.BasicModel):
         return dict(x=x)
 
 
-    def step(self, g, state):
+    def step(self, f, g, state):
         x = state['x']
         x -= self.lr * g
 

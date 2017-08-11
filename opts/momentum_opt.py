@@ -27,7 +27,7 @@ class MomentumOpt(basic_model.BasicModel):
         pass
         
 
-    def step(self, g, state):
+    def step(self, f, g, state):
         x, v = state['x'], state['v']
 
         v = self.mu * v - self.lr * g

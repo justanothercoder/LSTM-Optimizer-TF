@@ -36,7 +36,7 @@ class AdamNGOpt(basic_model.BasicModel):
         pass
         
 
-    def step(self, g, state):
+    def step(self, f, g, state):
         x, m, v, b1t, b2t = tuple(state[name] for name in ['x', 'm', 'v', 'b1t', 'b2t'])
 
         g = g / tf.norm(g, 2)

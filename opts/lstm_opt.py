@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell
+from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell, LSTMStateTuple
 
 from . import basic_model
 from . import lstm_utils
@@ -85,7 +85,8 @@ class LSTMOpt(basic_model.BasicModel):
             )
         else:
             self.lstm_state = tuple(
-                (tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
+                #(tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
+                LSTMStateTuple(tf.placeholder(tf.float32, [None, size.c]), tf.placeholder(tf.float32, [None, size.h])) # shape = (n_functions * n_coords, num_units)
                 for size in self.lstm.state_size
             )
 
@@ -167,7 +168,7 @@ class LSTMOpt(basic_model.BasicModel):
         return features
 
 
-    def step(self, g, state):
+    def step(self, f, g, state):
         b1t, b2t, x, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'x', 'm', 'v', 'lstm_state', 'loglr'])
 
         if self.use_both:
