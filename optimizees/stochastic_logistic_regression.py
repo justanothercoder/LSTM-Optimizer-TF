@@ -56,8 +56,11 @@ class StochasticLogisticRegression(optimizee.Optimizee):
         #self.Y = self.Y[:, 0]
         self.Y = np.einsum('ai,aji->aj', self.w, self.X) + self.w0 > 0
         self.s = 0
+        
+        w  = np.random.normal(size=(batch_size, self.num_features))
+        w0 = np.random.normal(size=(batch_size, 1))
 
-        return np.concatenate([self.w, self.w0], axis=-1)
+        return np.concatenate([w, w0], axis=-1)
         
 
     def get_new_params(self, batch_size=1):
