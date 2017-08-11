@@ -153,14 +153,18 @@ class NormalNoisyGrad(optimizee.Optimizee):
         self.opt = opt
 
 
+    def __getattr__(self, name):
+        return getattr(self.opt, name)
+
+
     def build(self):
         self.opt.build()
 
 
     def loss(self, x, i):
         f, g = self.opt.loss(x, i)
-        g = g + tf.random_normal(tf.shape(g), mean=0, stddev=self.stddev)
-        return f, g
+        new_g = g + tf.random_normal(tf.shape(g), mean=0, stddev=self.stddev)
+        return f, new_g
 
 
     def get_initial_x(self, batch_size=1):

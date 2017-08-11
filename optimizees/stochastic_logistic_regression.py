@@ -40,15 +40,19 @@ class StochasticLogisticRegression(optimizee.Optimizee):
 
     def get_initial_x(self, batch_size=1):
         self.num_features = np.random.randint(low=1, high=self.max_features)
-        self.data_size    = np.random.randint(low=100, high=self.max_data_size)
-        self.batch_size   = np.random.randint(low=1, high=self.data_size // 10 + 2)
     
-        #print("Logistic regression")
-        #print("Data size: ", self.data_size)
-        #print("Batch size: ", self.batch_size)
-    
+        w  = np.random.normal(size=(batch_size, self.num_features))
+        w0 = np.random.normal(size=(batch_size, 1))
+
+        return np.concatenate([w, w0], axis=-1)
+        
+
+    def get_new_params(self, batch_size=1):
         self.w  = np.random.normal(size=(batch_size, self.num_features))
         self.w0 = np.random.normal(size=(batch_size, 1))
+        
+        self.data_size    = np.random.randint(low=100, high=self.max_data_size)
+        self.batch_size   = np.random.randint(low=1, high=self.data_size // 10 + 2)
             
         self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
         #self.Y = np.random.randint(0, 2, size=(batch_size, self.data_size))
@@ -57,13 +61,6 @@ class StochasticLogisticRegression(optimizee.Optimizee):
         self.Y = np.einsum('ai,aji->aj', self.w, self.X) + self.w0 > 0
         self.s = 0
         
-        w  = np.random.normal(size=(batch_size, self.num_features))
-        w0 = np.random.normal(size=(batch_size, 1))
-
-        return np.concatenate([w, w0], axis=-1)
-        
-
-    def get_new_params(self, batch_size=1):
         return {
             self.dim: self.num_features + 1
         }
@@ -90,3 +87,8 @@ class StochasticLogisticRegression(optimizee.Optimizee):
             self.x: x,
             self.y: y,
         } 
+
+
+    def sample_batch(self, batch_size):
+        ind = np.random.randint(low=0, high=self.X.shape[1] - batch_size + 1)
+        return self.X[:, ind:ind + batch_size].astype(np.float32), self.Y[:, ind:ind + batch_size].astype(np.float32)

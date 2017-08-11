@@ -279,12 +279,13 @@ class BasicModel:
         else:
             loss = values[-1]
 
-        reg_loss = tf.add_n([
-            lambd_l1 * tf.norm(v, ord=1)
-            for v in tf.trainable_variables()
-            if 'bias' not in v.name
-        ])
-        losses.append(reg_loss)
+        if tf.trainable_variables():
+            reg_loss = tf.add_n([
+                lambd_l1 * tf.norm(v, ord=1)
+                for v in tf.trainable_variables()
+                if 'bias' not in v.name
+            ])
+            losses.append(reg_loss)
 
         return [loss] + losses
 

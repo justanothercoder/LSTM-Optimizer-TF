@@ -213,8 +213,8 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         if clip_by_value:
             opt = transformers.ClipByValue(opt, clip_low=0, clip_high=10**10)
 
-        if noisy_grad and not name.startswith('stoch'):
-            opt = transformers.NormalNoisyGrad(opt, stddev=0.1)
+        if noisy_grad: # and not name.startswith('stoch'):
+            opt = transformers.NormalNoisyGrad(opt, stddev=0.01)
 
         optimizees[name] = opt
 
