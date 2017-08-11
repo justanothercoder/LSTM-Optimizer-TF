@@ -82,6 +82,10 @@ rnnprop_problems = [
     'sin_lstm',
     'sin_lstm-x2',
     'sin_lstm-no001',
+    
+    '_mnist-nn-sigmoid-100',
+    '_mnist-nn-relu-100',
+    '_mnist-nn-elu-100',
 ]
 
 problems.extend(rnnprop_problems)
@@ -142,6 +146,8 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
 
     optimizees.update({
         '_mnist-nn-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid'), reshape_f=True),
+        '_mnist-nn-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu'), reshape_f=True),
+        '_mnist-nn-elu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='elu'), reshape_f=True),
 
         'mnist-nn-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid')),
         'mnist-nn-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu')),

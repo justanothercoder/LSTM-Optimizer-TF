@@ -90,7 +90,7 @@ class LSTMOptimizer:
         with tf.variable_scope('opt_scope') as self.scope:
             self.opt.scope = self.scope
             with tf.variable_scope('inference_scope', reuse=self.prepared_grads):
-                new_state = self.opt.step(gradient, self.state)['state']
+                new_state = self.opt.step(self.loss, gradient, self.state)['state']
 
         new_x = new_state['x'][0]
 
@@ -118,6 +118,7 @@ class LSTMOptimizer:
                           gate_gradients=GATE_OP, aggregation_method=None,
                           colocate_gradients_with_ops=False, name=None,
                           grad_loss=None):
+        self.loss = loss
         return self.grad_opt.compute_gradients(loss, var_list=var_list, gate_gradients=gate_gradients,
                                                aggregation_method=aggregation_method,
                                                colocate_gradients_with_ops=colocate_gradients_with_ops,
@@ -168,6 +169,7 @@ class LSTMOptimizer:
                  colocate_gradients_with_ops=False, name=None,
                  grad_loss=None):
 
+        self.loss = loss
         grads_and_vars = self.grad_opt.compute_gradients(
                 loss, var_list=var_list, gate_gradients=gate_gradients,
                 aggregation_method=aggregation_method,

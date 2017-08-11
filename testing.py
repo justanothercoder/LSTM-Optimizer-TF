@@ -45,7 +45,8 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
             'adam': AdamOpt,
-            'adamng': AdamNGOpt
+            'adamng': AdamNGOpt,
+            'adam_reduce': lambda *args, **kwargs: AdamOpt(enable_reduce=True, patience_max=20, epsilon=1e-8, factor=0.5, *args, **kwargs)
         }[name](lr=learning_rate, name='{}_lr_{}'.format(name, learning_rate))
 
     #problems = {
@@ -57,23 +58,29 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
     #    'digits_classifier_3', 'digits_classifier_relu_3',
     #}
 
-    opts = {'sgd', 'momentum', 'adam', 'adamng'}
-
     lrs = np.logspace(start=-1, stop=-4, num=4)
-    tests = {}
-    for problem in optim.problems:
-        tests[problem] = {}
-        for opt in opts:
-            #if problem.startswith('mnist') or problem.startswith('digits'):
-            #    tests[problem][opt] = [make_opt(opt, 1e-3)]
-            #else:
-                tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
+    tests = [make_opt(compare_with, lr) for lr in lrs]
 
-                if with_rnnprop:
-                    tests[problem][opt].append(RNNPropOpt(eid=1500))
+    if with_rnnprop:
+        tests.append(RNNPropOpt(eid=1500))
+
+    return tests
+
+    #opts = {'sgd', 'momentum', 'adam', 'adamng'}
+    #tests = {}
+    #for problem in optim.problems:
+    #    tests[problem] = {}
+    #    for opt in opts:
+    #        #if problem.startswith('mnist') or problem.startswith('digits'):
+    #        #    tests[problem][opt] = [make_opt(opt, 1e-3)]
+    #        #else:
+    #            tests[problem][opt] = [make_opt(opt, lr) for lr in lrs]
+
+    #            if with_rnnprop:
+    #                tests[problem][opt].append(RNNPropOpt(eid=1500))
 
 
-    return tests[test_problem][compare_with]
+    #return tests[test_problem][compare_with]
 
 
 def run_cv_testing(opt, flags):
