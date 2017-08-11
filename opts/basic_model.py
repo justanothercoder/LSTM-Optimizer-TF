@@ -1,3 +1,4 @@
+import pprint
 import time
 import os
 import pathlib
@@ -5,6 +6,7 @@ import random
 import numpy as np
 
 import tensorflow as tf
+from tensorflow.contrib.rnn import LSTMStateTuple
 import yellowfin
 
 class BasicModel:
@@ -24,7 +26,7 @@ class BasicModel:
 
 
     def build_initial_state(self):
-        return self.input_state
+       return self.input_state
 
 
     def build_pre(self):
@@ -35,7 +37,7 @@ class BasicModel:
               loss_type='log', optimizer='adam',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              use_moving_averages=False, stop_grad=True, **kwargs):
+              use_moving_averages=False, stop_grad=True, dynamic=False, **kwargs):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
@@ -54,7 +56,7 @@ class BasicModel:
 
             for opt_name, optimizee in optimizees.items():
                 with tf.variable_scope('inference_scope'):
-                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad)
+                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic)
                     vars_opt |= set(optimizee.vars_)
                     
 
@@ -115,7 +117,7 @@ class BasicModel:
                 self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
-    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
+    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False):
         steps_info = []
 
         state = input_state
@@ -127,46 +129,131 @@ class BasicModel:
             return opt_loss
 
         is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
+        
+        if dynamic:
+            ks, vs = zip(*list(state.items()))
+            ks = list(ks)
+            vs = list(vs)
 
-        for i in range(n_bptt_steps):
+            print(ks)
 
-            if is_rnnprop:
-                x = state[3]
+            def dict_to_tuple(d):
+                print(d.keys())
+                return tuple(d[k] for k in ks)
+
+
+            def tuple_to_dict(t):
+                return dict(zip(ks, t))
+
+
+            def cond(sid, *loop_vars):
+                return tf.less(sid, n_bptt_steps)
+
+
+            def body(sid, vals, norms, *state):
+                state = tuple_to_dict(state)
+
+                value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid)
+                if stop_grad:
+                    gradient = tf.stop_gradient(gradient)
+
+                new_state = self.step(value, gradient, state)['state']
+                new_state = dict_to_tuple(new_state)
+
+                new_vals = tf.concat([vals, tf.expand_dims(value, 0)], axis=0)
+                new_norms = tf.concat([norms, tf.expand_dims(gradient_norm, 0)], axis=0)
+
+                out_state = (sid + 1, new_vals, new_norms) + new_state
                 
-                value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i)
-                if stop_grad:
-                    gradient = tf.stop_gradient(gradient)
+                return out_state
 
-                step_info = self.step(opt_loss, i, state)
-            else:
-                x = state['x']
-                value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
-                if stop_grad:
-                    gradient = tf.stop_gradient(gradient)
 
-                step_info = self.step(gradient, state)
-                state = step_info['state']
+            x = state['x']
+            vals_init = tf.zeros([0, tf.shape(x)[0]])
+            norms_init = tf.zeros([0, tf.shape(x)[0]])
+            state_init = dict_to_tuple(state)
 
-            if not scope.reuse:
-                scope.reuse_variables()
+            i = tf.constant(0)
+            in_state = (i, vals_init, norms_init) + state_init
 
-            step_info['value'] = value
-            step_info['gradient'] = gradient
-            step_info['gradient_norm'] = gradient_norm
+            def get_shapes(t):
+                shapes = []
 
-            steps_info.append(step_info)
+                for i in t:
+                    if isinstance(i, tf.Tensor):
+                        shapes.append(i.get_shape())
+                    else:
+                        s = get_shapes(i)
+                        if type(i) in (tuple, list):
+                            s = type(i)(s)
+                        else:
+                            s = type(i)(c=s[0], h=s[1])
+                        shapes.append(s)
+                
+                return tuple(shapes)
+
+            shape_invariants = (
+                        i.get_shape(),
+                        tf.TensorShape([None] + vals_init.get_shape().as_list()[1:]),
+                        tf.TensorShape([None] + norms_init.get_shape().as_list()[1:]),
+                    ) + get_shapes(state_init)
+
+            _, vals, norms, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
+
+            vals = tf.unstack(vals, num=n_bptt_steps, axis=0)
+            norms = tf.unstack(norms, num=n_bptt_steps, axis=0)
+
+            steps_info = [{'value': v, 'gradient_norm': n} for v, n in zip(vals, norms)]
+            final_state = tuple_to_dict(r)
+        else:
+            for i in range(n_bptt_steps):
+                if is_rnnprop:
+                    x = state[3]
+                    
+                    value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i)
+                    if stop_grad:
+                        gradient = tf.stop_gradient(gradient)
+
+                    step_info = self.step(opt_loss, i, state)
+                else:
+                    x = state['x']
+                    value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
+                    if stop_grad:
+                        gradient = tf.stop_gradient(gradient)
+
+                    step_info = self.step(value, gradient, state)
+                    state = step_info['state']
+
+                if not scope.reuse:
+                    scope.reuse_variables()
+
+                step_info['value'] = value
+                step_info['gradient'] = gradient
+                step_info['gradient_norm'] = gradient_norm
+
+                steps_info.append(step_info)
+
+            final_state = state
 
         ret = {
             'values': [info['value'] for info in steps_info],
             'norms': [info['gradient_norm'] for info in steps_info],
-            'states': [info['state'] for info in steps_info],
+            'final_state': final_state
         }
 
-        if not is_rnnprop and steps_info[0].get('cos_step_adam') is not None:
-            ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
+        first_step = steps_info[0]
+        if not is_rnnprop:
+            keys = set(first_step.keys())
 
-        if not is_rnnprop and steps_info[0]['state'].get('loglr') is not None:
-            ret['lrs'] = [info['state']['loglr'] for info in steps_info]
+        if not is_rnnprop and 'state' in keys:
+            ret['states'] = [info['state'] for info in steps_info]
+            state_keys = set(first_step['state'].keys())
+        
+            if not is_rnnprop and 'loglr' in state_keys:
+                ret['lrs'] = [info['state']['loglr'] for info in steps_info]
+
+        if not is_rnnprop and 'cos_step_adam' in keys:
+            ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
 
         return ret
 
@@ -345,10 +432,13 @@ class BasicModel:
         run_op = {
             'loss': losses[0],
             'summaries': self.ops[opt_name]['summaries'],
-            'states': inf['states'],
             'values': inf['values'],
             'norms': inf['norms'],
+            'final_state': inf['final_state']
         }
+
+        if inf.get('states') is not None:
+            run_op['states'] = inf['states']
 
         steps_info = {
             'values': [],
@@ -378,7 +468,8 @@ class BasicModel:
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
  
             info = session.run(run_op, feed_dict=feed_dict)
-            state = info['states'][-1]
+            #state = info['states'][-1]
+            state = info['final_state']
             summaries_str = info['summaries']
 
             losses.append(info['loss'])

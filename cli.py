@@ -37,7 +37,7 @@ def make_train_parser(parser):
                         help='add normal noise to gradients of non-stochastic problems')
     parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
                         help='whether to compute second derivatives')
-    parser.add_argument('--masked-train', action='store_true')
+    parser.add_argument('--masked-train', type=str, choices=['none', 'random', 'first-last'])
     parser.add_argument('--masked-train-p', type=float, default=0.2)
 
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
@@ -60,7 +60,7 @@ def make_test_parser(parser):
     parser.add_argument('--n_batches', type=int, default=20, help='number of batches per epoch')
 
     parser.add_argument('--compare_with', type=str, default='adam',
-                        choices=['sgd', 'momentum', 'adam', 'adamng'], help='baseline for optimizer')
+                        choices=['sgd', 'momentum', 'adam', 'adamng', 'adam_reduce'], help='baseline for optimizer')
     parser.add_argument('--adam_only', action='store_true', help="enable: step from ADAM, learning rate from LSTM")
 
     parser.add_argument('--start_eid', type=int, default=100,
@@ -167,6 +167,7 @@ def make_parser():
 
     run_parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
     run_parser.add_argument('--debug', action='store_true')
+    run_parser.add_argument('--dynamic', action='store_true')
 
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_train = subparsers.add_parser('train', parents=[run_parser],
