@@ -62,7 +62,7 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
     tests = [make_opt(compare_with, lr) for lr in lrs]
 
     if with_rnnprop:
-        tests.append(RNNPropOpt(eid=1500))
+        tests.append(RNNPropOpt(eid=340))
 
     return tests
 
@@ -162,11 +162,12 @@ def testing(flags, opt, s_opts, optimizees):
         with tf.variable_scope('s_opt_{}'.format(i)):
             s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
 
-        if hasattr(s_opt, 'eid'):
-            s_opt.restore(s_opt.eid)
-
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer())
+
+    for i, s_opt in enumerate(s_opts):
+        if hasattr(s_opt, 'eid'):
+            s_opt.restore(s_opt.eid)
 
     if flags.mode == 'many':
         results = run_many_testing(opt, s_opts, flags)
