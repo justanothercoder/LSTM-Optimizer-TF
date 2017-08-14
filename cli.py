@@ -13,8 +13,8 @@ def make_train_parser(parser):
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
     parser.add_argument('--grad_clip', type=float, default=1.)
 
-    parser.add_argument('--loss_type', type=str,
-                        choices=['log', 'sum', 'last'], default='log',
+    parser.add_argument('--loss-type', type=str,
+                        choices=['log', 'sum', 'last', 'log_smooth'], default='log',
                         help='loss function to use')
 
     parser.add_argument('--lambd', type=float, default=0)
@@ -37,7 +37,7 @@ def make_train_parser(parser):
                         help='add normal noise to gradients of non-stochastic problems')
     parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
                         help='whether to compute second derivatives')
-    parser.add_argument('--masked-train', type=str, choices=['none', 'random', 'first-last'])
+    parser.add_argument('--masked-train', type=str, choices=['none', 'random', 'first-last'], default='none')
     parser.add_argument('--masked-train-p', type=float, default=0.2)
 
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
@@ -133,6 +133,8 @@ def make_new_parser(parser):
     group.add_argument('--with-log-features', action='store_true',
                         help='add logarithmic features')
     group.add_argument('--only-log-features', action='store_true')
+
+    parser.add_argument('--only-adam-features', action='store_true')
     
 
     group = parser.add_mutually_exclusive_group()

@@ -20,7 +20,7 @@ class LSTMOpt(basic_model.BasicModel):
         normalize_gradients=False,
         rmsprop_gradients=False,
         learn_init=False, use_both=False, with_log_features=False, only_log_features=False,
-        weight_norm=False, ema_step=False, ema_lr=False,
+        weight_norm=False, ema_step=False, ema_lr=False, only_adam_features=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -43,6 +43,8 @@ class LSTMOpt(basic_model.BasicModel):
         self.use_both = use_both
         self.with_log_features = with_log_features
         self.only_log_features = only_log_features
+
+        self.only_adam_features = only_adam_features
 
         self.weight_norm = weight_norm
         self.ema_step = ema_step
@@ -158,7 +160,9 @@ class LSTMOpt(basic_model.BasicModel):
         log_v = tf.log(v + self.eps)
         s = self.adam_step(m, v, a)
 
-        if self.only_log_features:
+        if self.only_adam_features:
+            features = [s]
+        elif self.only_log_features:
             features = [g, log_g2, m, log_v, s]
         elif self.with_log_features:
             features = [g, g2, m, v, s, log_g2, log_v]
