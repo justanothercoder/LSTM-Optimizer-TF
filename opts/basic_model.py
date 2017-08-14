@@ -274,6 +274,18 @@ class BasicModel:
                 lr_loss = -lambd * tf.reduce_mean(states - states[:1])
                 losses.append(lr_loss)
 
+        elif loss_type == 'log_smooth':
+            smooth_vals = []
+            for i in range(self.n_bptt_steps):
+                if i == 0:
+                    smooth_val = values[i]
+                else:
+                    smooth_val = 0.95 * smooth_val + 0.05 * values[i]
+                smooth_vals.append(smooth_val)
+
+            smooth_vals = tf.stack(smooth_vals)
+            loss = tf.reduce_mean(tf.log(smooth_vals + 1e-8) - tf.log(smooth_vals[:1] + 1e-8))
+
         elif loss_type == 'sum':
             loss = tf.reduce_mean(values)
         else:
