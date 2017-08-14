@@ -18,6 +18,8 @@ from .rnnprop_adapt import RNNPropAdapter
 problems = [
     'quadratic', 'rosenbrock', 'logreg',
     'stoch_logreg', 'stoch_linear',
+    'noisy_stoch_logreg', 'noisy_stoch_linear',
+    'stoch_logreg_10', 
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
 
     '_digits_classifier',
@@ -101,6 +103,11 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
+        
+        'noisy_stoch_logreg': transformers.NormalNoisyGrad(StochasticLogisticRegression(max_data_size=1000, max_features=100), stddev=1e-3),
+        'noisy_stoch_linear': transformers.NormalNoisyGrad(StochasticLinearRegression(max_data_size=1000, max_features=100), stddev=1e-3),
+        
+        'stoch_logreg_10': StochasticLogisticRegression(max_data_size=400, max_features=10),
         
         '_digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
         'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
