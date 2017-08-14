@@ -6,6 +6,10 @@ from .matyas import Matyas
 from .logistic_regression import LogisticRegression
 from .stochastic_logistic_regression import StochasticLogisticRegression
 from .stochastic_linear_regression import StochasticLinearRegression
+
+from .correct_stoch_logreg import CorrectStochLogreg
+from .correct_stoch_linreg import CorrectStochLinreg
+
 from .digits_classifier import DIGITSClassifier
 from .conv_classifier import ConvClassifier
 from .lstm_ptb import LSTM_PTB
@@ -19,6 +23,8 @@ problems = [
     'quadratic', 'rosenbrock', 'logreg',
     'stoch_logreg', 'stoch_linear',
     'noisy_stoch_logreg', 'noisy_stoch_linear',
+    'correct_stoch_logreg', 'correct_stoch_linear',
+
     'stoch_logreg_10', 
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
 
@@ -103,6 +109,9 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'logreg'      : LogisticRegression(max_data_size=1000, max_features=100),
         'stoch_logreg': StochasticLogisticRegression(max_data_size=1000, max_features=100),
         'stoch_linear': StochasticLinearRegression(max_data_size=1000, max_features=100),
+        
+        'correct_stoch_logreg': CorrectStochLogreg(max_data_size=1000, max_features=100),
+        'correct_stoch_linear': CorrectStochLinreg(max_data_size=1000, max_features=100),
         
         'noisy_stoch_logreg': transformers.NormalNoisyGrad(StochasticLogisticRegression(max_data_size=1000, max_features=100), stddev=1e-3),
         'noisy_stoch_linear': transformers.NormalNoisyGrad(StochasticLinearRegression(max_data_size=1000, max_features=100), stddev=1e-3),

@@ -75,9 +75,12 @@ class AdamOpt(basic_model.BasicModel):
             new_f_ma = 0.95 * state['f_ma'] + 0.05 * f
             new_f_best = tf.maximum(new_f_ma, state['f_best'])
 
+            # (old - new) / old < eps
+
             patience = tf.where(
                         #tf.greater(new_f_best, state['f_best']),
-                        tf.greater(new_f_best, state['f_best'] - self.epsilon),
+                        #tf.greater(new_f_best, state['f_best'] - self.epsilon),
+                        tf.less((state['f_best'] - new_f_best) / state['f_best'], self.epsilon),
                         state['patience'] + 1,
                         state['patience']
                     )

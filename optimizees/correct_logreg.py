@@ -3,11 +3,11 @@ import tensorflow as tf
 from . import optimizee
 
 
-class LogisticRegression(optimizee.Optimizee):
+class CorrectLogReg(optimizee.Optimizee):
     name = 'logistic_regression'
 
     def __init__(self, max_data_size=300, max_features=100):
-        super(LogisticRegression, self).__init__()
+        super(CorrectLogReg, self).__init__()
         self.max_data_size = max_data_size
         self.max_features = max_features
 

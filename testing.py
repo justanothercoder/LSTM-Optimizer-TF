@@ -46,7 +46,7 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
             'momentum': MomentumOpt,
             'adam': AdamOpt,
             'adamng': AdamNGOpt,
-            'adam_reduce': lambda *args, **kwargs: AdamOpt(enable_reduce=True, patience_max=20, epsilon=1e-8, factor=0.5, *args, **kwargs)
+            'adam_reduce': lambda *args, **kwargs: AdamOpt(enable_reduce=True, patience_max=10, epsilon=1e-4, factor=0.5, *args, **kwargs)
         }[name](lr=learning_rate, name='{}_lr_{}'.format(name, learning_rate))
 
     #problems = {

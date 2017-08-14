@@ -3,11 +3,11 @@ import tensorflow as tf
 from . import optimizee
 
 
-class StochasticLinearRegression(optimizee.Optimizee):
+class CorrectStochLinreg(optimizee.Optimizee):
     name = 'stochastic_linear_regression'
 
     def __init__(self, max_data_size=1000, max_features=100):
-        super(StochasticLinearRegression, self).__init__()
+        super(CorrectStochLinreg, self).__init__()
         self.max_data_size = max_data_size
         self.max_features = max_features
 
