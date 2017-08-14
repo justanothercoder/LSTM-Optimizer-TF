@@ -47,13 +47,16 @@ class LogisticRegression(optimizee.Optimizee):
         self.num_features = np.random.randint(low=1, high=self.max_features)
         self.data_size    = np.random.randint(low=1, high=self.max_data_size)
     
-        self.w  = np.random.normal(size=(batch_size, self.num_features))
-        self.w0 = np.random.normal(size=(batch_size, 1))
+        w  = np.random.normal(size=(batch_size, self.num_features))
+        w0 = np.random.normal(size=(batch_size, 1))
 
-        return np.concatenate([self.w, self.w0], axis=-1)
+        return np.concatenate([w, w0], axis=-1)
         
 
     def get_new_params(self, batch_size=1):
+        self.w  = np.random.normal(size=(batch_size, self.num_features))
+        self.w0 = np.random.normal(size=(batch_size, 1))
+        
         X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
         #y = np.random.randint(0, 2, size=(batch_size, self.data_size))
         #y = (np.dot(self.w, X.transpose(0, 2, 1)) + self.w0) > 0
@@ -67,5 +70,5 @@ class LogisticRegression(optimizee.Optimizee):
                 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return { } 
+        return {} 
 
