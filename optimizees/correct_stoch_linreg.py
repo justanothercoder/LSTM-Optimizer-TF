@@ -6,8 +6,9 @@ from . import optimizee
 class CorrectStochLinreg(optimizee.Optimizee):
     name = 'stochastic_linear_regression'
 
-    def __init__(self, max_data_size=1000, max_features=100):
+    def __init__(self, max_data_size=1000, max_features=100, min_data_size=1):
         super(CorrectStochLinreg, self).__init__()
+        self.min_data_size = min_data_size
         self.max_data_size = max_data_size
         self.max_features = max_features
 

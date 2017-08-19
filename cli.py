@@ -40,6 +40,7 @@ def make_train_parser(parser):
     parser.add_argument('--masked-train', type=str, choices=['none', 'random', 'first-last'], default='none')
     parser.add_argument('--masked-train-p', type=float, default=0.2)
 
+    parser.add_argument('--seed', type=int, help='random seed')
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of checkpoint')
 
     return parser

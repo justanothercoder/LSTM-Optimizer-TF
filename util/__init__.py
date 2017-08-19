@@ -28,6 +28,9 @@ def random_product(*args, repeat=1):
 
 
 def get_moving(values, mu=0.9):
+    if len(values) == 0:
+        raise ValueError("empty array")
+
     v = [values[0]]
 
     for i in values[1:]:

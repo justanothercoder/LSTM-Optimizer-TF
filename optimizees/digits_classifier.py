@@ -1,11 +1,14 @@
 import numpy as np
 import tensorflow as tf
+from collections import namedtuple
 from tensorflow.python.ops.init_ops import glorot_uniform_initializer
 
 from sklearn.datasets import load_digits, fetch_mldata
 from sklearn.preprocessing import StandardScaler
 from sklearn import utils
 from . import optimizee
+
+Dataset = namedtuple('Dataset', ['data', 'target'])
 
 class DIGITSClassifier(optimizee.Optimizee):
     name = 'digits_classifier'
@@ -18,6 +21,17 @@ class DIGITSClassifier(optimizee.Optimizee):
             dataset = load_digits(n_class=10)
         elif dataset_name == 'mnist':
             dataset = fetch_mldata('MNIST original', data_home='/srv/hd1/data/vyanush/')
+        elif dataset_name == 'random':
+            num_features = np.random.randint(low=1, high=100)
+            data_size  = np.random.randint(low=100, high=1000)
+                
+            w  = np.random.normal(size=num_features)
+            w0 = np.random.normal(size=1, scale=0.1)
+            
+            X = np.random.normal(size=(data_size, num_features))
+            Y = X.dot(w) + w0 > 0
+
+            dataset = Dataset(X, Y)
 
         self.X, self.Y = dataset.data, dataset.target
         self.X, self.Y = utils.shuffle(self.X, self.Y)

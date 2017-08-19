@@ -24,9 +24,11 @@ problems = [
     'stoch_logreg', 'stoch_linear',
     'noisy_stoch_logreg', 'noisy_stoch_linear',
     'correct_stoch_logreg', 'correct_stoch_linear',
+    'small_correct_stoch_logreg', 'small_correct_stoch_linear',
 
     'stoch_logreg_10', 
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
+    'correct_mixed_stoch',
 
     '_digits_classifier',
 
@@ -94,6 +96,11 @@ rnnprop_problems = [
     '_mnist-nn-sigmoid-100',
     '_mnist-nn-relu-100',
     '_mnist-nn-elu-100',
+
+    'digits_classifier_0',
+    '_digits_classifier_0',
+    'digits_classifier_0_random',
+    '_digits_classifier_0_random'
 ]
 
 problems.extend(rnnprop_problems)
@@ -112,6 +119,16 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         
         'correct_stoch_logreg': CorrectStochLogreg(max_data_size=1000, max_features=100),
         'correct_stoch_linear': CorrectStochLinreg(max_data_size=1000, max_features=100),
+
+        'small_correct_stoch_logreg': CorrectStochLogreg(max_data_size=100, max_features=10, min_data_size=10),
+        'small_correct_stoch_linear': CorrectStochLinreg(max_data_size=100, max_features=10, min_data_size=10),
+
+        'noisy_1_correct_stoch_logreg': transformers.NormalNoisyGrad(CorrectStochLogreg(max_data_size=1000, max_features=100), stddev=1e-1),
+        'noisy_1_correct_stoch_linear': transformers.NormalNoisyGrad(CorrectStochLinreg(max_data_size=1000, max_features=100), stddev=1e-1),
+        'noisy_2_correct_stoch_logreg': transformers.NormalNoisyGrad(CorrectStochLogreg(max_data_size=1000, max_features=100), stddev=1e-2),
+        'noisy_2_correct_stoch_linear': transformers.NormalNoisyGrad(CorrectStochLinreg(max_data_size=1000, max_features=100), stddev=1e-2),
+        'noisy_3_correct_stoch_logreg': transformers.NormalNoisyGrad(CorrectStochLogreg(max_data_size=1000, max_features=100), stddev=1e-3),
+        'noisy_3_correct_stoch_linear': transformers.NormalNoisyGrad(CorrectStochLinreg(max_data_size=1000, max_features=100), stddev=1e-3),
         
         'noisy_stoch_logreg': transformers.NormalNoisyGrad(StochasticLogisticRegression(max_data_size=1000, max_features=100), stddev=1e-3),
         'noisy_stoch_linear': transformers.NormalNoisyGrad(StochasticLinearRegression(max_data_size=1000, max_features=100), stddev=1e-3),
@@ -120,6 +137,11 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         
         '_digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
         'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
+        
+        'digits_classifier_0': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='digits'),
+        '_digits_classifier_0': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='digits', return_func=True),
+        'digits_classifier_0_random': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='random'),
+        '_digits_classifier_0_random': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='random'),
         
         'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
         'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
@@ -213,6 +235,13 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         optimizees['rosenbrock'],
         optimizees['stoch_logreg'],
         optimizees['stoch_linear'],
+    ])
+    
+    optimizees['correct_mixed_stoch'] = transformers.ConcatAndSum([
+        optimizees['quadratic'],
+        optimizees['rosenbrock'],
+        optimizees['correct_stoch_logreg'],
+        optimizees['correct_stoch_linear'],
     ])
 
     optimizees['stoch_only'] = transformers.ConcatAndSum([
