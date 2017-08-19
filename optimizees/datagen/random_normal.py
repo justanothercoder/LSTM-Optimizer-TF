@@ -23,7 +23,7 @@ class RandomNormal:
         if classification:
             y = y > 0
 
-        return Dataset(X.astype(np.float32), y.astype(np.int32))
+        return Dataset(X.astype(np.float32), y, w=w, w0=w0)
 
 
     def sample_dataset_batch(self, batch_size, classification=True, data_size=None, num_features=None):
@@ -31,10 +31,13 @@ class RandomNormal:
         num_features = num_features or np.random.randint(low=self.min_features, high=self.max_features + 1)
 
         X = np.empty((batch_size, data_size, num_features), dtype=np.float32)
-        y = np.empty((batch_size, data_size), dtype=np.int32)
+        y = np.empty((batch_size, data_size))
+        w = np.empty((batch_size, num_features), dtype=np.float32)
+        w0 = np.empty((batch_size, 1), dtype=np.float32)
 
         for i in range(batch_size):
             d = self.sample_dataset(classification=classification, data_size=data_size, num_features=num_features)
             X[i], y[i] = d.X, d.y
+            w[i], w0[i] = d.w, d.w0
 
-        return Dataset(X, y)
+        return Dataset(X, y, w=w, w0=w0)

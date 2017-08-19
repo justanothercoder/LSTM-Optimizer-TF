@@ -1,16 +1,15 @@
 import numpy as np
 import tensorflow as tf
 from . import optimizee
+from . import datagen
 
 
 class CorrectStochLinreg(optimizee.Optimizee):
     name = 'stochastic_linear_regression'
 
-    def __init__(self, max_data_size=1000, max_features=100, min_data_size=1):
+    def __init__(self, min_data_size=1, max_data_size=1000, min_features=1, max_features=100):
         super(CorrectStochLinreg, self).__init__()
-        self.min_data_size = min_data_size
-        self.max_data_size = max_data_size
-        self.max_features = max_features
+        self.datagen = datagen.RandomNormal(min_data_size=min_data_size, max_data_size=max_data_size, min_features=min_features, max_features=max_features)
 
 
     def get_x_dim(self):
@@ -20,8 +19,8 @@ class CorrectStochLinreg(optimizee.Optimizee):
     def build(self):
         with tf.variable_scope('stochastic_linear_regression'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
-            self.x = tf.placeholder(tf.float32, [None, None, None, None], name='X') # n_bptt_steps * batch_size * data_size * num_features
-            self.y = tf.placeholder(tf.float32, [None, None, None], name='y')
+            self.x = tf.placeholder(tf.float32, [None, None, None, None], name='x_batch') # n_bptt_steps * batch_size * data_size * num_features
+            self.y = tf.placeholder(tf.float32, [None, None, None], name='y_batch')
 
     
     def loss(self, x, i):
@@ -37,49 +36,26 @@ class CorrectStochLinreg(optimizee.Optimizee):
 
 
     def get_initial_x(self, batch_size=1):
-        self.num_features = np.random.randint(low=1, high=self.max_features)
-        self.data_size    = np.random.randint(low=1, high=self.max_data_size)
-        self.batch_size   = np.random.randint(low=1, high=self.data_size + 1)
-    
-        self.w  = np.random.normal(size=(batch_size, self.num_features))
-        self.w0 = np.random.normal(size=(batch_size, 1))
-            
-        self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
-        #self.Y = np.random.randint(0, 2, size=(batch_size, self.data_size))
-        
-        #xT = self.X.transpose(0, 2, 1)
-        #self.Y = (np.dot(self.w, xT) + self.w0) > 0
-        #self.Y = self.Y[:, 0]
-        
-        self.Y = np.einsum('ai,aji->aj', self.w, self.X) + self.w0
-        self.Y = self.Y + np.random.normal(0, 0.01, size=self.Y.shape)
-        self.s = 0
-        
-        w  = np.random.normal(size=(batch_size, self.num_features))
-        w0 = np.random.normal(size=(batch_size, 1))
-
-        return np.concatenate([w, w0], axis=-1)
+        self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=False)
+        return np.random.normal(size=(batch_size, self.dataset.num_features + 1))
         
 
     def get_new_params(self, batch_size=1):
+        self.batch_size = np.random.randint(low=1, high=self.dataset.data_size + 1)
+    
         return {
-            self.dim: self.num_features + 1
+            self.dim: self.dataset.num_features + 1
         }
 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):
-        x = np.zeros((n_bptt_steps, batch_size, self.batch_size, self.num_features)) 
+        x = np.zeros((n_bptt_steps, batch_size, self.batch_size, self.dataset.num_features)) 
         y = np.zeros((n_bptt_steps, batch_size, self.batch_size)) 
 
-        for i in range(n_bptt_steps):
-            if self.s + self.batch_size > self.data_size:
-                self.s = 0
-            pos_cur, pos_next = self.s, self.s + self.batch_size
+        batches = self.dataset.batch_iterator(n_bptt_steps, self.batch_size, shuffle=False)
 
-            x[i] = self.X[:, pos_cur:pos_next]
-            y[i] = self.Y[:, pos_cur:pos_next]
-
-            self.s = pos_next
+        for i, batch in enumerate(batches):
+            x[i], y[i] = batch
 
         return { 
             self.x: x,
