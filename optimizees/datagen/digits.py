@@ -3,13 +3,15 @@ from sklearn import utils
 from sklearn.datasets import load_digits
 from sklearn.preprocessing import StandardScaler
 
+from .dataset import Dataset
+
 
 class Digits:
     def __init__(self):
         self.digits = load_digits(n_class=10)
 
 
-    def sample_dataset(self, shuffle=True):
+    def sample_dataset(self, shuffle=True, transform=True):
         X = self.digits.data
         y = self.digits.target
 

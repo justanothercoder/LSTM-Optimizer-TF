@@ -3,6 +3,8 @@ from sklearn import utils
 from sklearn.datasets import fetch_mldata
 from sklearn.preprocessing import StandardScaler
 
+from .dataset import Dataset
+
 
 class MNIST:
     def __init__(self):

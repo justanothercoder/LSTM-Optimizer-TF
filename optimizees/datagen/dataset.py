@@ -2,9 +2,12 @@ import numpy as np
 
 
 class Dataset:
-    def __init__(self, X, y, **kwargs):
+    def __init__(self, X, y, batched=False, **kwargs):
         self.X = X
         self.y = y
+
+        self.s = 0
+        self.batched = batched
 
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -25,18 +28,15 @@ class Dataset:
             indices = np.arange(self.data_size)
             np.random.shuffle(indices)
 
-        s = 0
-
         for i in range(n_batches):
-            if s + batch_size > self.data_size:
-                s = 0
+            if self.s + batch_size > self.data_size:
+                self.s = 0
 
+            ind = slice(self.s, self.s + batch_size)
             if shuffle:
-                ind = indices[s:s + batch_size]
-            else:
-                ind = slice(s, s + batch_size)
+                ind = indices[ind]
 
-            s += batch_size
+            self.s += batch_size
             yield self[ind]
 
 

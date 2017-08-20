@@ -10,7 +10,7 @@ from .stochastic_linear_regression import StochasticLinearRegression
 from .correct_stoch_logreg import CorrectStochLogreg
 from .correct_stoch_linreg import CorrectStochLinreg
 
-from .digits_classifier import DIGITSClassifier
+from .digits_classifier import MLPClassifier
 from .conv_classifier import ConvClassifier
 from .lstm_ptb import LSTM_PTB
 
@@ -135,40 +135,40 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         
         'stoch_logreg_10': StochasticLogisticRegression(max_data_size=400, max_features=10),
         
-        '_digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
+        '_digits_classifier': MLPClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
         'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
         
-        'digits_classifier_0': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='digits'),
-        '_digits_classifier_0': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='digits', return_func=True),
-        'digits_classifier_0_random': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='random'),
-        '_digits_classifier_0_random': DIGITSClassifier(num_units=100, num_layers=0, dataset_name='random'),
+        'digits_classifier_0': MLPClassifier(num_units=100, num_layers=0, dataset_name='digits'),
+        '_digits_classifier_0': MLPClassifier(num_units=100, num_layers=0, dataset_name='digits', return_func=True),
+        'digits_classifier_0_random': MLPClassifier(num_units=100, num_layers=0, dataset_name='random'),
+        '_digits_classifier_0_random': MLPClassifier(num_units=100, num_layers=0, dataset_name='random'),
         
-        'digits_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits'),
-        'digits_classifier_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits'),
-        'digits_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits'),
-        'digits_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='digits'),
-        'digits_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='digits'),
-        'digits_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='digits'),
+        'digits_classifier': MLPClassifier(num_units=100, num_layers=1, dataset_name='digits'),
+        'digits_classifier_2': MLPClassifier(num_units=100, num_layers=2, dataset_name='digits'),
+        'digits_classifier_3': MLPClassifier(num_units=100, num_layers=3, dataset_name='digits'),
+        'digits_classifier_6': MLPClassifier(num_units=100, num_layers=6, dataset_name='digits'),
+        'digits_classifier_12': MLPClassifier(num_units=100, num_layers=12, dataset_name='digits'),
+        'digits_classifier_18': MLPClassifier(num_units=100, num_layers=18, dataset_name='digits'),
 
-        '_mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist', return_func=True),
-        'mnist_classifier': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
-        'mnist_classifier_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='mnist'),
-        'mnist_classifier_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist'),
-        'mnist_classifier_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist'),
-        'mnist_classifier_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist'),
+        '_mnist_classifier': MLPClassifier(num_units=100, num_layers=1, dataset_name='mnist', return_func=True),
+        'mnist_classifier': MLPClassifier(num_units=100, num_layers=1, dataset_name='mnist'),
+        'mnist_classifier_3': MLPClassifier(num_units=100, num_layers=3, dataset_name='mnist'),
+        'mnist_classifier_6': MLPClassifier(num_units=100, num_layers=6, dataset_name='mnist'),
+        'mnist_classifier_12': MLPClassifier(num_units=100, num_layers=12, dataset_name='mnist'),
+        'mnist_classifier_18': MLPClassifier(num_units=100, num_layers=18, dataset_name='mnist'),
         
-        'mnist_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='mnist', activation='relu'),
-        'mnist_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='mnist', activation='relu'),
-        'mnist_classifier_relu_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='mnist', activation='relu'),
-        'mnist_classifier_relu_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='mnist', activation='relu'),
-        'mnist_classifier_relu_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu': MLPClassifier(num_units=100, num_layers=1, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_3': MLPClassifier(num_units=100, num_layers=3, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_6': MLPClassifier(num_units=100, num_layers=6, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_12': MLPClassifier(num_units=100, num_layers=12, dataset_name='mnist', activation='relu'),
+        'mnist_classifier_relu_18': MLPClassifier(num_units=100, num_layers=18, dataset_name='mnist', activation='relu'),
         
-        'digits_classifier_relu': DIGITSClassifier(num_units=100, num_layers=1, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_2': DIGITSClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_3': DIGITSClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_6': DIGITSClassifier(num_units=100, num_layers=6, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_12': DIGITSClassifier(num_units=100, num_layers=12, dataset_name='digits', activation='relu'),
-        'digits_classifier_relu_18': DIGITSClassifier(num_units=100, num_layers=18, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu': MLPClassifier(num_units=100, num_layers=1, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_2': MLPClassifier(num_units=100, num_layers=2, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_3': MLPClassifier(num_units=100, num_layers=3, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_6': MLPClassifier(num_units=100, num_layers=6, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_12': MLPClassifier(num_units=100, num_layers=12, dataset_name='digits', activation='relu'),
+        'digits_classifier_relu_18': MLPClassifier(num_units=100, num_layers=18, dataset_name='digits', activation='relu'),
         
         'conv_digits_classifier': ConvClassifier(num_filters=100, num_layers=1, dataset_name='digits'),
         'conv_digits_classifier_2': ConvClassifier(num_filters=100, num_layers=2, dataset_name='digits'),
