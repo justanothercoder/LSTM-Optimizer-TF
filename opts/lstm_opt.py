@@ -4,6 +4,21 @@ from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBas
 
 from . import basic_model
 from . import lstm_utils
+from .adam_opt import AdamOpt
+
+
+def custom_getter(getter, name, *args, **kwargs):
+    shape = kwargs['shape']
+    if name.find('bias') == -1 and shape is not None and kwargs.get('trainable', False):
+        del kwargs['shape']
+        initializer = kwargs.pop('initializer')
+        g = getter(name + '_norm', shape=(shape[:-1] + [1]), initializer=tf.ones_initializer(), *args, **kwargs)
+        v = getter(name + '_direction', shape=shape, initializer=initializer, *args, **kwargs)
+
+        normed_v = v / tf.norm(v, axis=-1, keep_dims=True)
+        return g * normed_v
+    else:
+        return getter(name, *args, **kwargs)
 
 
 def normalize(d, gamma=1.0, eps=1e-8):
@@ -13,14 +28,12 @@ def normalize(d, gamma=1.0, eps=1e-8):
 class LSTMOpt(basic_model.BasicModel):
     def __init__(self,
         num_units=20, num_layers=2,
-        beta1=0.9, beta2=0.999,
-        layer_norm=True,
-        add_skip=False, clip_delta=100,
+        beta1=0.9, beta2=0.999, eps=1e-8,
+        layer_norm=True, add_skip=False, clip_delta=100,
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
-        rmsprop_gradients=False,
-        learn_init=False, use_both=False, with_log_features=False, only_log_features=False,
-        weight_norm=False, ema_step=False, ema_lr=False, only_adam_features=False,
+        learn_init=False, use_both=False,
+        weight_norm=False, only_adam_features=False,
         **kwargs):
 
         super(LSTMOpt, self).__init__(**kwargs)
@@ -28,27 +41,19 @@ class LSTMOpt(basic_model.BasicModel):
         self.num_units = num_units
         self.num_layers = num_layers
 
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.eps = 1e-8
-
         self.add_skip = add_skip
+        self.residual = residual
+
         self.layer_norm = layer_norm
+        self.weight_norm = weight_norm
+
         self.clip_delta = clip_delta
         self.rnn_type = rnn_type
-        self.residual = residual
         self.normalize_gradients = normalize_gradients
-        self.rmsprop_gradients = rmsprop_gradients
         self.learn_init = learn_init
         self.use_both = use_both
-        self.with_log_features = with_log_features
-        self.only_log_features = only_log_features
 
         self.only_adam_features = only_adam_features
-
-        self.weight_norm = weight_norm
-        self.ema_step = ema_step
-        self.ema_lr = ema_lr
 
 
     def build_pre(self):
@@ -196,20 +201,6 @@ class LSTMOpt(basic_model.BasicModel):
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
         s = self.adam_step(m, v, a)
 
-        if self.rmsprop_gradients and not self.normalize_gradients:
-            g = g / (tf.sqrt(v, name='v_sqrt') + self.eps)
-        
-        #features = [g, tf.square(g), m, v, s]
-        #if self.with_log_features:
-        #    features += [tf.log(tf.square(g) + self.eps), tf.log(v + self.eps)]
-        #
-        #if self.use_both:
-        #    s_norm = self.adam_step(m_norm, v_norm, a)
-        #    features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
-
-        #    if self.with_log_features:
-        #        features += [tf.log(tf.square(g_norm + self.eps)), tf.log(v_norm + self.eps)]
-
         features = self.get_features(g, m, v, a)
         if self.use_both:
             features += self.get_features(g_norm, m_norm, v_norm, a)
@@ -218,19 +209,6 @@ class LSTMOpt(basic_model.BasicModel):
 
         
         if self.weight_norm:
-            def custom_getter(getter, name, *args, **kwargs):
-                shape = kwargs['shape']
-                if name.find('bias') == -1 and shape is not None and kwargs.get('trainable', False):
-                    del kwargs['shape']
-                    initializer = kwargs.pop('initializer')
-                    g = getter(name + '_norm', shape=(shape[:-1] + [1]), initializer=tf.ones_initializer(), *args, **kwargs)
-                    v = getter(name + '_direction', shape=shape, initializer=initializer, *args, **kwargs)
-
-                    normed_v = v / tf.norm(v, axis=-1, keep_dims=True)
-                    return g * normed_v
-                else:
-                    return getter(name, *args, **kwargs)
-
             scope = tf.get_variable_scope()
             scope.set_custom_getter(custom_getter)
         
@@ -242,11 +220,7 @@ class LSTMOpt(basic_model.BasicModel):
         d = tf.reshape(d, x_shape)
         loglr_add = tf.reshape(loglr_add, x_shape)
 
-        if self.ema_lr:
-            loglr = tf.minimum(loglr * 0.9 + 0.1 * loglr_add, np.log(self.clip_delta))
-        else:
-            loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
-
+        loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
         n_coords = tf.cast(x_shape[0], tf.float32)
 
         if self.add_skip:
@@ -260,7 +234,6 @@ class LSTMOpt(basic_model.BasicModel):
 
         lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
-        #x += d * lr
 
         new_x = x + d * lr
 
@@ -283,14 +256,8 @@ class LSTMOpt(basic_model.BasicModel):
         step_normed = tf.nn.l2_normalize(d, 1)
                 
         cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
-        cos_step_adam = cos_
-        #cos_step_adam = tf.where(
-        #        tf.less(tf.reduce_sum(tf.abs(adam_normed - step_normed), axis=1), 1e-8),
-        #        tf.ones_like(cos_),
-        #        cos_
-        #        )
 
         return {
             'state': new_state,
-            'cos_step_adam': cos_step_adam
+            'cos_step_adam': cos_
         }

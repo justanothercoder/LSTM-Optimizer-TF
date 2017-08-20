@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMStateTuple
 
-from cells import LSTMOptCell
+from cells import LSTMOptCell, OptFuncCell
 
 class BasicModel:
     def __init__(self, name=None, snapshot_path=None, debug=False):
