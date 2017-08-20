@@ -96,13 +96,6 @@ class BasicModel:
                     if not scope.reuse:
                         scope.reuse_variables()
 
-            if self.save_tf_data:
-                self.train_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/train'), self.session.graph)
-                self.test_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/test'), self.session.graph)
-
-            for opt_name in optimizees:
-                ops[opt_name]['summaries'] = self.summary(ops[opt_name])
-
             self.ops = ops
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
@@ -333,49 +326,6 @@ class BasicModel:
         return train_op
 
 
-    def summary(self, ops):
-        #pylint: disable=unused-argument
-        summaries = []
-        return summaries
-
-            # loglr_mean, loglr_std = tf.nn.moments(self.loglr, axes=[0])
-            # lr_mean, lr_std = tf.nn.moments(tf.exp(self.loglr), axes=[0])
-
-            #for opt_name in self.optimizees:
-
-                #self.summaries[opt_name].append(
-                #    tf.summary.scalar('train_loss', tf.reduce_mean(self.loss[opt_name])))
-                #self.summaries[opt_name].append(
-                #    tf.summary.scalar('function_value', tf.reduce_mean(self.fxs[opt_name][-1])))
-
-                #loglr_mean, loglr_std = tf.nn.moments(self.states[opt_name][-1][-1], axes=[0])
-                #lr_mean, lr_std = tf.nn.moments(tf.exp(self.states[opt_name][-1][-1]), axes=[0])
-
-                #self.summaries[opt_name].append(
-                #    tf.summary.scalar('log_learning_rate_mean', loglr_mean))
-                #self.summaries[opt_name].append(
-                #    tf.summary.scalar('log_learning_rate_std', loglr_std))
-                #self.summaries[opt_name].append(
-                #   tf.summary.scalar('learning_rate_mean', lr_mean))
-                #self.summaries[opt_name].append(
-                #   tf.summary.scalar('learning_rate_std', lr_std))
-
-
-            #for grad, var in gradients:
-            #    if grad is not None:
-            #        self.summaries[opt_name].append(
-            #          tf.summary.histogram(var.op.name + '/{}/gradients'.format(opt_name), grad))
-
-            #        ratio_name = '/{}/grad_to_var_ratio'.format(opt_name)
-            #        ratio = tf.norm(grad) / (tf.norm(var) + 1e-8)
-            #        self.summaries[opt_name].append(
-            #    tf.summary.histogram(var.op.name + ratio_name, ratio))
-
-        #for var in tf.trainable_variables():
-        #    self.summaries[opt_name].append(tf.summary.histogram(var.op.name, var))
-
-
-
     def log(self, message, verbosity, level=0):
         if verbosity <= self.verbose:
             message = '\t' * level + message
@@ -430,7 +380,6 @@ class BasicModel:
 
         run_op = {
             'loss': losses[0],
-            'summaries': self.ops[opt_name]['summaries'],
             'values': inf['values'],
             'norms': inf['norms'],
             'final_state': inf['final_state']
@@ -465,7 +414,6 @@ class BasicModel:
             info = session.run(run_op, feed_dict=feed_dict)
             #state = info['states'][-1]
             state = info['final_state']
-            summaries_str = info['summaries']
 
             losses.append(info['loss'])
 
@@ -479,11 +427,6 @@ class BasicModel:
 
         for k in steps_info:
             ret[k] = np.array(steps_info[k])
-
-        if self.save_tf_data:
-            for summary_str in summaries_str:
-                self.test_writer.add_summary(summary_str, self.bid)
-            self.test_writer.flush()
 
         return ret
 
@@ -600,7 +543,6 @@ class BasicModel:
                 extract(opt_name, 'values'),
                 extract(opt_name, 'norms'),
                 extract(opt_name, 'cosines'),
-                self.ops[opt_name]['summaries']
             ]
 
         for i in range(n_steps // self.n_bptt_steps):
@@ -612,7 +554,7 @@ class BasicModel:
                 self.momentum: self.mu,
             })
 
-            _, state, loss, fx, g_norm, cos_step_grad, summaries_str = session.run(run_op, feed_dict=feed_dict)
+            _, state, loss, fx, g_norm, cos_step_grad = session.run(run_op, feed_dict=feed_dict)
 
             if i == 0:
                 #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
@@ -627,14 +569,8 @@ class BasicModel:
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
         ret['optimizee_name'] = opt_name
-        #ret['loss'] = np.mean(losses)
-        ret['loss'] = np.nanmean(losses)
+        ret['loss'] = np.mean(losses)
         ret['fxs'] = fxs
-
-        if self.save_tf_data:
-            for summary_str in summaries_str:
-                self.train_writer.add_summary(summary_str, self.bid)
-            self.train_writer.flush()
 
         return ret
 
