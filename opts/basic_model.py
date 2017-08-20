@@ -10,12 +10,9 @@ from tensorflow.contrib.rnn import LSTMStateTuple
 import yellowfin
 
 class BasicModel:
-    def __init__(self, name=None, model_path=None, save_tf_data=True, snapshot_path=None, debug=False):
+    def __init__(self, name=None, snapshot_path=None, debug=False):
         self.bid = 0
         self.name = name
-
-        self.model_path = model_path or pathlib.Path('models') / name
-        self.save_tf_data = save_tf_data
         self.snapshot_path = snapshot_path
         self.debug = debug
 
@@ -601,7 +598,6 @@ class BasicModel:
         snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
 
-        #self.saver = tf.train.import_meta_graph(str(snapshot_path) + '.meta')
         self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
@@ -609,13 +605,7 @@ class BasicModel:
     def save(self, eid):
         folder = self.snapshot_path
         filename = folder / 'epoch'
-        sfilename = folder / 'epoch-last'
 
         print("Saving to ", filename)
-
         self.saver.save(self.session, str(filename), global_step=eid)
-        #os.unlink("{}-{}.meta".format(filename, eid))
-        if os.path.lexists(str(sfilename)):
-            os.unlink(str(sfilename))
-        os.symlink("epoch-{}".format(eid), str(sfilename))
         print(self.name, "saved.")

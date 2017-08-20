@@ -4,7 +4,7 @@ from . import basic_model
 
 class AdamOpt(basic_model.BasicModel):
     def __init__(self, lr, beta1=0.9, beta2=0.999, eps=1e-8, enable_reduce=False, factor=0.5, patience_max=10, epsilon=1e-4, **kwargs):
-        super(AdamOpt, self).__init__(save_tf_data=False, **kwargs)
+        super(AdamOpt, self).__init__(**kwargs)
 
         self.lr_init = lr
         self.beta1 = beta1

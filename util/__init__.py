@@ -84,7 +84,6 @@ def load_opt(model_path):
     with (model_path / 'config.json').open('r') as conf:
         flags = json.load(conf)
 
-    flags['model_path'] = model_path
     flags['snapshot_path'] = model_path / 'snapshots'
 
     from opts.lstm_opt import LSTMOpt
