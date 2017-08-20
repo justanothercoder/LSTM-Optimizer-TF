@@ -7,7 +7,8 @@ import numpy as np
 
 import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMStateTuple
-import yellowfin
+
+from cells import LSTMOptCell
 
 class BasicModel:
     def __init__(self, name=None, snapshot_path=None, debug=False):
@@ -42,7 +43,7 @@ class BasicModel:
               loss_type='log',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              stop_grad=True, dynamic=False, **kwargs):
+              stop_grad=True, dynamic=False, cell=False, **kwargs):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
@@ -59,9 +60,13 @@ class BasicModel:
             self.input_state = self.build_inputs()
             self.initial_state = self.build_initial_state()
 
+            if cell:
+                kwargs = util.get_kwargs(self.__init__, self.__dict__)
+                self.cell = LSTMOptCell(**kwargs)
+
             for opt_name, optimizee in optimizees.items():
                 with tf.variable_scope('inference_scope'):
-                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic)
+                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic, cell=cell)
                     vars_opt |= set(optimizee.vars_)
                     
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
@@ -211,11 +216,18 @@ class BasicModel:
         return steps_info, final_state
 
 
-    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False):
-        if dynamic:
-            steps_info, final_state = self.dynamic_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+    def cell_inference(optimizee, input_state, n_bptt_steps, stop_grad=True):
+        pass
+
+
+    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
+        if cell:
+            steps_info, final_state = self.cell_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
         else:
-            steps_info, final_state = self.static_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+            if dynamic:
+                steps_info, final_state = self.dynamic_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+            else:
+                steps_info, final_state = self.static_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
 
         ret = {
             'values': [info['value'] for info in steps_info],
@@ -227,33 +239,32 @@ class BasicModel:
         if not self.is_rnnprop:
             keys = set(first_step.keys())
 
-        if not self.is_rnnprop and 'state' in keys:
-            ret['states'] = [info['state'] for info in steps_info]
-            state_keys = set(first_step['state'].keys())
-        
-            if not self.is_rnnprop and 'loglr' in state_keys:
-                ret['lrs'] = [info['state']['loglr'] for info in steps_info]
+            if 'state' in keys:
+                state_keys = set(first_step['state'].keys())
+            
+                if 'loglr' in state_keys:
+                    ret['lrs'] = [info['state']['loglr'] for info in steps_info]
 
-        if not self.is_rnnprop and 'cos_step_adam' in keys:
-            ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
+            if 'cos_step_adam' in keys:
+                ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
 
         return ret
 
 
     def loss(self, inference, lambd=0., lambd_l1=0., loss_type='log'):
         values = tf.stack(inference['values'])
-        try:
-            states = tf.stack([s['loglr'] for s in inference['states']])
-        except:
-            states = None
+        if inference.get('keys') is not None:
+            lrs = tf.stack([s['loglr'] for s in inference['lrs']])
+        else:
+            lrs = None
 
         losses = []
 
         if loss_type == 'log':
             loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
 
-            if states is not None:
-                lr_loss = -lambd * tf.reduce_mean(states - states[:1])
+            if lrs is not None:
+                lr_loss = -lambd * tf.reduce_mean(lrs - lrs[:1])
                 losses.append(lr_loss)
 
         elif loss_type == 'log_smooth':
