@@ -106,9 +106,7 @@ class BasicModel:
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
-    def dynamic_inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
-        state = input_state
-                
+    def dynamic_inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
         ks, vs = zip(*list(state.items()))
         ks = list(ks)
         vs = list(vs)
@@ -126,28 +124,28 @@ class BasicModel:
             return tf.less(sid, n_bptt_steps)
 
 
-        def body(sid, vals, norms, *state):
+        def body(sid, vals, norms, x, *state):
             state = tuple_to_dict(state)
-            value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid, stop_grad)
+            value, gradient, gradient_norm = self._fg(optimizee.loss, x, sid, stop_grad)
 
-            new_state = self.step(value, gradient, state)['state']
+            step_info = self.step(value, gradient, state)
+            new_state = step_info['state']
             new_state = dict_to_tuple(new_state)
 
             new_vals = tf.concat([vals, tf.expand_dims(value, 0)], axis=0)
             new_norms = tf.concat([norms, tf.expand_dims(gradient_norm, 0)], axis=0)
 
-            out_state = (sid + 1, new_vals, new_norms) + new_state
+            out_state = (sid + 1, new_vals, new_norms, x + step_info['step']) + new_state
             
             return out_state
 
 
-        x = state['x']
-        vals_init = tf.zeros([0, tf.shape(x)[0]])
-        norms_init = tf.zeros([0, tf.shape(x)[0]])
-        state_init = dict_to_tuple(state)
+        vals_init = tf.zeros([0, tf.shape(input_x)[0]])
+        norms_init = tf.zeros([0, tf.shape(input_x)[0]])
+        state_init = dict_to_tuple(input_state)
 
         i = tf.constant(0)
-        in_state = (i, vals_init, norms_init) + state_init
+        in_state = (i, vals_init, norms_init, input_x) + state_init
 
         def get_shapes(t):
             shapes = []
@@ -181,10 +179,11 @@ class BasicModel:
         return steps_info, final_state
 
 
-    def static_inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
+    def static_inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
         steps_info = []
 
         state = input_state
+        x = input_x
         scope = tf.get_variable_scope()
                 
         def opt_loss(i, x):
@@ -198,9 +197,9 @@ class BasicModel:
                 value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i, stop_grad)
                 step_info = self.step(opt_loss, i, state)
             else:
-                x = state['x']
                 value, gradient, gradient_norm = self._fg(optimizee.loss, x, i, stop_grad)
                 step_info = self.step(value, gradient, state)
+                x += step_info['step']
 
             state = step_info['state']
 
@@ -216,18 +215,18 @@ class BasicModel:
         return steps_info, final_state
 
 
-    def cell_inference(optimizee, input_state, n_bptt_steps, stop_grad=True):
+    def cell_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
         pass
 
 
-    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
+    def inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
         if cell:
             steps_info, final_state = self.cell_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
         else:
             if dynamic:
-                steps_info, final_state = self.dynamic_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+                steps_info, final_state = self.dynamic_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
             else:
-                steps_info, final_state = self.static_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+                steps_info, final_state = self.static_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
 
         ret = {
             'values': [info['value'] for info in steps_info],
@@ -284,12 +283,9 @@ class BasicModel:
         else:
             loss = values[-1]
 
-        if tf.trainable_variables():
-            reg_loss = tf.add_n([
-                lambd_l1 * tf.norm(v, ord=1)
-                for v in tf.trainable_variables()
-                if 'bias' not in v.name
-            ])
+        if self.all_vars:
+            weights = [v for v in self.all_vars if 'bias' not in v.name]
+            reg_loss = tf.add_n([lambd_l1 * tf.norm(v, ord=1) for v in weights])
             losses.append(reg_loss)
 
         return [loss] + losses
@@ -379,9 +375,6 @@ class BasicModel:
             'final_state': inf['final_state']
         }
 
-        if inf.get('states') is not None:
-            run_op['states'] = inf['states']
-
         steps_info = {
             'values': [],
             'norms': [],
@@ -406,7 +399,6 @@ class BasicModel:
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
  
             info = session.run(run_op, feed_dict=feed_dict)
-            #state = info['states'][-1]
             state = info['final_state']
 
             losses.append(info['loss'])
@@ -425,10 +417,7 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches,
-              batch_size=100, n_steps=20,
-              train_lr=1e-2, momentum=0.9,
-              eid=0, test=True, verbose=1):
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
         self.verbose = verbose
         self.lr = train_lr
         self.mu = momentum
@@ -532,7 +521,6 @@ class BasicModel:
 
         run_op = [
                 self.ops[opt_name]['train_op'],
-                extract(opt_name, 'states'),
                 extract(opt_name, 0, pkey='losses'),
                 extract(opt_name, 'values'),
                 extract(opt_name, 'norms'),

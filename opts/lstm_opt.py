@@ -78,7 +78,6 @@ class LSTMOpt(basic_model.BasicModel):
 
 
     def build_inputs(self):
-        self.x = tf.placeholder(tf.float32, [None, None], name='x') # shape = (n_functions, n_coords)
         self.m = tf.placeholder(tf.float32, [None, None], name='m')
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
         self.b1t = tf.placeholder(tf.float32, [None], name='b1t')
@@ -100,7 +99,6 @@ class LSTMOpt(basic_model.BasicModel):
         self.input_state = {
             'b1t': self.b1t,
             'b2t': self.b2t,
-            'x': self.x,
             'm': self.m,
             'v': self.v,
             'lstm_state': self.lstm_state,
@@ -115,8 +113,7 @@ class LSTMOpt(basic_model.BasicModel):
         return self.input_state
 
     
-    def build_initial_state(self):
-        x = self.x
+    def build_initial_state(self, x):
         m = tf.zeros(shape=tf.shape(x))
         v = tf.zeros(shape=tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
@@ -133,7 +130,6 @@ class LSTMOpt(basic_model.BasicModel):
         self.initial_state = {
             'b1t': b1t,
             'b2t': b2t,
-            'x': x,
             'm': m,
             'v': v,
             'lstm_state': lstm_state,
@@ -147,7 +143,7 @@ class LSTMOpt(basic_model.BasicModel):
 
         return self.initial_state
 
-    
+
     def adam_update(self, g, m, v):
         new_m = self.beta1 * m + (1 - self.beta1) * g
         new_v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
@@ -178,13 +174,13 @@ class LSTMOpt(basic_model.BasicModel):
 
 
     def step(self, f, g, state):
-        b1t, b2t, x, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'x', 'm', 'v', 'lstm_state', 'loglr'])
+        b1t, b2t, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'm', 'v', 'lstm_state', 'loglr'])
 
         if self.use_both:
             m_norm = state['m_norm']
             v_norm = state['v_norm']
 
-        x_shape = tf.shape(x)
+        g_shape = tf.shape(g)
 
         if self.normalize_gradients:
             g = normalize(g)
@@ -206,22 +202,21 @@ class LSTMOpt(basic_model.BasicModel):
             features += self.get_features(g_norm, m_norm, v_norm, a)
         
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
-
         
         if self.weight_norm:
             scope = tf.get_variable_scope()
             scope.set_custom_getter(custom_getter)
         
         last, lstm_state = self.lstm(prep, lstm_state)
-        last = tf.layers.dense(last, 2, use_bias=False, name=self.scope.name)
+        last = tf.layers.dense(last, 2, use_bias=False)
 
         d, loglr_add = tf.unstack(last, axis=1)
 
-        d = tf.reshape(d, x_shape)
-        loglr_add = tf.reshape(loglr_add, x_shape)
+        d = tf.reshape(d, g_shape)
+        loglr_add = tf.reshape(loglr_add, g_shape)
 
         loglr = tf.minimum(loglr + loglr_add, np.log(self.clip_delta))
-        n_coords = tf.cast(x_shape[0], tf.float32)
+        n_coords = tf.cast(g_shape[0], tf.float32)
 
         if self.add_skip:
             d += -s
@@ -235,22 +230,11 @@ class LSTMOpt(basic_model.BasicModel):
         lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.clip_delta)
 
-        new_x = x + d * lr
+        step = d * lr
 
-        new_state = {
-            'b1t': b1t,
-            'b2t': b2t,
-            'x': new_x,
-            'm': m,
-            'v': v,
-            'lstm_state': lstm_state,
-            'loglr': loglr
-        }
+        new_state = dict(b1t=b1t, b2t=b2t, m=m, v=v, lstm_state=lstm_state, loglr=loglr)
         if self.use_both:
-            new_state.update({
-                'm_norm': m_norm,
-                'v_norm': v_norm
-            })
+            new_state.update(m_norm=m_norm, v_norm=v_norm)
 
         adam_normed = tf.nn.l2_normalize(-s, 1)
         step_normed = tf.nn.l2_normalize(d, 1)
@@ -258,6 +242,7 @@ class LSTMOpt(basic_model.BasicModel):
         cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
 
         return {
+            'step': step,
             'state': new_state,
             'cos_step_adam': cos_
         }

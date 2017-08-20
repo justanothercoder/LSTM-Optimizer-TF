@@ -18,13 +18,12 @@ class AdamOpt(basic_model.BasicModel):
     
     
     def build_inputs(self):
-        self.x = tf.placeholder(tf.float32, [None, None], name='x')
         self.m = tf.placeholder(tf.float32, [None, None], name='v')
         self.v = tf.placeholder(tf.float32, [None, None], name='v')
         self.b1t = tf.placeholder(tf.float32, [None], name='beta1')
         self.b2t = tf.placeholder(tf.float32, [None], name='beta1')
 
-        self.input_state = dict(x=self.x, m=self.m, v=self.v, b1t=self.b1t, b2t=self.b2t)
+        self.input_state = dict(m=self.m, v=self.v, b1t=self.b1t, b2t=self.b2t)
         if self.enable_reduce:
             self.lr = tf.placeholder(tf.float32, [None], name='lr')
             self.f_best = tf.placeholder(tf.float32, [None], name='f_best')
@@ -37,14 +36,13 @@ class AdamOpt(basic_model.BasicModel):
         return self.input_state
     
     
-    def build_initial_state(self):
-        x = self.x
+    def build_initial_state(self, x):
         m = tf.zeros(tf.shape(x))
         v = tf.zeros(tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
         b2t = tf.ones([tf.shape(x)[0]])
 
-        self.initial_state = dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t)
+        self.initial_state = dict(m=m, v=v, b1t=b1t, b2t=b2t)
         if self.enable_reduce:
             lr = self.lr_init * tf.ones([tf.shape(x)[0]])
             f_best = tf.zeros([tf.shape(x)[0]])
@@ -104,7 +102,7 @@ class AdamOpt(basic_model.BasicModel):
 
 
     def step(self, f, g, state):
-        x, m, v, b1t, b2t = tuple(state[name] for name in ['x', 'm', 'v', 'b1t', 'b2t'])
+        m, v, b1t, b2t = tuple(state[name] for name in ['m', 'v', 'b1t', 'b2t'])
 
         m = self.beta1 * m + (1 - self.beta1) * g
         v = self.beta2 * v + (1 - self.beta2) * tf.square(g)
@@ -122,13 +120,13 @@ class AdamOpt(basic_model.BasicModel):
         else:
             s = lr_state['lr'] * a * m / (tf.sqrt(v) + self.eps)
 
-        x -= s
+        step = -s
         new_state = dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t)
 
         if self.enable_reduce:
             new_state.update(lr_state)
 
-        return dict(state=new_state)
+        return dict(step=step, state=new_state)
     
     
     def restore(self, eid):

@@ -62,9 +62,6 @@ class Trainer:
                 'final_state': inf['final_state']
             }
 
-            if inf.get('states') is not None:
-                self.run_op[opt_name]['states'] = inf['states']
-
             if mode == 'train':
                 self.run_op[opt_name]['train_op'] = model.ops[opt_name]['train_op']
 
@@ -220,7 +217,6 @@ class Trainer:
                 del run_op['train_op']
 
             info = self.session.run(run_op, feed_dict=feed_dict)
-            #state = info['states'][-1]
             state = info['final_state']
 
             losses.append(info['loss'])
