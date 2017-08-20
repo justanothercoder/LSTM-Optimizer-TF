@@ -42,7 +42,7 @@ class BasicModel:
               loss_type='log', optimizer='adam',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              use_moving_averages=False, stop_grad=True, dynamic=False, **kwargs):
+              stop_grad=True, dynamic=False, **kwargs):
 
         self.session = tf.get_default_session()
         self.optimizees = optimizees
@@ -76,13 +76,8 @@ class BasicModel:
                     scope.reuse_variables()
         
         with tf.variable_scope('opt_scope', reuse=False) as scope:
-            if not self.is_rnnprop:
-                ema = tf.train.ExponentialMovingAverage(decay=0.999)
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.all_vars = list(set(self.all_vars) - vars_opt)
-
-            if not self.is_rnnprop:
-                averages_op = ema.apply(self.all_vars)
 
             if not inference_only and self.all_vars:
                 self.optimizer = self.build_optimizer(optimizer)
@@ -92,9 +87,6 @@ class BasicModel:
 
                     grads = self.grads(self.optimizer, losses, normalize_lstm_grads=normalize_lstm_grads, grad_clip=grad_clip)
                     train_op = self.train_op(self.optimizer, grads)
-
-                    with tf.control_dependencies([train_op]):
-                        train_op = tf.group(averages_op)
 
                     ops[opt_name].update({
                         'grads': grads,
@@ -112,12 +104,7 @@ class BasicModel:
                 ops[opt_name]['summaries'] = self.summary(ops[opt_name])
 
             self.ops = ops
-
-            if use_moving_averages:
-                all_vars = {ema.average_name(var): var for var in self.all_vars}
-                self.saver = tf.train.Saver(max_to_keep=None, var_list=all_vars, allow_empty=True)
-            else:
-                self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
+            self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
     def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False):
