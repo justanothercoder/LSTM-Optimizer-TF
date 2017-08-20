@@ -50,7 +50,7 @@ class CorrectStochLogreg(optimizee.Optimizee):
 
     def get_new_params(self, batch_size=1):
         self.w  = np.random.normal(size=(batch_size, self.num_features))
-        self.w0 = np.random.normal(size=(batch_size, 1), stddev=0.1)
+        self.w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
         
         self.data_size    = np.random.randint(low=self.min_data_size, high=self.max_data_size)
         self.batch_size   = np.random.randint(low=1, high=self.data_size // 10 + 2)

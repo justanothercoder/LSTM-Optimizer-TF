@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
-from tensorflow.python.ops.rnn_cell_impl import _state_size_with_prefix
+#from tensorflow.python.ops.rnn_cell_impl import _state_size_with_prefix
 
 
 def get_initial_cell_state(cell, initializer, batch_size, dtype):
@@ -34,7 +34,8 @@ def make_variable_state_initializer(**kwargs):
         var = tf.get_variable(**args)
         var = tf.expand_dims(var, 0)
         var = tf.tile(var, tf.stack([batch_size] + [1] * len(shape)))
-        var.set_shape(_state_size_with_prefix(shape, prefix=[None]))
+        #var.set_shape(_state_size_with_prefix(shape, prefix=[None]))
+        var.set_shape([None] + shape.as_list())
         return var
 
     return variable_state_initializer
