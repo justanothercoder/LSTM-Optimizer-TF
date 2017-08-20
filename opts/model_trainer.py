@@ -57,7 +57,6 @@ class Trainer:
         
             self.run_op[opt_name] = {
                 'loss': losses[0],
-                'summaries': model.ops[opt_name]['summaries'],
                 'values': inf['values'],
                 'norms': inf['norms'],
                 'final_state': inf['final_state']
@@ -223,7 +222,6 @@ class Trainer:
             info = self.session.run(run_op, feed_dict=feed_dict)
             #state = info['states'][-1]
             state = info['final_state']
-            summaries_str = info['summaries']
 
             losses.append(info['loss'])
             fxs.extend(info['values'])
@@ -232,16 +230,6 @@ class Trainer:
         self.log("Last function value: {}".format(fxs[-1][0]), level=15)
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), level=15)
         
-        if self.model.save_tf_data:
-            if train:
-                for summary_str in summaries_str:
-                    self.model.train_writer.add_summary(summary_str, self.bid)
-                self.model.train_writer.flush()
-            else:
-                for summary_str in summaries_str:
-                    self.model.test_writer.add_summary(summary_str, self.bid)
-                self.model.test_writer.flush()
-
         return {
             'optimizee_name': opt_name,
             'loss': np.nanmean(losses),

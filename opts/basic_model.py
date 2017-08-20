@@ -101,7 +101,82 @@ class BasicModel:
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
-    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False):
+    def dynamic_inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
+        state = input_state
+                
+        ks, vs = zip(*list(state.items()))
+        ks = list(ks)
+        vs = list(vs)
+
+        def dict_to_tuple(d):
+            print(d.keys())
+            return tuple(d[k] for k in ks)
+
+
+        def tuple_to_dict(t):
+            return dict(zip(ks, t))
+
+
+        def cond(sid, *loop_vars):
+            return tf.less(sid, n_bptt_steps)
+
+
+        def body(sid, vals, norms, *state):
+            state = tuple_to_dict(state)
+            value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid, stop_grad)
+
+            new_state = self.step(value, gradient, state)['state']
+            new_state = dict_to_tuple(new_state)
+
+            new_vals = tf.concat([vals, tf.expand_dims(value, 0)], axis=0)
+            new_norms = tf.concat([norms, tf.expand_dims(gradient_norm, 0)], axis=0)
+
+            out_state = (sid + 1, new_vals, new_norms) + new_state
+            
+            return out_state
+
+
+        x = state['x']
+        vals_init = tf.zeros([0, tf.shape(x)[0]])
+        norms_init = tf.zeros([0, tf.shape(x)[0]])
+        state_init = dict_to_tuple(state)
+
+        i = tf.constant(0)
+        in_state = (i, vals_init, norms_init) + state_init
+
+        def get_shapes(t):
+            shapes = []
+
+            for i in t:
+                if isinstance(i, tf.Tensor):
+                    shapes.append(i.get_shape())
+                else:
+                    s = get_shapes(i)
+                    if type(i) in (tuple, list):
+                        s = type(i)(s)
+                    else:
+                        s = type(i)(c=s[0], h=s[1])
+                    shapes.append(s)
+            
+            return tuple(shapes)
+
+        shape_invariants = (
+                    i.get_shape(),
+                    tf.TensorShape([None] + vals_init.get_shape().as_list()[1:]),
+                    tf.TensorShape([None] + norms_init.get_shape().as_list()[1:]),
+                ) + get_shapes(state_init)
+
+        _, vals, norms, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
+
+        vals = tf.unstack(vals, num=n_bptt_steps, axis=0)
+        norms = tf.unstack(norms, num=n_bptt_steps, axis=0)
+
+        steps_info = [{'value': v, 'gradient_norm': n} for v, n in zip(vals, norms)]
+        final_state = tuple_to_dict(r)
+        return steps_info, final_state
+
+
+    def static_inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True):
         steps_info = []
 
         state = input_state
@@ -112,105 +187,39 @@ class BasicModel:
             print(opt_loss.get_shape())
             return opt_loss
 
+        for i in range(n_bptt_steps):
+            if self.is_rnnprop:
+                x = state[3]
+                value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i, stop_grad)
+                step_info = self.step(opt_loss, i, state)
+            else:
+                x = state['x']
+                value, gradient, gradient_norm = self._fg(optimizee.loss, x, i, stop_grad)
+                step_info = self.step(value, gradient, state)
+
+            state = step_info['state']
+
+            if not scope.reuse:
+                scope.reuse_variables()
+
+            step_info['value'] = value
+            step_info['gradient_norm'] = gradient_norm
+
+            steps_info.append(step_info)
+
+        final_state = state
+        return steps_info, final_state
+
+
+    def inference(self, optimizee, input_state, n_bptt_steps, stop_grad=True, dynamic=False):
         if dynamic:
-            ks, vs = zip(*list(state.items()))
-            ks = list(ks)
-            vs = list(vs)
-
-            print(ks)
-
-            def dict_to_tuple(d):
-                print(d.keys())
-                return tuple(d[k] for k in ks)
-
-
-            def tuple_to_dict(t):
-                return dict(zip(ks, t))
-
-
-            def cond(sid, *loop_vars):
-                return tf.less(sid, n_bptt_steps)
-
-
-            def body(sid, vals, norms, *state):
-                state = tuple_to_dict(state)
-                value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid, stop_grad)
-
-                new_state = self.step(value, gradient, state)['state']
-                new_state = dict_to_tuple(new_state)
-
-                new_vals = tf.concat([vals, tf.expand_dims(value, 0)], axis=0)
-                new_norms = tf.concat([norms, tf.expand_dims(gradient_norm, 0)], axis=0)
-
-                out_state = (sid + 1, new_vals, new_norms) + new_state
-                
-                return out_state
-
-
-            x = state['x']
-            vals_init = tf.zeros([0, tf.shape(x)[0]])
-            norms_init = tf.zeros([0, tf.shape(x)[0]])
-            state_init = dict_to_tuple(state)
-
-            i = tf.constant(0)
-            in_state = (i, vals_init, norms_init) + state_init
-
-            def get_shapes(t):
-                shapes = []
-
-                for i in t:
-                    if isinstance(i, tf.Tensor):
-                        shapes.append(i.get_shape())
-                    else:
-                        s = get_shapes(i)
-                        if type(i) in (tuple, list):
-                            s = type(i)(s)
-                        else:
-                            s = type(i)(c=s[0], h=s[1])
-                        shapes.append(s)
-                
-                return tuple(shapes)
-
-            shape_invariants = (
-                        i.get_shape(),
-                        tf.TensorShape([None] + vals_init.get_shape().as_list()[1:]),
-                        tf.TensorShape([None] + norms_init.get_shape().as_list()[1:]),
-                    ) + get_shapes(state_init)
-
-            _, vals, norms, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
-
-            vals = tf.unstack(vals, num=n_bptt_steps, axis=0)
-            norms = tf.unstack(norms, num=n_bptt_steps, axis=0)
-
-            steps_info = [{'value': v, 'gradient_norm': n} for v, n in zip(vals, norms)]
-            final_state = tuple_to_dict(r)
+            steps_info, final_state = self.dynamic_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
         else:
-            for i in range(n_bptt_steps):
-                if self.is_rnnprop:
-                    x = state[3]
-                    value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i, stop_grad)
-                    step_info = self.step(opt_loss, i, state)
-                    state = step_info['state']
-                else:
-                    x = state['x']
-                    value, gradient, gradient_norm = self._fg(optimizee.loss, x, i, stop_grad)
-                    step_info = self.step(value, gradient, state)
-                    state = step_info['state']
-
-                if not scope.reuse:
-                    scope.reuse_variables()
-
-                step_info['value'] = value
-                step_info['gradient'] = gradient
-                step_info['gradient_norm'] = gradient_norm
-
-                steps_info.append(step_info)
-
-            final_state = state
+            steps_info, final_state = self.static_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
 
         ret = {
             'values': [info['value'] for info in steps_info],
-            'norms': [info['gradient_norm'] for info in steps_info],
+            'norms' : [info['gradient_norm'] for info in steps_info],
             'final_state': final_state
         }
 
