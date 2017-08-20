@@ -24,12 +24,8 @@ class ClipByValue(optimizee.Optimizee):
         return f, g
 
     
-    def get_initial_x(self, batch_size=1):
-        return self.optim.get_initial_x(batch_size)
-
-
-    def get_new_params(self, batch_size=1):
-        return self.optim.get_new_params(batch_size)
+    def sample_problem(self, batch_size=1):
+        return self.optim.sample_problem(batch_size)
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):
@@ -59,16 +55,13 @@ class UniformRandomScaling(optimizee.Optimizee):
         return f, g
 
     
-    def get_initial_x(self, batch_size=1):
-        x = self.optim.get_initial_x(batch_size)
-        self.coef = np.exp(np.random.uniform(-self.r, self.r, size=x.shape))
-        return x / self.coef
+    def sample_problem(self, batch_size=1):
+        x, d = self.optim.sample_problem(batch_size)
 
-
-    def get_new_params(self, batch_size=1):
-        d = self.optim.get_new_params(batch_size)
-        d[self.c] = self.coef
-        return d
+        coef = np.exp(np.random.uniform(-self.r, self.r, size=x.shape))
+        init = x / coef
+        d[self.c] = coef
+        return init, d
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):
@@ -122,17 +115,17 @@ class ConcatAndSum(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
-        inits = [opt.get_initial_x(batch_size) for opt in self.optim_list]
-        init = np.concatenate(inits, axis=-1)
-        return init
+    def sample_problem(self, batch_size=1):
+        inits = []
+        params = {}
 
-
-    def get_new_params(self, batch_size=1):
-        params = { }
         for opt in self.optim_list:
-            params.update(opt.get_new_params(batch_size))
-        return params
+            x, p = opt.sample_problem(batch_size)
+            inits.append(x)
+            params.update(p)
+
+        init = np.concatenate(inits, axis=-1)
+        return init, params
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):

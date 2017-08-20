@@ -39,6 +39,8 @@ class Trainer:
         self.bid = 0
         self.session = session or tf.get_default_session()
 
+        self.model.session = self.session
+
         if kwargs['verbose'] == 2:
             self.logger.setLevel(15)
         elif kwargs['verbose'] == 0:
@@ -93,16 +95,12 @@ class Trainer:
 
     def train(self, n_epochs, n_batches,
               batch_size=100, n_steps=20,
-              train_lr=1e-4, momentum=0.9,
               eid=0, test=True, verbose=1, masked_train='none', masked_train_p=0.2):
 
         self.masked_train = masked_train
         self.masked_train_p = masked_train_p
 
         self.logger.info("Training model: {}".format(self.model.name), extra={'epoch': 0, 'batch': 0})
-
-        self.lr = train_lr
-        self.mu = momentum
 
         if eid > 0:
             self.model.restore(eid)
@@ -153,9 +151,10 @@ class Trainer:
                 self.log("Epoch time: {}".format(time.time() - epoch_time))
                 self.log("Epoch loss: {}".format(loss / np.log(10) / self.model.n_bptt_steps))
 
-                if test and (epoch + 1) % 10 == 0:
+                if (epoch + 1) % 10 == 0:
                     self.model.save(epoch + 1)
 
+                if test and (epoch + 1) % 10 == 0:
                     self.log("Test epoch: {}".format(epoch))
                     test_epoch_time = time.time()
 
@@ -180,10 +179,8 @@ class Trainer:
         self.bid += 1
 
         optimizee = self.model.optimizees[opt_name]
-        x = optimizee.get_initial_x(batch_size)
+        x, optimizee_params = optimizee.sample_problem(batch_size)
         state = self.session.run(self.model.initial_state, feed_dict={self.model.x: x})
-
-        optimizee_params = optimizee.get_new_params(batch_size)
         
         steps_info = {
             'values': [],
@@ -207,14 +204,10 @@ class Trainer:
             mask = np.ones(n_unrolls)
 
 
-        for i in range(n_steps // self.model.n_bptt_steps):
+        for i in range(n_unrolls):
             feed_dict = optimizee_params
             feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
-            feed_dict.update({
-                self.model.train_lr: self.lr,
-                self.model.momentum: self.mu,
-            })
 
             run_op = self.run_op[opt_name].copy()
             if mask[i] == 0:
@@ -232,15 +225,15 @@ class Trainer:
         self.log("Last function value: {}".format(fxs[-1][0]), level=15)
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), level=15)
         
-        if self.model.save_tf_data:
-            if train:
-                for summary_str in summaries_str:
-                    self.model.train_writer.add_summary(summary_str, self.bid)
-                self.model.train_writer.flush()
-            else:
-                for summary_str in summaries_str:
-                    self.model.test_writer.add_summary(summary_str, self.bid)
-                self.model.test_writer.flush()
+        #if self.model.save_tf_data:
+        #    if train:
+        #        for summary_str in summaries_str:
+        #            self.model.train_writer.add_summary(summary_str, self.bid)
+        #        self.model.train_writer.flush()
+        #    else:
+        #        for summary_str in summaries_str:
+        #            self.model.test_writer.add_summary(summary_str, self.bid)
+        #        self.model.test_writer.flush()
 
         return {
             'optimizee_name': opt_name,

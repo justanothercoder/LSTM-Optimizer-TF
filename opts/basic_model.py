@@ -36,10 +36,10 @@ class BasicModel:
     def build(self, optimizees, n_bptt_steps=20,
               loss_type='log', optimizer='adam',
               lambd=0., lambd_l1=0., inference_only=False,
-              normalize_lstm_grads=False, grad_clip=1.,
+              normalize_lstm_grads=False, grad_clip=1., train_lr=1e-4, momentum=0.9,
               use_moving_averages=False, stop_grad=True, dynamic=False, **kwargs):
 
-        self.session = tf.get_default_session()
+        #self.session = tf.get_default_session()
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps
         ops = {}
@@ -82,7 +82,7 @@ class BasicModel:
                 averages_op = ema.apply(self.all_vars)
 
             if not inference_only and self.all_vars:
-                self.optimizer = self.build_optimizer(optimizer)
+                self.optimizer = self.build_optimizer(optimizer, lr, momentum)
 
                 for opt_name in optimizees:
                     losses = ops[opt_name]['losses']
@@ -101,9 +101,9 @@ class BasicModel:
                     if not scope.reuse:
                         scope.reuse_variables()
 
-            if self.save_tf_data:
-                self.train_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/train'), self.session.graph)
-                self.test_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/test'), self.session.graph)
+            #if self.save_tf_data:
+            #    self.train_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/train'), self.session.graph)
+            #    self.test_writer = tf.summary.FileWriter(str(self.model_path / 'tf_data/test'), self.session.graph)
 
             for opt_name in optimizees:
                 ops[opt_name]['summaries'] = self.summary(ops[opt_name])
@@ -302,9 +302,9 @@ class BasicModel:
         return [loss] + losses
 
 
-    def build_optimizer(self, optimizer_type):
-        self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
-        self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
+    def build_optimizer(self, optimizer_type, lr, momentum):
+        self.train_lr = tf.get_variable('train_lr', shape=[], trainable=False, initializer=tf.constant_initializer(lr))
+        self.momentum = tf.get_variable('momentum', shape=[], trainable=False, initializer=tf.constant_initializer(momentum))
 
         if optimizer_type == 'adam':
             optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
@@ -624,10 +624,10 @@ class BasicModel:
             feed_dict = optimizee_params
             feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps, batch_size))
-            feed_dict.update({
-                self.train_lr: self.lr,
-                self.momentum: self.mu,
-            })
+            #feed_dict.update({
+            #    self.train_lr: self.lr,
+            #    self.momentum: self.mu,
+            #})
 
             _, state, loss, fx, g_norm, cos_step_grad, summaries_str = session.run(run_op, feed_dict=feed_dict)
 

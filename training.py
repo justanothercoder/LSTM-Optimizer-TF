@@ -54,8 +54,7 @@ def setup_experiment(flags):
     return opt, model_path
 
 
-@tf_utils.with_tf_graph
-def training(flags, opt):
+def build_opt(opt, flags):
     optimizees = optim.get_optimizees(flags.optimizee,
                                       clip_by_value=True,
                                       random_scale=flags.enable_random_scaling,
@@ -69,12 +68,14 @@ def training(flags, opt):
     kwargs = util.get_kwargs(opt.build, flags)
     opt.build(optimizees, **kwargs)
 
-    feed_dict = {
-        opt.train_lr: flags.train_lr,
-        opt.momentum: flags.momentum
-    }
+
+def training(opt, flags):
+    #feed_dict = {
+    #    opt.train_lr: flags.train_lr,
+    #    opt.momentum: flags.momentum
+    #}
     session = tf.get_default_session()
-    session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
+    session.run(tf.global_variables_initializer())
 
     trainer = model_trainer.Trainer()
     try:
@@ -89,8 +90,11 @@ def training(flags, opt):
     return rets
 
 
+@tf_utils.with_tf_graph
 def run_train(flags):
     opt, model_path = setup_experiment(flags)
-    rets = training(flags, opt)
+
+    build_opt(opt, flags)
+    rets = training(opt, flags)
 
     util.dump_results(model_path, rets)
