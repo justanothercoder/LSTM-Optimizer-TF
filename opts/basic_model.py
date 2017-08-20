@@ -395,7 +395,7 @@ class BasicModel:
             print(message)
 
 
-    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1, include_x=False):
+    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
         self.restore(eid)
         self.verbose = verbose
 
@@ -410,7 +410,7 @@ class BasicModel:
                 opt_name = random.choice(opt_names)
 
             batch_time = time.time()
-            ret = self.test_one_iteration(n_steps, opt_name, include_x=include_x)
+            ret = self.test_one_iteration(n_steps, opt_name)
             batch_time = time.time() - batch_time
             self.log("Time: {}".format(batch_time), verbosity=1, level=1)
             rets.append(ret)
@@ -418,7 +418,7 @@ class BasicModel:
         return rets
 
 
-    def test_one_iteration(self, n_steps, opt_name, include_x=False):
+    def test_one_iteration(self, n_steps, opt_name):
         self.bid += 1
         session = tf.get_default_session()
 
@@ -464,10 +464,6 @@ class BasicModel:
         if inf.get('lrs'):
             run_op['lrs'] = inf['lrs']
             steps_info['lrs'] = []
-
-        if include_x and not self.is_rnnprop:
-            run_op['x'] = [info['x'] for info in inf['states']]
-            steps_info['x'] = []
 
         losses = []
 
