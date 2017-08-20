@@ -134,10 +134,7 @@ class BasicModel:
 
             def body(sid, vals, norms, *state):
                 state = tuple_to_dict(state)
-
-                value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid)
-                if stop_grad:
-                    gradient = tf.stop_gradient(gradient)
+                value, gradient, gradient_norm = self._fg(optimizee.loss, state['x'], sid, stop_grad)
 
                 new_state = self.step(value, gradient, state)['state']
                 new_state = dict_to_tuple(new_state)
@@ -191,18 +188,12 @@ class BasicModel:
             for i in range(n_bptt_steps):
                 if self.is_rnnprop:
                     x = state[3]
-                    
-                    value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i)
-                    if stop_grad:
-                        gradient = tf.stop_gradient(gradient)
-
+                    value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i, stop_grad)
                     step_info = self.step(opt_loss, i, state)
+                    state = step_info['state']
                 else:
                     x = state['x']
-                    value, gradient, gradient_norm = self._fg(optimizee.loss, x, i)
-                    if stop_grad:
-                        gradient = tf.stop_gradient(gradient)
-
+                    value, gradient, gradient_norm = self._fg(optimizee.loss, x, i, stop_grad)
                     step_info = self.step(value, gradient, state)
                     state = step_info['state']
 
@@ -558,8 +549,12 @@ class BasicModel:
         return ret
 
 
-    def _fg(self, f, x, i):
+    def _fg(self, f, x, i, stop_grad=True):
         fx, g = f(x, i)
+
+        if stop_grad:
+            g = tf.stop_gradient(g)
+
         g_norm = tf.reduce_sum(tf.square(g), axis=-1)
         return fx, g, g_norm
 
