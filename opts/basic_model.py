@@ -19,6 +19,11 @@ class BasicModel:
         self.snapshot_path = snapshot_path
         self.debug = debug
 
+    
+    @property
+    def is_rnnprop(self):
+        return self.__class__.__name__ == 'RNNPropOpt'
+        
 
     def build_inputs(self):
         self.x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
@@ -26,7 +31,7 @@ class BasicModel:
 
 
     def build_initial_state(self):
-       return self.input_state
+        return self.input_state
 
 
     def build_pre(self):
@@ -70,15 +75,13 @@ class BasicModel:
                 if not scope.reuse:
                     scope.reuse_variables()
         
-        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
-
         with tf.variable_scope('opt_scope', reuse=False) as scope:
-            if not is_rnnprop:
+            if not self.is_rnnprop:
                 ema = tf.train.ExponentialMovingAverage(decay=0.999)
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.all_vars = list(set(self.all_vars) - vars_opt)
 
-            if not is_rnnprop:
+            if not self.is_rnnprop:
                 averages_op = ema.apply(self.all_vars)
 
             if not inference_only and self.all_vars:
@@ -128,8 +131,6 @@ class BasicModel:
             print(opt_loss.get_shape())
             return opt_loss
 
-        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
-        
         if dynamic:
             ks, vs = zip(*list(state.items()))
             ks = list(ks)
@@ -207,7 +208,7 @@ class BasicModel:
             final_state = tuple_to_dict(r)
         else:
             for i in range(n_bptt_steps):
-                if is_rnnprop:
+                if self.is_rnnprop:
                     x = state[3]
                     
                     value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i)
@@ -242,17 +243,17 @@ class BasicModel:
         }
 
         first_step = steps_info[0]
-        if not is_rnnprop:
+        if not self.is_rnnprop:
             keys = set(first_step.keys())
 
-        if not is_rnnprop and 'state' in keys:
+        if not self.is_rnnprop and 'state' in keys:
             ret['states'] = [info['state'] for info in steps_info]
             state_keys = set(first_step['state'].keys())
         
-            if not is_rnnprop and 'loglr' in state_keys:
+            if not self.is_rnnprop and 'loglr' in state_keys:
                 ret['lrs'] = [info['state']['loglr'] for info in steps_info]
 
-        if not is_rnnprop and 'cos_step_adam' in keys:
+        if not self.is_rnnprop and 'cos_step_adam' in keys:
             ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
 
         return ret
@@ -425,10 +426,8 @@ class BasicModel:
 
         optimizee = self.optimizees[opt_name]
 
-        is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
-
         x = optimizee.get_initial_x()
-        if is_rnnprop:
+        if self.is_rnnprop:
             state = session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
         else:
             state = session.run(self.initial_state, feed_dict={self.x: x})
@@ -466,7 +465,7 @@ class BasicModel:
             run_op['lrs'] = inf['lrs']
             steps_info['lrs'] = []
 
-        if include_x and not is_rnnprop:
+        if include_x and not self.is_rnnprop:
             run_op['x'] = [info['x'] for info in inf['states']]
             steps_info['x'] = []
 
@@ -474,7 +473,7 @@ class BasicModel:
 
         for _ in range(n_steps // self.n_bptt_steps):
             feed_dict = optimizee_params
-            if is_rnnprop:
+            if self.is_rnnprop:
                 feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
             else:
                 feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
