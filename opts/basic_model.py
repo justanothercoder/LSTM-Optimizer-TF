@@ -39,7 +39,7 @@ class BasicModel:
 
 
     def build(self, optimizees, n_bptt_steps=20,
-              loss_type='log', optimizer='adam',
+              loss_type='log',
               lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
               stop_grad=True, dynamic=False, **kwargs):
@@ -64,7 +64,6 @@ class BasicModel:
                     inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic)
                     vars_opt |= set(optimizee.vars_)
                     
-
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
 
                 ops[opt_name] = {
@@ -80,7 +79,9 @@ class BasicModel:
             self.all_vars = list(set(self.all_vars) - vars_opt)
 
             if not inference_only and self.all_vars:
-                self.optimizer = self.build_optimizer(optimizer)
+                self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
+                self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
+                self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
 
                 for opt_name in optimizees:
                     losses = ops[opt_name]['losses']
@@ -281,24 +282,6 @@ class BasicModel:
             losses.append(reg_loss)
 
         return [loss] + losses
-
-
-    def build_optimizer(self, optimizer_type):
-        self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
-        self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
-
-        if optimizer_type == 'adam':
-            optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
-        elif optimizer_type == 'momentum':
-            optimizer = tf.train.MomentumOptimizer(self.train_lr,
-                                                   self.momentum,
-                                                   use_nesterov=True)
-        elif optimizer_type == 'yellowfin':
-            optimizer = yellowfin.YFOptimizer(self.train_lr)
-        else:
-            raise ValueError("Unknown optimizer: {}".format(optimizer_type))
-
-        return optimizer
 
 
     def grads(self, optimizer, losses, normalize_lstm_grads=False, grad_clip=1.):
