@@ -54,7 +54,7 @@ class Dataset:
 
 
     def __getitem__(self, s):
-        if len(self.X.shape) == 3:
+        if self.batched:
             return self.X[:, s], self.y[:, s]
         else:
             return self.X[s], self.y[s]

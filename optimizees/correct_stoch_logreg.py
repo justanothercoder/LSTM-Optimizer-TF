@@ -22,7 +22,7 @@ class CorrectStochLogreg(optimizee.Optimizee):
             self.x = tf.placeholder(tf.float32, [None, None, None, None], name='x_batch') # n_bptt_steps * batch_size * data_size * num_features
             self.y = tf.placeholder(tf.int32, [None, None, None], name='y_batch')
 
-    
+
     def loss(self, x, i):
         w  = tf.expand_dims(x[:, :-1], axis=-2)
         w0 = tf.expand_dims(x[:,  -1], axis=-1)
@@ -38,21 +38,13 @@ class CorrectStochLogreg(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
+    def sample_problem(self, batch_size=1):
         self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
-
-        w  = np.random.normal(size=(batch_size, self.dataset.num_features))
-        w0 = np.random.normal(size=(batch_size, 1))
-
-        return np.concatenate([w, w0], axis=-1)
-        
-
-    def get_new_params(self, batch_size=1):
         self.batch_size = np.random.randint(low=1, high=self.dataset.data_size // 10 + 1)
-            
-        return {
-            self.dim: self.dataset.num_features + 1
-        }
+
+        init = np.random.normal(size=(batch_size, self.dataset.num_features + 1))
+        params = {self.dim: self.dataset.num_features + 1}
+        return init, params
 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

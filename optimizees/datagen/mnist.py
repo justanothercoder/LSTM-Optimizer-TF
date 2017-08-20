@@ -13,13 +13,12 @@ class MNIST:
 
     def sample_dataset(self, shuffle=True, transform=True):
         X = self.mnist.data
-        y = self.mnist.target
+        y = self.mnist.target.astype(np.int32)
 
         if shuffle:
             utils.shuffle(X, y)
         
         if transform:
-            X = StandardScaler().fit_transform(X.astype(np.float32))
+            X = StandardScaler().fit_transform(X.astype(np.float32)).astype(np.float32)
 
         return Dataset(X, y)
-

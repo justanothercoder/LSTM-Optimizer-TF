@@ -40,4 +40,4 @@ class RandomNormal:
             X[i], y[i] = d.X, d.y
             w[i], w0[i] = d.w, d.w0
 
-        return Dataset(X, y, w=w, w0=w0)
+        return Dataset(X, y, w=w, w0=w0, batched=True)

@@ -37,7 +37,7 @@ class MLPClassifier(optimizee.Optimizee):
 
 
     def build(self):
-        with tf.variable_scope('digits_classifier'):
+        with tf.variable_scope('mlp_classifier'):
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.x = tf.placeholder(tf.float32, [None, 1, None, self.dataset.num_features], name='X') # n_bptt_steps * (batch_size=1) * data_size * num_features
             self.y = tf.placeholder(tf.int32, [None, 1, None], name='y')
@@ -87,13 +87,13 @@ class MLPClassifier(optimizee.Optimizee):
             return acc, g
 
 
-    def get_initial_x(self, batch_size=1):
-        if self.dataset_name == 'mnist':
-            self.batch_size = np.random.randint(low=1, high=256)
-        else:
-            self.batch_size = np.random.randint(low=1, high=self.dataset.data_size // 4 + 1)
+    def sample_problem(self, batch_size=1):
+        self.batch_size = np.random.randint(low=1, high=self.dataset.data_size // 100 + 1)
 
-        print("MLPClassifier; dataset: {}, batch_size: {}".format(self.dataset_name, self.batch_size))
+        print("MLPClassifier")
+        print("dataset: ", self.dataset_name)
+        print("shape: ", self.dataset.X.shape)
+        print("batch_size: ", self.batch_size)
 
         #w = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
         w = np.zeros(self.x_len)
@@ -108,13 +108,9 @@ class MLPClassifier(optimizee.Optimizee):
 
             w[start:end] = val.reshape(-1)
 
-        return w[None, :]
-        
-
-    def get_new_params(self, batch_size=1):
-        return {
-            self.dim: self.x_len
-        }
+        init = w[None]
+        params = {self.dim: self.x_len}
+        return init, params
 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

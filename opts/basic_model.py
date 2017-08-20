@@ -427,13 +427,12 @@ class BasicModel:
 
         is_rnnprop = self.__class__.__name__ == 'RNNPropOpt'
 
-        x = optimizee.get_initial_x()
+        x, optimizee_params = optimizee.sample_problem()
+
         if is_rnnprop:
             state = session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
         else:
             state = session.run(self.initial_state, feed_dict={self.x: x})
-
-        optimizee_params = optimizee.get_new_params()
 
         inf = self.ops[opt_name]['inference']
         losses = self.ops[opt_name]['losses']

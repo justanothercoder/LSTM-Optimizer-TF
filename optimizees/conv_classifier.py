@@ -213,7 +213,7 @@ class ConvClassifier(optimizee.Optimizee):
         return acc, g
 
 
-    def get_initial_x(self, batch_size=1):
+    def sample_problem(self, batch_size=1):
         if self.arch == 'vgg19':
             self.batch_size = 64
         else:
@@ -221,11 +221,8 @@ class ConvClassifier(optimizee.Optimizee):
         print("Conv classifier; batch_size: ", self.batch_size)
 
         w = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
-        return w
-        
 
-    def get_new_params(self, batch_size=1):
-        return {
+        return w, {
             self.dim: self.x_len
         }
 

@@ -10,7 +10,7 @@ from .stochastic_linear_regression import StochasticLinearRegression
 from .correct_stoch_logreg import CorrectStochLogreg
 from .correct_stoch_linreg import CorrectStochLinreg
 
-from .digits_classifier import MLPClassifier
+from .mlp_classifier import MLPClassifier
 from .conv_classifier import ConvClassifier
 from .lstm_ptb import LSTM_PTB
 

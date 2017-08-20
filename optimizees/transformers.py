@@ -167,12 +167,10 @@ class NormalNoisyGrad(optimizee.Optimizee):
         return f, new_g
 
 
-    def get_initial_x(self, batch_size=1):
-        return self.opt.get_initial_x(batch_size)
-
-
-    def get_new_params(self, batch_size=1):
-        return self.opt.get_new_params(batch_size)
+    def sample_problem(self, batch_size=1):
+        init = self.opt.get_initial_x(batch_size)
+        params = self.opt.get_new_params(batch_size)
+        return init, params
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):

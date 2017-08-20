@@ -29,13 +29,9 @@ class RNNPropAdapter(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
+    def sample_problem(self, batch_size=1):
         init = self.opt.get_initial_x()
-        return init[None]
-        
-
-    def get_new_params(self, batch_size=1):
-        return self.opt.next_internal_feed_dict()
+        return init[None], self.opt.next_internal_feed_dict()
 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

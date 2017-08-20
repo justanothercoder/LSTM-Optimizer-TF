@@ -18,8 +18,6 @@ class Rosenbrock(optimizee.Optimizee):
 
     def build(self):
         with tf.variable_scope('rosenbrock'):
-            #self.a = tf.placeholder(tf.float32, [None], name='a')
-            #self.b = tf.placeholder(tf.float32, [None], name='b')
             self.dim = tf.placeholder(tf.int32, [], name='dim')
             self.a = tf.placeholder(tf.float32, [None, None], name='a')
             self.b = tf.placeholder(tf.float32, [None, None], name='b')
@@ -35,28 +33,18 @@ class Rosenbrock(optimizee.Optimizee):
         return s, g
 
 
-    def get_initial_x(self, batch_size=1):
-        self.D = np.random.randint(low=self.low, high=self.high)
+    def sample_problem(self, batch_size=1):
+        D = np.random.randint(low=self.low, high=self.high)
     
-        #x = np.random.normal(0, 0.1, size=(self.D, 1))
-        #y = np.random.normal(0, 0.01, size=(self.D, 1))
+        x = np.random.normal(0, 0.1, size=(batch_size, D, 1))
+        y = np.random.normal(0, 0.01, size=(batch_size, D, 1))
+        init = np.concatenate([x, y], axis=-1).reshape(batch_size, -1)
+
+        a = np.random.normal(self.t[..., ::2], 0.1, size=(batch_size, D))
+        b = np.random.uniform(10, 100, size=(batch_size, D))
         
-        x = np.random.normal(0, 0.1, size=(batch_size, self.D, 1))
-        y = np.random.normal(0, 0.01, size=(batch_size, self.D, 1))
-
-        self.t = np.concatenate([x, y], axis=-1).reshape(batch_size, -1)
-        return self.t
-
-
-    def get_new_params(self, batch_size=1):
-        return {
-            #self.a: np.random.normal(0, 1, size=self.D),
-            #self.b: np.random.uniform(10, 100, size=self.D),
-            
-            self.a: np.random.normal(self.t[..., ::2], 0.1, size=(batch_size, self.D)),
-            self.b: np.random.uniform(10, 100, size=(batch_size, self.D)),
-            self.dim: self.D * 2
-        }
+        params = {self.a: a, self.b: b, self.dim: D * 2}
+        return init, params 
                 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

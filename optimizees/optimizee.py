@@ -52,11 +52,7 @@ class Optimizee:
         return g
 
 
-    def get_initial_x(self, batch_size=1):
-        raise NotImplementedError
-
-
-    def get_new_params(self, batch_size=1):
+    def sample_problem(self, batch_size=1):
         raise NotImplementedError
 
 

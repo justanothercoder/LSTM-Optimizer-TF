@@ -35,17 +35,13 @@ class CorrectStochLinreg(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
+    def sample_problem(self, batch_size=1):
         self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=False)
-        return np.random.normal(size=(batch_size, self.dataset.num_features + 1))
-        
-
-    def get_new_params(self, batch_size=1):
         self.batch_size = np.random.randint(low=1, high=self.dataset.data_size + 1)
     
-        return {
-            self.dim: self.dataset.num_features + 1
-        }
+        init = np.random.normal(size=(batch_size, self.dataset.num_features + 1))
+        params = {self.dim: dataset.num_features + 1}
+        return init, params
 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

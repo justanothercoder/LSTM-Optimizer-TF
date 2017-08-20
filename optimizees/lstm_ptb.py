@@ -98,15 +98,10 @@ class LSTM_PTB(optimizee.Optimizee):
         return loss, g
 
 
-    def get_initial_x(self, batch_size=1):
-        w = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
-        return w
-        
-
-    def get_new_params(self, batch_size=1):
-        return {
-            self.dim: self.x_len
-        }
+    def sample_problem(self, batch_size=1):
+        init = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
+        params = {self.dim: self.x_len}
+        return init, params
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):
