@@ -20,15 +20,14 @@ class RNNPropOpt(basic_model.BasicModel):
 
 
     def build(self, optimizees, n_bptt_steps=20,
-              loss_type='log', optimizer='adam',
-              lambd=0., lambd_l1=0., inference_only=False,
+              loss_type='log', lambd=0., lambd_l1=0., inference_only=False,
               normalize_lstm_grads=False, grad_clip=1.,
-              use_moving_averages=False, stop_grad=True, **kwargs):
+              stop_grad=True, **kwargs):
 
         self.opt = RNNpropModel('rnnprop', is_training=not inference_only, **kwargs)
         super(RNNPropOpt, self).build(optimizees, n_bptt_steps,
-              loss_type, optimizer, lambd, lambd_l1, inference_only,
-              normalize_lstm_grads, grad_clip, use_moving_averages, stop_grad, **kwargs)
+              loss_type, lambd, lambd_l1, inference_only,
+              normalize_lstm_grads, grad_clip, stop_grad, **kwargs)
 
 
     def build_pre(self):

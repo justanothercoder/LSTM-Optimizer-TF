@@ -111,8 +111,7 @@ def run_many_testing(opt, s_opts, flags):
         #    tf.set_random_seed(flags.seed)
 
         kwargs = util.get_kwargs(optimizer.test, flags)
-        #results[optimizer.name] = optimizer.test(include_x=True, **kwargs)
-        results[optimizer.name] = optimizer.test(include_x=False, **kwargs)
+        results[optimizer.name] = optimizer.test(**kwargs)
 
     return results
 
