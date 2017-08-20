@@ -8,7 +8,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMStateTuple
 
-from cells import LSTMOptCell, OptFuncCell
+from .cells import LSTMOptCell, OptFuncCell
+import util
 
 class BasicModel:
     def __init__(self, name=None, snapshot_path=None, debug=False):
@@ -57,17 +58,19 @@ class BasicModel:
             self.scope = scope
             self.build_pre()
 
+            self.x = tf.placeholder(tf.float32, shape=[None, None])
             self.input_state = self.build_inputs()
-            self.initial_state = self.build_initial_state()
+            self.initial_state = self.build_initial_state(self.x)
 
             if cell:
-                kwargs = util.get_kwargs(self.__init__, self.__dict__)
-                self.cell = LSTMOptCell(**kwargs)
+                self.cell = LSTMOptCell()
 
             for opt_name, optimizee in optimizees.items():
-                with tf.variable_scope('inference_scope'):
-                    inference = self.inference(optimizee, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic, cell=cell)
+                with tf.variable_scope('inference_scope') as scope:
+                    inference = self.inference(optimizee, self.x, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic, cell=cell)
                     vars_opt |= set(optimizee.vars_)
+            
+                self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
                     
                 losses = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
 
@@ -80,7 +83,6 @@ class BasicModel:
                     scope.reuse_variables()
         
         with tf.variable_scope('opt_scope', reuse=False) as scope:
-            self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.all_vars = list(set(self.all_vars) - vars_opt)
 
             if not inference_only and self.all_vars:
@@ -215,13 +217,34 @@ class BasicModel:
         return steps_info, final_state
 
 
-    def cell_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
-        pass
+    def cell_inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
+        def decorator(f):
+            c = 0
+            def wrapper(x):
+                nonlocal c
+                ret = f(x, c)
+                c += 1
+                return ret
+            return wrapper
+
+
+        cell = OptFuncCell(self.cell, input_x, decorator(optimizee.loss), stop_grad=stop_grad)
+        n_coords = tf.size(input_x)
+        inputs = tf.zeros([n_coords, n_bptt_steps, 1])
+
+        outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=cell.zero_state(n_coords))
+        values, norms = tf.unstack(outputs, num=2, axis=-1)
+
+        values = tf.unstack(values, num=n_bptt_steps, axis=1)
+        norms = tf.unstack(norms, num=n_bptt_steps, axis=1)
+
+        steps_info = [{'value': v, 'gradient_norm': gn} for v, gn in zip(values, norms)]
+        return steps_info, state
 
 
     def inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
         if cell:
-            steps_info, final_state = self.cell_inference(optimizee, input_state, n_bptt_steps, stop_grad=stop_grad)
+            steps_info, final_state = self.cell_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
         else:
             if dynamic:
                 steps_info, final_state = self.dynamic_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
@@ -417,144 +440,192 @@ class BasicModel:
         return ret
 
 
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
-        self.verbose = verbose
-        self.lr = train_lr
-        self.mu = momentum
+    #def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
+    #    self.verbose = verbose
+    #    self.lr = train_lr
+    #    self.mu = momentum
 
+    #    if eid > 0:
+    #        self.restore(eid)
+    #        self.bid = eid * n_batches
+
+    #    train_rets = []
+    #    test_rets = []
+
+    #    sample_steps = bool(n_steps == 0)
+
+    #    try:
+    #        for epoch in range(eid, n_epochs):
+    #            self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
+    #            epoch_time = time.time()
+
+    #            loss = None
+
+    #            for batch in range(n_batches):
+    #                self.log("Batch: {}".format(batch), verbosity=2, level=1)
+    #                if sample_steps:
+    #                    #n_steps = int(np.random.exponential(scale=200)) + 50
+
+    #                    exp_scale = min(50, epoch)
+    #                    n_steps = int(np.random.exponential(scale=exp_scale)) + 1
+    #                    n_steps *= self.n_bptt_steps
+    #                    self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
+
+    #                batch_time = time.time()
+    #                ret = self.train_one_iteration(n_steps, batch_size)
+
+    #                if np.isnan(ret['loss']):
+    #                    print("Loss is NaN")
+    #                    #print(ret['fxs'])
+
+    #                if loss is not None:
+    #                    loss = 0.9 * loss + 0.1 * ret['loss']
+    #                else:
+    #                    loss = ret['loss']
+    #                batch_time = time.time() - batch_time
+
+    #                self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
+    #                train_rets.append(ret)
+
+    #            self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
+    #            self.log("Epoch loss: {}".format(loss / np.log(10) / self.n_bptt_steps), verbosity=1, level=1)
+
+    #            if test and (epoch + 1) % 10 == 0:
+    #                self.save(epoch + 1)
+
+    #                opt_name = random.choice(list(self.optimizees.keys()))
+
+    #                self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
+    #                test_epoch_time = time.time()
+
+    #                for batch in range(n_batches):
+    #                    self.log("Test batch: {}".format(batch), verbosity=2, level=1)
+
+    #                    batch_time = time.time()
+    #                    ret = self.test_one_iteration(n_steps, opt_name)
+    #                    batch_time = time.time() - batch_time
+    #                    self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
+
+    #                    test_rets.append(ret)
+
+    #                test_epoch_time = time.time() - test_epoch_time
+    #                self.log("Epoch time: {}".format(test_epoch_time), verbosity=1, level=1)
+    #    except KeyboardInterrupt:
+    #        print("Stopped training early")
+
+    #    return train_rets, test_rets
+
+
+    #def train_one_iteration(self, n_steps, batch_size=1):
+    #    self.bid += 1
+    #    session = tf.get_default_session()
+
+    #    ret = {}
+
+    #    opt_name, optimizee = random.choice(list(self.optimizees.items()))
+
+    #    x = optimizee.get_initial_x(batch_size)
+    #    state = session.run(self.initial_state, feed_dict={self.x: x})
+
+    #    optimizee_params = optimizee.get_new_params(batch_size)
+
+    #    losses = []
+    #    fxs = []
+
+    #    self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
+
+    #    def extract(opt_name, key, pkey='inference'):
+    #        inf = self.ops[opt_name][pkey]
+
+    #        if hasattr(self, 'devices'):
+    #            inf = list(inf.values())[0]
+
+    #        return inf[key]
+
+    #    run_op = [
+    #            self.ops[opt_name]['train_op'],
+    #            extract(opt_name, 0, pkey='losses'),
+    #            extract(opt_name, 'values'),
+    #            extract(opt_name, 'norms'),
+    #            extract(opt_name, 'cosines'),
+    #        ]
+
+    #    for i in range(n_steps // self.n_bptt_steps):
+    #        feed_dict = optimizee_params
+    #        feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
+    #        feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps, batch_size))
+    #        feed_dict.update({
+    #            self.train_lr: self.lr,
+    #            self.momentum: self.mu,
+    #        })
+
+    #        _, state, loss, fx, g_norm, cos_step_grad = session.run(run_op, feed_dict=feed_dict)
+
+    #        if i == 0:
+    #            #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
+    #            self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
+
+    #        losses.append(loss)
+    #        fxs.extend(fx)
+    #        norms.extend(g_norm)
+    #        cosines.extend(cos_step_grad)
+
+    #    self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
+    #    self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
+
+    #    ret['optimizee_name'] = opt_name
+    #    ret['loss'] = np.mean(losses)
+    #    ret['fxs'] = fxs
+
+    #    return ret
+    
+    
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=100, eid=0, test=True, seed=None):
+        sess = tf.get_default_session()
         if eid > 0:
             self.restore(eid)
-            self.bid = eid * n_batches
 
-        train_rets = []
-        test_rets = []
+        epoch_losses = []
+        problem_producer = ProblemProducer(self.optimizees, seed=seed)
 
-        sample_steps = bool(n_steps == 0)
+        for epoch in range(eid, n_epochs):
+            epoch_start = time.time()
+            batch_losses = []
+            for problem in problem_producer.sample_sequence(n_batches, batch_size):
+                batch_start = time.time()
 
-        try:
-            for epoch in range(eid, n_epochs):
-                self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
-                epoch_time = time.time()
+                ops = self.ops[problem.opt_name]
+                inf = ops['inference']
 
-                loss = None
+                input_state = inf['cell'].zero_state(tf.size(self.x))
+                state = sess.run(input_state, {self.x: theta})
+                
+                losses = []
+                n_unrolls = n_steps // self.n_bptt_steps
+                for problem_batch in problem_producer.sample_batches(n_bptt_steps, n_unrolls, batch_size):
+                    feed_dict = dict(zip(input_state, state))
+                    feed_dict.update(problem.params)
+                    feed_dict.update(problem_batch)
+                    
+                    loss, state, _ = sess.run([ops['loss'], inf['final_state'], ops['train_op']], feed_dict=feed_dict)
+                    losses.append(loss)
 
-                for batch in range(n_batches):
-                    self.log("Batch: {}".format(batch), verbosity=2, level=1)
-                    if sample_steps:
-                        #n_steps = int(np.random.exponential(scale=200)) + 50
+                batch_loss = np.mean(losses)
+                batch_time = time.time() - batch_start
+                batch_losses.append(batch_loss)
 
-                        exp_scale = min(50, epoch)
-                        n_steps = int(np.random.exponential(scale=exp_scale)) + 1
-                        n_steps *= self.n_bptt_steps
-                        self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
+            epoch_loss = np.mean(batch_losses)
+            epoch_losses.extend(batch_losses)
 
-                    batch_time = time.time()
-                    ret = self.train_one_iteration(n_steps, batch_size)
+            train_loss = np.mean(epoch_losses)
+            epoch_time = time.time() - epoch_start
+            print("Epoch: {}, Train loss: {}, Time: {}".format(epoch, train_loss, epoch_time))
 
-                    if np.isnan(ret['loss']):
-                        print("Loss is NaN")
-                        #print(ret['fxs'])
+            if (epoch + 1) % 5 == 0:
+                self.save(epoch + 1)
 
-                    if loss is not None:
-                        loss = 0.9 * loss + 0.1 * ret['loss']
-                    else:
-                        loss = ret['loss']
-                    batch_time = time.time() - batch_time
+        return epoch_losses
 
-                    self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
-                    train_rets.append(ret)
-
-                self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
-                self.log("Epoch loss: {}".format(loss / np.log(10) / self.n_bptt_steps), verbosity=1, level=1)
-
-                if test and (epoch + 1) % 10 == 0:
-                    self.save(epoch + 1)
-
-                    opt_name = random.choice(list(self.optimizees.keys()))
-
-                    self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
-                    test_epoch_time = time.time()
-
-                    for batch in range(n_batches):
-                        self.log("Test batch: {}".format(batch), verbosity=2, level=1)
-
-                        batch_time = time.time()
-                        ret = self.test_one_iteration(n_steps, opt_name)
-                        batch_time = time.time() - batch_time
-                        self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
-
-                        test_rets.append(ret)
-
-                    test_epoch_time = time.time() - test_epoch_time
-                    self.log("Epoch time: {}".format(test_epoch_time), verbosity=1, level=1)
-        except KeyboardInterrupt:
-            print("Stopped training early")
-
-        return train_rets, test_rets
-
-
-    def train_one_iteration(self, n_steps, batch_size=1):
-        self.bid += 1
-        session = tf.get_default_session()
-
-        ret = {}
-
-        opt_name, optimizee = random.choice(list(self.optimizees.items()))
-
-        x = optimizee.get_initial_x(batch_size)
-        state = session.run(self.initial_state, feed_dict={self.x: x})
-
-        optimizee_params = optimizee.get_new_params(batch_size)
-
-        losses = []
-        fxs = []
-
-        self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
-
-        def extract(opt_name, key, pkey='inference'):
-            inf = self.ops[opt_name][pkey]
-
-            if hasattr(self, 'devices'):
-                inf = list(inf.values())[0]
-
-            return inf[key]
-
-        run_op = [
-                self.ops[opt_name]['train_op'],
-                extract(opt_name, 0, pkey='losses'),
-                extract(opt_name, 'values'),
-                extract(opt_name, 'norms'),
-                extract(opt_name, 'cosines'),
-            ]
-
-        for i in range(n_steps // self.n_bptt_steps):
-            feed_dict = optimizee_params
-            feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
-            feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps, batch_size))
-            feed_dict.update({
-                self.train_lr: self.lr,
-                self.momentum: self.mu,
-            })
-
-            _, state, loss, fx, g_norm, cos_step_grad = session.run(run_op, feed_dict=feed_dict)
-
-            if i == 0:
-                #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
-                self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
-
-            losses.append(loss)
-            fxs.extend(fx)
-            norms.extend(g_norm)
-            cosines.extend(cos_step_grad)
-
-        self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
-        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
-
-        ret['optimizee_name'] = opt_name
-        ret['loss'] = np.mean(losses)
-        ret['fxs'] = fxs
-
-        return ret
 
 
     def _fg(self, f, x, i, stop_grad=True):

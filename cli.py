@@ -171,6 +171,7 @@ def make_parser():
     run_parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
     run_parser.add_argument('--debug', action='store_true')
     run_parser.add_argument('--dynamic', action='store_true')
+    run_parser.add_argument('--cell', action='store_true')
 
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_train = subparsers.add_parser('train', parents=[run_parser],

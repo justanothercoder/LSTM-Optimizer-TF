@@ -3,12 +3,12 @@ import tensorflow as tf
 
 def distribute(model, devices):
     class DistributedModel(model.__class__):
-        def inference(self, optimizee, input_state, n_bptt_steps, **kwargs):
+        def inference(self, optimizee, input_x, input_state, n_bptt_steps, **kwargs):
             inference = {}
             scope = tf.get_variable_scope()
             for dev in self.devices:
                 with tf.device(dev):
-                    inference[dev] = super(DistributedModel, self).inference(optimizee, input_state, n_bptt_steps, **kwargs)
+                    inference[dev] = super(DistributedModel, self).inference(optimizee, input_x, input_state, n_bptt_steps, **kwargs)
                     if not scope.reuse:
                         scope.reuse_variables()
 

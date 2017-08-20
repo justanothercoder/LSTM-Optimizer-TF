@@ -92,6 +92,9 @@ class Trainer:
               train_lr=1e-4, momentum=0.9,
               eid=0, test=True, verbose=1, masked_train='none', masked_train_p=0.2):
 
+        if hasattr(self.model, 'cell'):
+            return self.model.train(n_epochs, n_batches, batch_size=batch_size, n_steps=n_steps, eid=eid)
+
         self.masked_train = masked_train
         self.masked_train_p = masked_train_p
 
@@ -208,6 +211,7 @@ class Trainer:
             feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
             feed_dict.update({
+                self.model.x: x,
                 self.model.train_lr: self.lr,
                 self.model.momentum: self.mu,
             })
