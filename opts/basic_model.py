@@ -23,16 +23,19 @@ class BasicModel:
         
 
     def build_inputs(self):
-        self.x = tf.placeholder(tf.float32, shape=[None], name='basic_model_input')
-        return dict(x=self.x)
+        raise NotImplementedError
 
 
     def build_initial_state(self):
-        return self.input_state
+        raise NotImplementedError
 
 
     def build_pre(self):
-        self.loglr = tf.get_variable('lr', [], initializer=tf.constant_initializer(0))
+        raise NotImplementedError
+
+
+    def step(self, f, i, state):
+        raise NotImplementedError
 
 
     def build(self, optimizees, n_bptt_steps=20,
@@ -576,22 +579,6 @@ class BasicModel:
         fx, g = f(x, i)
         g_norm = tf.reduce_sum(tf.square(g), axis=-1)
         return fx, g, g_norm
-
-
-    def step(self, f, i, state):
-        x = state['x']
-
-        value, gradient, gradient_norm = self._fg(f, x, i)
-
-        x -= tf.exp(self.loglr) * gradient
-        new_state = dict(x=x)
-        
-        return {
-            'state': new_state,
-            'value': value,
-            'gradient': gradient,
-            'gradient_norm': gradient_norm
-        }
 
 
     def restore(self, eid):
