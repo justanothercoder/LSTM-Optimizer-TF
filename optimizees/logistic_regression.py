@@ -43,26 +43,22 @@ class LogisticRegression(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
-        self.num_features = np.random.randint(low=1, high=self.max_features)
-        self.data_size    = np.random.randint(low=1, high=self.max_data_size)
+    def sample_problem(self, batch_size=1):
+        num_features = np.random.randint(low=1, high=self.max_features)
+        data_size    = np.random.randint(low=1, high=self.max_data_size)
     
-        self.w  = np.random.normal(size=(batch_size, self.num_features))
-        self.w0 = np.random.normal(size=(batch_size, 1))
+        w  = np.random.normal(size=(batch_size, num_features + 1))
+        w0 = np.random.normal(size=(batch_size, 1))
 
-        return np.concatenate([self.w, self.w0], axis=-1)
+        X = np.random.normal(size=(batch_size, data_size, num_features))
+        y = np.einsum('ai,aji->aj', w, X) + w0 > 0
+
+        init = np.concatenate([w, w0], axis=-1)
         
-
-    def get_new_params(self, batch_size=1):
-        X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
-        #y = np.random.randint(0, 2, size=(batch_size, self.data_size))
-        #y = (np.dot(self.w, X.transpose(0, 2, 1)) + self.w0) > 0
-        y = np.einsum('ai,aji->aj', self.w, X) + self.w0 > 0
-
-        return {
+        return init, {
             self.X: X,
             self.y: y,
-            self.dim: self.num_features + 1
+            self.dim: num_features + 1
         }
                 
         

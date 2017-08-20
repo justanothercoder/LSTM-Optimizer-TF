@@ -30,20 +30,15 @@ class Matyas(optimizee.Optimizee):
         return s, g
 
 
-    def get_initial_x(self, batch_size=1):
-        self.D = np.random.randint(low=self.low, high=self.high)
+    def sample_problem(self, batch_size=1):
+        D = np.random.randint(low=self.low, high=self.high)
     
-        x = np.random.normal(0, 2, size=(batch_size, self.D, 1))
-        y = np.random.normal(0, 2, size=(batch_size, self.D, 1))
+        x = np.random.normal(0, 2, size=(batch_size, D, 1))
+        y = np.random.normal(0, 2, size=(batch_size, D, 1))
 
-        self.t = np.concatenate([x, y], axis=-1).reshape(batch_size, -1)
-        return self.t
-
-
-    def get_new_params(self, batch_size=1):
-        return {
-            self.dim: self.D * 2
-        }
+        init = np.concatenate([x, y], axis=-1).reshape(batch_size, -1)
+        params = {self.dim: D * 2}
+        return init, params
                 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

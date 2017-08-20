@@ -32,22 +32,15 @@ class Quadratic(optimizee.Optimizee):
         return f, g
 
 
-    def get_initial_x(self, batch_size=1):
-        self.D = np.random.randint(low=self.low, high=self.high)
-        #return np.random.normal(0, 0.1, size=self.D)
+    def sample_problem(self, batch_size=1):
+        D = np.random.randint(low=self.low, high=self.high)
+        init = np.random.normal(0, 0.1, size=(batch_size, D))
 
-        return np.random.normal(0, 0.1, size=(batch_size, self.D))
+        W = np.random.normal(0, 0.1, size=(batch_size, D, D))
+        b = np.random.normal(0, 0.1, size=(batch_size, D))
 
-
-    def get_new_params(self, batch_size=1):
-        return {
-            #self.W: np.random.normal(0, 0.1, size=(self.D, self.D)),
-            #self.b: np.random.normal(0, 0.1, size=self.D),
-
-            self.W: np.random.normal(0, 0.1, size=(batch_size, self.D, self.D)),
-            self.b: np.random.normal(0, 0.1, size=(batch_size, self.D)),
-            self.dim: self.D
-        }
+        params = {self.W: W, self.b: b, self.dim: D}
+        return init, params
                 
         
     def get_next_dict(self, n_bptt_steps, batch_size=1):

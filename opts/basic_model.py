@@ -10,6 +10,7 @@ from tensorflow.contrib.rnn import LSTMStateTuple
 
 from .cells import LSTMOptCell, OptFuncCell
 import util
+from problem_producer import ProblemProducer
 
 class BasicModel:
     def __init__(self, name=None, snapshot_path=None, debug=False):
@@ -46,7 +47,7 @@ class BasicModel:
               normalize_lstm_grads=False, grad_clip=1.,
               stop_grad=True, dynamic=False, cell=False, **kwargs):
 
-        self.session = tf.get_default_session()
+        #self.session = tf.get_default_session()
         self.optimizees = optimizees
         self.n_bptt_steps = n_bptt_steps
         ops = {}
@@ -376,13 +377,12 @@ class BasicModel:
 
         optimizee = self.optimizees[opt_name]
 
-        x = optimizee.get_initial_x()
+        x, optimizee_params = optimizee.sample_problem()
+
         if self.is_rnnprop:
             state = session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
         else:
             state = session.run(self.initial_state, feed_dict={self.x: x})
-
-        optimizee_params = optimizee.get_new_params()
 
         inf = self.ops[opt_name]['inference']
         losses = self.ops[opt_name]['losses']
@@ -558,7 +558,6 @@ class BasicModel:
     #            self.train_lr: self.lr,
     #            self.momentum: self.mu,
     #        })
-
     #        _, state, loss, fx, g_norm, cos_step_grad = session.run(run_op, feed_dict=feed_dict)
 
     #        if i == 0:
@@ -594,20 +593,27 @@ class BasicModel:
             for problem in problem_producer.sample_sequence(n_batches, batch_size):
                 batch_start = time.time()
 
-                ops = self.ops[problem.opt_name]
+                ops = self.ops[problem.name]
                 inf = ops['inference']
+                if hasattr(self, 'devices'):
+                    inf = list(inf.values())[0]
 
-                input_state = inf['cell'].zero_state(tf.size(self.x))
-                state = sess.run(input_state, {self.x: theta})
+                print(problem)
+
+                input_state = self.cell.zero_state(tf.size(self.x))
+                state = sess.run(input_state, {self.x: problem.init})
                 
                 losses = []
                 n_unrolls = n_steps // self.n_bptt_steps
-                for problem_batch in problem_producer.sample_batches(n_bptt_steps, n_unrolls, batch_size):
+                for _ in range(n_unrolls):
                     feed_dict = dict(zip(input_state, state))
                     feed_dict.update(problem.params)
-                    feed_dict.update(problem_batch)
+                    feed_dict.update(problem.optim.get_next_dict(self.n_bptt_steps, batch_size))
+                    feed_dict.update({self.x: problem.init, self.train_lr: 1e-4, self.momentum: 0.9})
+
+                    print(feed_dict)
                     
-                    loss, state, _ = sess.run([ops['loss'], inf['final_state'], ops['train_op']], feed_dict=feed_dict)
+                    loss, state, _ = sess.run([ops['losses'], inf['final_state'], ops['train_op']], feed_dict=feed_dict)
                     losses.append(loss)
 
                 batch_loss = np.mean(losses)
