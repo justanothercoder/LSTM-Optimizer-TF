@@ -191,7 +191,6 @@ class BasicModel:
                 
         def opt_loss(i, x):
             opt_loss = optimizee.loss(x[None], i)[0]
-            print(opt_loss.get_shape())
             return opt_loss
 
         for i in range(n_bptt_steps):
@@ -240,12 +239,12 @@ class BasicModel:
         norms = tf.unstack(norms, num=n_bptt_steps, axis=1)
 
         steps_info = [{'value': v, 'gradient_norm': gn} for v, gn in zip(values, norms)]
-        return steps_info, state
+        return steps_info, state, cell
 
 
     def inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
         if cell:
-            steps_info, final_state = self.cell_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
+            steps_info, final_state, inf_cell = self.cell_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
         else:
             if dynamic:
                 steps_info, final_state = self.dynamic_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
@@ -257,6 +256,9 @@ class BasicModel:
             'norms' : [info['gradient_norm'] for info in steps_info],
             'final_state': final_state
         }
+
+        if cell:
+            ret['cell'] = inf_cell
 
         first_step = steps_info[0]
         if not self.is_rnnprop:
@@ -595,28 +597,29 @@ class BasicModel:
 
                 ops = self.ops[problem.name]
                 inf = ops['inference']
+
+                losses = ops['losses']
+
                 if hasattr(self, 'devices'):
                     inf = list(inf.values())[0]
+                    losses = list(losses.values())[0]
 
-                print(problem)
 
-                input_state = self.cell.zero_state(tf.size(self.x))
+                input_state = inf['cell'].zero_state(tf.size(self.x))
                 state = sess.run(input_state, {self.x: problem.init})
-                
-                losses = []
+
+                losses_ = []
                 n_unrolls = n_steps // self.n_bptt_steps
                 for _ in range(n_unrolls):
                     feed_dict = dict(zip(input_state, state))
                     feed_dict.update(problem.params)
                     feed_dict.update(problem.optim.get_next_dict(self.n_bptt_steps, batch_size))
                     feed_dict.update({self.x: problem.init, self.train_lr: 1e-4, self.momentum: 0.9})
-
-                    print(feed_dict)
                     
-                    loss, state, _ = sess.run([ops['losses'], inf['final_state'], ops['train_op']], feed_dict=feed_dict)
-                    losses.append(loss)
+                    loss, state, _ = sess.run([losses, inf['final_state'], ops['train_op']], feed_dict=feed_dict)
+                    losses_.append(loss)
 
-                batch_loss = np.mean(losses)
+                batch_loss = np.mean(losses_)
                 batch_time = time.time() - batch_start
                 batch_losses.append(batch_loss)
 

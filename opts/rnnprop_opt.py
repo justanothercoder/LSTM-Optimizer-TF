@@ -39,7 +39,7 @@ class RNNPropOpt(basic_model.BasicModel):
         return self.opt.input_state
 
 
-    def build_initial_state(self):
+    def build_initial_state(self, x):
         self.opt._build_initial()
         return self.opt.initial_state
 

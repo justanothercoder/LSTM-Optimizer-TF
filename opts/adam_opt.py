@@ -121,7 +121,7 @@ class AdamOpt(basic_model.BasicModel):
             s = lr_state['lr'] * a * m / (tf.sqrt(v) + self.eps)
 
         step = -s
-        new_state = dict(x=x, m=m, v=v, b1t=b1t, b2t=b2t)
+        new_state = dict(m=m, v=v, b1t=b1t, b2t=b2t)
 
         if self.enable_reduce:
             new_state.update(lr_state)

@@ -38,6 +38,10 @@ class LSTMOpt(basic_model.BasicModel):
 
         super(LSTMOpt, self).__init__(**kwargs)
 
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.eps = eps
+
         self.num_units = num_units
         self.num_layers = num_layers
 
@@ -157,16 +161,10 @@ class LSTMOpt(basic_model.BasicModel):
 
     def get_features(self, g, m, v, a):
         g2 = tf.square(g)
-        log_g2 = tf.log(g2 + self.eps)
-        log_v = tf.log(v + self.eps)
         s = self.adam_step(m, v, a)
 
         if self.only_adam_features:
             features = [s]
-        elif self.only_log_features:
-            features = [g, log_g2, m, log_v, s]
-        elif self.with_log_features:
-            features = [g, g2, m, v, s, log_g2, log_v]
         else:
             features = [g, g2, m, v, s]
 
