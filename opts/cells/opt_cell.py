@@ -30,16 +30,16 @@ class OptFuncCell(OptCell):
 
 
     def zero_state(self, batch_size):
-        return (self.input_x,) + self.cell.zero_state(batch_size)
+        return self.input_x, self.cell.zero_state(batch_size)
 
 
     @property
     def state_size(self):
-        return (self.input_x.get_shape(),) + self.cell.state_size
+        return self.input_x.get_shape(), self.cell.state_size
 
 
     def __call__(self, _, state):
-        x, *args = state
+        x, cell_state = state
 
         value, g = self.loss_fn(x)
         if self.stop_grad:
@@ -47,8 +47,9 @@ class OptFuncCell(OptCell):
 
         g2_norm = tf.reduce_mean(tf.square(g), axis=-1)
         
-        step, new_state = self.cell(g, args)
-        new_state = (x + tf.reshape(step, tf.shape(g)),) + new_state
+        step, new_state = self.cell(g, cell_state)
+        step = tf.reshape(step, tf.shape(x))
+        new_state = (x + step, new_state)
 
         def reshape_out(val):
             val = tf.expand_dims(val, -1)

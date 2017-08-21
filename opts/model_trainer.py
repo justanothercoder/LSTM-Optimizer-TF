@@ -90,8 +90,11 @@ class Trainer:
 
 
     def train(self, n_epochs, n_batches,
-              batch_size=100, n_steps=20,
+              batch_size=100, n_steps=20, train_lr=1e-4, momentum=0.9,
               eid=0, test=True, verbose=1, masked_train='none', masked_train_p=0.2):
+
+        self.lr = train_lr
+        self.mu = momentum
 
         if hasattr(self.model, 'cell'):
             return self.model.train(n_epochs, n_batches, batch_size=batch_size, n_steps=n_steps, eid=eid)

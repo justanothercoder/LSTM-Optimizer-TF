@@ -68,14 +68,9 @@ def make_test_parser(parser):
                         help='epoch from which start to run cv')
     parser.add_argument('--step', type=int, default=100, help='step in number of epochs for cv')
     parser.add_argument('-f', '--force', action='store_true', help='force overwrite of results')
-    parser.add_argument('--use-moving-averages', action='store_true')
     parser.add_argument('--seed', type=int, default=None, help='random seed to set in the beginning (for the reproducibility)')
 
     parser.add_argument('--with-rnnprop', action='store_true')
-
-    parser.add_argument('--ema-step', action='store_true')
-    parser.add_argument('--ema-lr', action='store_true')
-
     return parser
 
 
@@ -129,20 +124,12 @@ def make_new_parser(parser):
     parser.add_argument('--learn-init', action='store_true',
                         help='learn initial hidden state')
     parser.add_argument('--weight-norm', action='store_true', help='enable weight normalization')
-
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('--with-log-features', action='store_true',
-                        help='add logarithmic features')
-    group.add_argument('--only-log-features', action='store_true')
-
     parser.add_argument('--only-adam-features', action='store_true')
     
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--normalize_gradients', action='store_true',
                        help='normalize_gradients')
-    group.add_argument('--rmsprop_gradients', action='store_true',
-                       help='rmsprop_gradients')
     group.add_argument('--use_both', action='store_true',
                        help='use both normalized and unnormalized gradients')
 

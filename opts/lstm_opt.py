@@ -5,6 +5,7 @@ from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBas
 from . import basic_model
 from . import lstm_utils
 from .adam_opt import AdamOpt
+import util
 
 
 def custom_getter(getter, name, *args, **kwargs):
@@ -129,7 +130,7 @@ class LSTMOpt(basic_model.BasicModel):
             lstm_state = self.lstm.zero_state(tf.size(x), tf.float32)
         
         #loglr = tf.zeros(shape=tf.shape(x))
-        loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2))
+        loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
 
         self.initial_state = {
             'b1t': b1t,
@@ -206,7 +207,10 @@ class LSTMOpt(basic_model.BasicModel):
             scope.set_custom_getter(custom_getter)
         
         last, lstm_state = self.lstm(prep, lstm_state)
-        last = tf.layers.dense(last, 2, use_bias=False)
+
+        last = tf.Print(last, [loglr, g, last, prep], message='last,prep:')
+
+        last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
         d, loglr_add = tf.unstack(last, axis=1)
 

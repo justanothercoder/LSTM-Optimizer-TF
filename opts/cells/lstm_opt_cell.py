@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell, LSTMStateTuple
 
 from . import opt_cell
+import util
 
 
 def custom_getter(getter, name, *args, **kwargs):
@@ -101,7 +102,7 @@ class LSTMOptCell(opt_cell.OptCell):
         v = tf.zeros([batch_size])
         b1t = tf.ones([batch_size])
         b2t = tf.ones([batch_size])
-        loglr = tf.random_uniform(shape=[batch_size], minval=np.log(1e-6), maxval=np.log(1e-2))
+        loglr = tf.random_uniform(shape=[batch_size], minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
         lstm_state = self.cell.zero_state(batch_size, tf.float32)
 
         state = m, v, loglr, b1t, b2t, lstm_state
@@ -157,6 +158,8 @@ class LSTMOptCell(opt_cell.OptCell):
             scope.set_custom_getter(custom_getter)
         
         last, cell_state = self.cell(prep, cell_state)
+        last = tf.Print(last, [loglr, g, last, tf.shape(last), prep], message='last,prep:')
+
         last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
         d, loglr_add = tf.unstack(last, axis=1)

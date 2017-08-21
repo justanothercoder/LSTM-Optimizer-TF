@@ -107,9 +107,6 @@ def run_many_testing(opt, s_opts, flags):
     for optimizer in [opt] + s_opts:
         np.random.set_state(random_state)
         
-        #if hasattr(flags, 'seed') and flags.seed is not None:
-        #    tf.set_random_seed(flags.seed)
-
         kwargs = util.get_kwargs(optimizer.test, flags)
         results[optimizer.name] = optimizer.test(**kwargs)
 
@@ -149,37 +146,40 @@ def setup_experiment(flags):
     return experiment_path, opt
 
 
-@tf_utils.with_tf_graph
+#@tf_utils.with_tf_graph
 def testing(flags, opt, s_opts, optimizees):
-    for optimizee in optimizees.values():
-        optimizee.build()
+    graph = tf.Graph()
+    with graph.as_default():
+        if hasattr(flags, 'seed') and flags.seed is not None:
+            tf.set_random_seed(flags.seed)
+            
+        config = tf_utils.get_tf_config()
+        session = tf.Session(graph=graph, config=config)
+        with session.as_default():
+            for optimizee in optimizees.values():
+                optimizee.build()
 
-    opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1, ema_step=flags.ema_step, ema_lr=flags.ema_lr)
+            opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1, cell=flags.cell)
 
-    for i, s_opt in enumerate(s_opts):
-        #s_opt.build(optimizees, inference_only=True, devices=tf_utils.get_devices(flags))
-        with tf.variable_scope('s_opt_{}'.format(i)):
-            s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
+            for i, s_opt in enumerate(s_opts):
+                with tf.variable_scope('s_opt_{}'.format(i)):
+                    s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
 
-    session = tf.get_default_session()
-    session.run(tf.global_variables_initializer())
+            session.run(tf.global_variables_initializer())
 
-    for i, s_opt in enumerate(s_opts):
-        if hasattr(s_opt, 'eid'):
-            s_opt.restore(s_opt.eid)
+            for i, s_opt in enumerate(s_opts):
+                if hasattr(s_opt, 'eid'):
+                    s_opt.restore(s_opt.eid)
 
-    if flags.mode == 'many':
-        results = run_many_testing(opt, s_opts, flags)
-    else:
-        results = run_cv_testing(opt, flags)
+            if flags.mode == 'many':
+                results = run_many_testing(opt, s_opts, flags)
+            else:
+                results = run_cv_testing(opt, flags)
 
     return results
 
 
 def run_test(flags):
-    if not hasattr(flags, 'seed') or flags.seed is None:
-        flags.seed = random.getstate()
-
     if flags.problems is None or flags.problems == 'all':
         flags.problems = [
             'rosenbrock', 'quadratic',

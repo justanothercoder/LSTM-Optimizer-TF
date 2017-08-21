@@ -1,12 +1,25 @@
 import inspect
-import logging
-import functools
-import time
 import random
 import json
 import pickle
-import h5py as hpy
+import numpy as np
 from . import paths
+
+seed = None
+
+def set_seed(seed_):
+    global seed
+    seed = seed_
+
+    random.seed(seed)
+    np.random.seed(seed)
+
+    return seed
+
+
+def get_seed():
+    global seed
+    return seed
 
 
 def get_kwargs(func, flags):
