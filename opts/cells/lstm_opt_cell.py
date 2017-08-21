@@ -158,8 +158,6 @@ class LSTMOptCell(opt_cell.OptCell):
             scope.set_custom_getter(custom_getter)
         
         last, cell_state = self.cell(prep, cell_state)
-        last = tf.Print(last, [loglr, g, last, tf.shape(last), prep], message='last,prep:')
-
         last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
         d, loglr_add = tf.unstack(last, axis=1)

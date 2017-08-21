@@ -174,21 +174,19 @@ class LSTMOpt(basic_model.BasicModel):
 
     def step(self, f, g, state):
         b1t, b2t, m, v, lstm_state, loglr = tuple(state[name] for name in ['b1t', 'b2t', 'm', 'v', 'lstm_state', 'loglr'])
+        g_shape = tf.shape(g)
 
         if self.use_both:
             m_norm = state['m_norm']
             v_norm = state['v_norm']
-
-        g_shape = tf.shape(g)
-
-        if self.normalize_gradients:
-            g = normalize(g)
-
-        m, v = self.adam_update(g, m, v)
-
-        if self.use_both:
+            
             g_norm = normalize(g)
             m_norm, v_norm = self.adam_update(g_norm, m_norm, v_norm)
+        elif self.normalize_gradients:
+            g = normalize(g)
+            m, v = self.adam_update(g, m, v)
+        else:
+            m, v = self.adam_update(g, m, v)
 
         b1t *= self.beta1
         b2t *= self.beta2
@@ -207,9 +205,6 @@ class LSTMOpt(basic_model.BasicModel):
             scope.set_custom_getter(custom_getter)
         
         last, lstm_state = self.lstm(prep, lstm_state)
-
-        last = tf.Print(last, [loglr, g, last, prep], message='last,prep:')
-
         last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
         d, loglr_add = tf.unstack(last, axis=1)

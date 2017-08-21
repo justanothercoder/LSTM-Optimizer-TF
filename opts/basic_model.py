@@ -9,6 +9,7 @@ from .cells import LSTMOptCell, OptFuncCell
 import util
 from problem_producer import ProblemProducer
 
+
 class BasicModel:
     def __init__(self, name=None, snapshot_path=None, debug=False):
         self.bid = 0
@@ -262,6 +263,8 @@ class BasicModel:
 
         if cell:
             ret['cell'] = inf_cell
+            ret['istate'] = istate
+
 
         first_step = steps_info[0]
         if not self.is_rnnprop:
@@ -415,7 +418,7 @@ class BasicModel:
         losses = []
 
         if hasattr(self, 'cell'):
-            input_state = inf['cell'].zero_state(tf.size(self.x))
+            input_state = inf['istate']
             state = session.run(input_state, {self.x: x})
         else:
             input_state = self.input_state
@@ -426,19 +429,21 @@ class BasicModel:
                 state = session.run(self.initial_state, feed_dict={self.x: x})
 
         for _ in range(n_steps // self.n_bptt_steps):
-            feed_dict = {self.x: x}
+            if self.is_rnnprop:
+                feed_dict = {self.opt.x: x[0]}
+            else:
+                feed_dict = {self.x: x}
+
             feed_dict.update(optimizee_params)
             if self.is_rnnprop or hasattr(self, 'cell'):
-                #feed_dict.update({inp: init for inp, init in zip(input_state, state)})
                 feed_dict.update(dict(zip(input_state, state)))
             else:
                 feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
             feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
-        
+
             info = session.run(run_op, feed_dict=feed_dict)
             state = info['final_state']
             x = info['final_x']
-
             losses.append(info['loss'])
 
             for k in steps_info:

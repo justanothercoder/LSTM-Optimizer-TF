@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser = cli.make_parser()
 
     flags = parser.parse_args()
-    pprint.pprint(vars(flags))
+    #pprint.pprint(vars(flags))
 
     if not hasattr(flags, 'debug') or not flags.debug:
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'

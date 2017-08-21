@@ -28,9 +28,6 @@ def get_dataset(dataset_name):
         X = np.empty((10000, 3072))
         Y = np.empty((10000,))
 
-        from pympler import asizeof
-        print("Size in MB: ", asizeof.asizeof(X) / 1024**2)
-
         #for i in range(1, 2):
         #    with open(HOME + 'lstm_opt_tf/optimizees/' + 'cifar10/data_batch_{}'.format(i), 'rb') as f:
         #        data = pickle.load(f, encoding='bytes')
