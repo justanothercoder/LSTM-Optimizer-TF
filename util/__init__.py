@@ -3,7 +3,16 @@ import random
 import json
 import pickle
 import numpy as np
+from collections import namedtuple, OrderedDict
 from . import paths
+
+
+def namedtuple_with_defaults(name, fields):
+    d = OrderedDict(fields)
+    c = namedtuple(name, list(d.keys()))
+    c.__new__.__defaults__ = tuple(d.values())
+    return c
+
 
 seed = None
 
@@ -97,10 +106,13 @@ def load_opt(model_path):
     with (model_path / 'config.json').open('r') as conf:
         flags = json.load(conf)
 
-    flags['snapshot_path'] = model_path / 'snapshots'
+    from opts.lstm_opt import LSTMOpt, InitConfig
 
-    from opts.lstm_opt import LSTMOpt
-    opt = LSTMOpt(**flags)
+    name = flags.pop('name')
+    snapshot_path = model_path / 'snapshots'
+    config = InitConfig(**flags)
+
+    opt = LSTMOpt(config, name=name, snapshot_path=snapshot_path)
     return opt
 
 

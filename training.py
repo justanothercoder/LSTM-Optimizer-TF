@@ -9,6 +9,7 @@ import util.paths as paths
 import util.tf_utils as tf_utils
 
 from opts import model_trainer, distributed
+from opts.basic_model import BuildConfig
 
 
 def will_overwrite_snapshots(snapshots_path, eid):
@@ -65,8 +66,12 @@ def build_opt(opt, flags):
 
     opt = distributed.distribute(opt, tf_utils.get_devices(flags))
 
-    kwargs = util.get_kwargs(opt.build, flags)
-    opt.build(optimizees, **kwargs)
+    #kwargs = util.get_kwargs(opt.build, flags)
+    #opt.build(optimizees, **kwargs)
+
+    kwargs = util.get_kwargs(BuildConfig, flags)
+    build_config = BuildConfig(**kwargs)
+    opt.build(optimizees, build_config)
 
 
 def training(opt, flags):

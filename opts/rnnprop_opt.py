@@ -70,3 +70,22 @@ class RNNPropOpt(basic_model.BasicModel):
         self.saver = tf.train.Saver(var_list=var_list)
         super(RNNPropOpt, self).restore(eid)
         self.restored = True
+
+
+    def step_with_func(self, f, i, state, stop_grad=True):
+        x = state[3]
+        
+        def opt_loss(i, x):
+            opt_loss = f(x[None], i)[0]
+            return opt_loss
+        
+        value, gradient = f(x[None], i)
+        if stop_grad:
+            gradient = tf.stop_gradient(gradient)
+
+        gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
+
+        #value, gradient, gradient_norm = self._fg(f, x[None], i, stop_grad)
+        state = self.step(opt_loss, i, state)['state']
+
+        return dict(value=value, gradient_norm=gradient_norm, state=state)

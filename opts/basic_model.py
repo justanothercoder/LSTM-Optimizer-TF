@@ -1,3 +1,4 @@
+from collections import namedtuple
 import time
 import random
 import numpy as np
@@ -8,6 +9,24 @@ from tensorflow.contrib.rnn import LSTMStateTuple
 from .cells import LSTMOptCell, OptFuncCell
 import util
 from problem_producer import ProblemProducer
+from inference import static_inference, dynamic_inference, cell_inference
+
+
+RNNOptState = namedtuple('RNNOptState', ['x', 'rnn_state'])
+
+BuildConfig = util.namedtuple_with_defaults(
+    'BuildConfig', [
+        ('n_bptt_steps', 20),
+        ('loss_type', 'log'),
+        ('lambd', 0.),
+        ('lambd_l1', 0.),
+        ('inference_only', False),
+        ('normalize_lstm_grads', False),
+        ('grad_clip', 1.),
+        ('stop_grad', True),
+        ('dynamic', False),
+        ('cell', False)
+    ])
 
 
 class BasicModel:
@@ -18,36 +37,9 @@ class BasicModel:
         self.debug = debug
 
     
-    @property
-    def is_rnnprop(self):
-        return self.__class__.__name__ == 'RNNPropOpt'
-        
-
-    def build_inputs(self):
-        raise NotImplementedError
-
-
-    def build_initial_state(self):
-        raise NotImplementedError
-
-
-    def build_pre(self):
-        raise NotImplementedError
-
-
-    def step(self, f, i, state):
-        raise NotImplementedError
-
-
-    def build(self, optimizees, n_bptt_steps=20,
-              loss_type='log',
-              lambd=0., lambd_l1=0., inference_only=False,
-              normalize_lstm_grads=False, grad_clip=1.,
-              stop_grad=True, dynamic=False, cell=False, **kwargs):
-
-        self.session = tf.get_default_session()
+    def build(self, optimizees, build_config=BuildConfig(), **kwargs):
         self.optimizees = optimizees
-        self.n_bptt_steps = n_bptt_steps
+        self.config = build_config
         ops = {}
 
         self.kwargs = kwargs
@@ -56,23 +48,23 @@ class BasicModel:
         with tf.variable_scope('opt_scope') as scope:
             self.scope = scope
             self.build_pre()
-
+            
             self.x = tf.placeholder(tf.float32, shape=[None, None])
-            self.input_state = self.build_inputs()
-            self.initial_state = self.build_initial_state(self.x)
+            
+            if self.config.cell:
+                self.cell = LSTMOptCell(self.init_config)
+                n_coords = tf.size(self.x)
+                self.input_state = RNNOptState(self.x, self.cell.zero_state(n_coords))
+            else:
+                self.input_state = self.build_inputs()
+                self.initial_state = self.build_initial_state(self.x)
+                self.initial_state = RNNOptState(self.x, self.initial_state)
 
-            if cell:
-                self.cell = LSTMOptCell(num_units=self.num_units, num_layers=self.num_layers,
-                        beta1=self.beta1, beta2=self.beta2, eps=self.eps,
-                        layer_norm=self.layer_norm, add_skip=self.add_skip, clip_delta=self.clip_delta,
-                        rnn_type=self.rnn_type, residual=self.residual, normalize_gradients=self.normalize_gradients,
-                        learn_init=self.learn_init, use_both=self.use_both, weight_norm=self.weight_norm,
-                        only_adam_features=self.only_adam_features
-                        )
+                self.input_state = RNNOptState(self.x, self.input_state)
 
             for opt_name, optimizee in optimizees.items():
                 with tf.variable_scope('inference_scope') as self.inf_scope:
-                    inference = self.inference(optimizee, self.x, self.input_state, n_bptt_steps, stop_grad=stop_grad, dynamic=dynamic, cell=cell)
+                    inference = self.inference(optimizee, self.input_state)
                     vars_opt |= set(optimizee.vars_)
         
                 ops[opt_name] = dict(inference=inference)
@@ -85,11 +77,11 @@ class BasicModel:
 
             for opt_name, optimizee in optimizees.items():
                 inference = ops[opt_name]['inference']
-                ops[opt_name]['losses'] = self.loss(inference, lambd=lambd, lambd_l1=lambd_l1, loss_type=loss_type)
+                ops[opt_name]['losses'] = self.loss(inference)
 
         with tf.variable_scope('opt_scope', reuse=False) as scope:
 
-            if not inference_only and self.all_vars:
+            if not self.config.inference_only and self.all_vars:
                 self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
                 self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
                 self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
@@ -97,7 +89,7 @@ class BasicModel:
                 for opt_name in optimizees:
                     losses = ops[opt_name]['losses']
 
-                    grads = self.grads(self.optimizer, losses, normalize_lstm_grads=normalize_lstm_grads, grad_clip=grad_clip)
+                    grads = self.grads(self.optimizer, losses)
                     train_op = self.train_op(self.optimizer, grads)
 
                     ops[opt_name].update({
@@ -112,177 +104,50 @@ class BasicModel:
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
 
 
-    def dynamic_inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
-        ks, vs = zip(*list(state.items()))
-        ks = list(ks)
-        vs = list(vs)
+    def step_with_func(self, f, i, state, stop_grad=True):
+        value, gradient = f(state.x, i)
+        if stop_grad:
+            gradient = tf.stop_gradient(gradient)
 
-        def dict_to_tuple(d):
-            return tuple(d[k] for k in ks)
+        gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
 
+        step, rnn_state = self.step(value, gradient, state.rnn_state)
+        state = state._replace(x=state.x + step, rnn_state=rnn_state)
 
-        def tuple_to_dict(t):
-            return dict(zip(ks, t))
-
-
-        def cond(sid, *loop_vars):
-            return tf.less(sid, n_bptt_steps)
+        return dict(value=value, gradient_norm=gradient_norm, state=state)
 
 
-        def body(sid, vals, norms, x, *state):
-            state = tuple_to_dict(state)
-            value, gradient, gradient_norm = self._fg(optimizee.loss, x, sid, stop_grad)
+    def inference(self, optimizee, input_state):
+        Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config'])
+        model = Model(input_state, self.inf_scope, self.step_with_func, self.config)
 
-            step_info = self.step(value, gradient, state)
-            new_state = step_info['state']
-            new_state = dict_to_tuple(new_state)
-
-            new_vals = tf.concat([vals, tf.expand_dims(value, 0)], axis=0)
-            new_norms = tf.concat([norms, tf.expand_dims(gradient_norm, 0)], axis=0)
-
-            out_state = (sid + 1, new_vals, new_norms, x + step_info['step']) + new_state
-            
-            return out_state
-
-
-        vals_init = tf.zeros([0, tf.shape(input_x)[0]])
-        norms_init = tf.zeros([0, tf.shape(input_x)[0]])
-        state_init = dict_to_tuple(input_state)
-
-        i = tf.constant(0)
-        in_state = (i, vals_init, norms_init, input_x) + state_init
-
-        def get_shapes(t):
-            shapes = []
-
-            for i in t:
-                if isinstance(i, tf.Tensor):
-                    shapes.append(i.get_shape())
-                else:
-                    s = get_shapes(i)
-                    if type(i) in (tuple, list):
-                        s = type(i)(s)
-                    else:
-                        s = type(i)(c=s[0], h=s[1])
-                    shapes.append(s)
-            
-            return tuple(shapes)
-
-        shape_invariants = (
-                    i.get_shape(),
-                    tf.TensorShape([None] + vals_init.get_shape().as_list()[1:]),
-                    tf.TensorShape([None] + norms_init.get_shape().as_list()[1:]),
-                ) + get_shapes(state_init)
-
-        _, vals, norms, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
-
-        vals = tf.unstack(vals, num=n_bptt_steps, axis=0)
-        norms = tf.unstack(norms, num=n_bptt_steps, axis=0)
-
-        steps_info = [{'value': v, 'gradient_norm': n} for v, n in zip(vals, norms)]
-        final_state = tuple_to_dict(r)
-        return steps_info, final_state, final_state[3]
-
-
-    def static_inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True):
-        steps_info = []
-
-        state = input_state
-        x = input_x
-        scope = tf.get_variable_scope()
-                
-        def opt_loss(i, x):
-            opt_loss = optimizee.loss(x[None], i)[0]
-            return opt_loss
-
-        for i in range(n_bptt_steps):
-            if self.is_rnnprop:
-                x = state[3]
-                value, gradient, gradient_norm = self._fg(optimizee.loss, x[None], i, stop_grad)
-                step_info = self.step(opt_loss, i, state)
-            else:
-                value, gradient, gradient_norm = self._fg(optimizee.loss, x, i, stop_grad)
-                step_info = self.step(value, gradient, state)
-                x = x + step_info['step']
-
-            state = step_info['state']
-
-            if not self.inf_scope.reuse:
-                self.inf_scope.reuse_variables()
-
-            step_info['value'] = value
-            step_info['gradient_norm'] = gradient_norm
-
-            steps_info.append(step_info)
-
-        return steps_info, state, x
-
-
-    def cell_inference(self, optimizee, input_x, n_bptt_steps, stop_grad=True):
-        def decorator(f):
-            c = 0
-            def wrapper(x):
-                nonlocal c
-                ret = f(x, c)
-                c += 1
-                return ret
-            return wrapper
-
-
-        cell = OptFuncCell(self.cell, input_x, decorator(optimizee.loss), stop_grad=stop_grad)
-        n_coords = tf.size(input_x)
-        inputs = tf.zeros([n_coords, n_bptt_steps, 1])
-
-        istate = cell.zero_state(n_coords)
-        outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=istate, scope=self.inf_scope)
-        values, norms = tf.unstack(outputs, num=2, axis=-1)
-
-        values = tf.unstack(values, num=n_bptt_steps, axis=1)
-        norms = tf.unstack(norms, num=n_bptt_steps, axis=1)
-
-        steps_info = [{'value': v, 'gradient_norm': gn} for v, gn in zip(values, norms)]
-        return steps_info, state, cell, istate
-
-
-    def inference(self, optimizee, input_x, input_state, n_bptt_steps, stop_grad=True, dynamic=False, cell=False):
-        if cell:
-            steps_info, final_state, inf_cell, istate = self.cell_inference(optimizee, input_x, n_bptt_steps, stop_grad=stop_grad)
-            final_x = final_state[0]
+        if self.config.cell:
+            Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config', 'cell'])
+            model = Model(input_state, self.inf_scope, self.step_with_func, self.config, self.cell)
+            ret = cell_inference(model, optimizee)
         else:
-            if dynamic:
-                steps_info, final_state, final_x = self.dynamic_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
+            if self.config.dynamic:
+                ret = dynamic_inference(model, optimizee)
             else:
-                steps_info, final_state, final_x = self.static_inference(optimizee, input_x, input_state, n_bptt_steps, stop_grad=stop_grad)
+                ret = static_inference(model, optimizee)
 
-        ret = {
-            'values': [info['value'] for info in steps_info],
-            'norms' : [info['gradient_norm'] for info in steps_info],
-            'final_state': final_state,
-            'final_x': final_x
-        }
+        # first_step = steps_info[0]
+        # if not self.is_rnnprop:
+        #     keys = set(first_step.keys())
 
-        if cell:
-            ret['cell'] = inf_cell
-            ret['istate'] = istate
+        #     if 'state' in keys:
+        #         state_keys = set(first_step['state'].keys())
+        #     
+        #         if 'loglr' in state_keys:
+        #             ret['lrs'] = [info['state']['loglr'] for info in steps_info]
 
-
-        first_step = steps_info[0]
-        if not self.is_rnnprop:
-            keys = set(first_step.keys())
-
-            if 'state' in keys:
-                state_keys = set(first_step['state'].keys())
-            
-                if 'loglr' in state_keys:
-                    ret['lrs'] = [info['state']['loglr'] for info in steps_info]
-
-            if 'cos_step_adam' in keys:
-                ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
+        #     if 'cos_step_adam' in keys:
+        #         ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
 
         return ret
 
 
-    def loss(self, inference, lambd=0., lambd_l1=0., loss_type='log'):
+    def loss(self, inference):
         values = tf.stack(inference['values'])
         if inference.get('keys') is not None:
             lrs = tf.stack([s['loglr'] for s in inference['lrs']])
@@ -291,16 +156,16 @@ class BasicModel:
 
         losses = []
 
-        if loss_type == 'log':
+        if self.config.loss_type == 'log':
             loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
 
             if lrs is not None:
-                lr_loss = -lambd * tf.reduce_mean(lrs - lrs[:1])
+                lr_loss = -self.config.lambd * tf.reduce_mean(lrs - lrs[:1])
                 losses.append(lr_loss)
 
-        elif loss_type == 'log_smooth':
+        elif self.config.loss_type == 'log_smooth':
             smooth_vals = []
-            for i in range(self.n_bptt_steps):
+            for i in range(self.config.n_bptt_steps):
                 if i == 0:
                     smooth_val = values[i]
                 else:
@@ -310,29 +175,29 @@ class BasicModel:
             smooth_vals = tf.stack(smooth_vals)
             loss = tf.reduce_mean(tf.log(smooth_vals + 1e-8) - tf.log(smooth_vals[:1] + 1e-8))
 
-        elif loss_type == 'sum':
+        elif self.config.loss_type == 'sum':
             loss = tf.reduce_mean(values)
         else:
             loss = values[-1]
 
         if self.all_vars:
             weights = [v for v in self.all_vars if 'bias' not in v.name]
-            reg_loss = tf.add_n([lambd_l1 * tf.norm(v, ord=1) for v in weights])
+            reg_loss = tf.add_n([self.config.lambd_l1 * tf.norm(v, ord=1) for v in weights])
             losses.append(reg_loss)
 
         return [loss] + losses
 
 
-    def grads(self, optimizer, losses, normalize_lstm_grads=False, grad_clip=1.):
+    def grads(self, optimizer, losses):
         loss = tf.add_n(losses)
         grads = optimizer.compute_gradients(loss, var_list=self.all_vars)
 
-        if normalize_lstm_grads:
+        if self.config.normalize_lstm_grads:
             print("Using normalized meta-grads")
             norm = tf.global_norm(grads)
             grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
 
-        grads, _ = tf.clip_by_global_norm([g for g, _ in grads], grad_clip)
+        grads, _ = tf.clip_by_global_norm([g for g, _ in grads], self.config.grad_clip)
         grads = list(zip(grads, self.all_vars))
 
         return grads
@@ -354,7 +219,8 @@ class BasicModel:
             print(message)
 
 
-    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1):
+    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1, session=None):
+        self.session = session or tf.get_default_session()
         self.restore(eid)
         self.verbose = verbose
 
@@ -379,12 +245,8 @@ class BasicModel:
 
     def test_one_iteration(self, n_steps, opt_name):
         self.bid += 1
-        session = tf.get_default_session()
-
-        ret = {}
 
         optimizee = self.optimizees[opt_name]
-
         x, optimizee_params = optimizee.sample_problem()
 
         inf = self.ops[opt_name]['inference']
@@ -399,51 +261,31 @@ class BasicModel:
             'values': inf['values'],
             'norms': inf['norms'],
             'final_state': inf['final_state'],
-            'final_x': inf['final_x']
         }
 
-        steps_info = {
-            'values': [],
-            'norms': [],
-        }
+        steps_info = dict(values=[], norms=[])
 
-        if inf.get('cosines'):
-            run_op['cosines'] = inf['cosines']
-            steps_info['cosines'] = []
+        #if inf.get('cosines'):
+        #    run_op['cosines'] = inf['cosines']
+        #    steps_info['cosines'] = []
 
-        if inf.get('lrs'):
-            run_op['lrs'] = inf['lrs']
-            steps_info['lrs'] = []
+        #if inf.get('lrs'):
+        #    run_op['lrs'] = inf['lrs']
+        #    steps_info['lrs'] = []
 
         losses = []
 
-        if hasattr(self, 'cell'):
+        if self.config.cell:
             input_state = inf['istate']
-            state = session.run(input_state, {self.x: x})
         else:
             input_state = self.input_state
 
-            if self.is_rnnprop:
-                state = session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
-            else:
-                state = session.run(self.initial_state, feed_dict={self.x: x})
+        state = self.get_init_state(x)
+        for _ in range(n_steps // self.config.n_bptt_steps):
+            feed_dict = self.get_feed_dict(input_state, state, optimizee_params, optimizee)
+            info = self.session.run(run_op, feed_dict=feed_dict)
 
-        for _ in range(n_steps // self.n_bptt_steps):
-            if self.is_rnnprop:
-                feed_dict = {self.opt.x: x[0]}
-            else:
-                feed_dict = {self.x: x}
-
-            feed_dict.update(optimizee_params)
-            if self.is_rnnprop or hasattr(self, 'cell'):
-                feed_dict.update(dict(zip(input_state, state)))
-            else:
-                feed_dict.update({inp: state[name] for name, inp in self.input_state.items()})
-            feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps))
-
-            info = session.run(run_op, feed_dict=feed_dict)
             state = info['final_state']
-            x = info['final_x']
             losses.append(info['loss'])
 
             for k in steps_info:
@@ -451,13 +293,34 @@ class BasicModel:
 
         self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
 
-        ret['optimizee_name'] = opt_name
-        ret['loss'] = np.nanmean(losses)
-
+        ret = dict(optimizee_name=opt_name, loss=np.mean(losses))
         for k in steps_info:
             ret[k] = np.array(steps_info[k])
 
         return ret
+
+    
+    def get_init_state(self, x):
+        if self.config.cell:
+            state = self.session.run(self.input_state, {self.x: x})
+        elif self.is_rnnprop:
+            state = self.session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
+        else:
+            state = self.session.run(self.initial_state, feed_dict={self.x: x})
+
+        return state
+
+
+    def get_feed_dict(self, input_state, state, params, opt, batch_size=1):
+        #if self.is_rnnprop:
+        #    feed_dict = {self.opt.x: x[0]}
+        #else:
+        #    feed_dict = {self.x: x}
+
+        feed_dict = dict(zip(input_state, state))
+        feed_dict.update(params)
+        feed_dict.update(opt.get_next_dict(self.config.n_bptt_steps, batch_size))
+        return feed_dict
 
 
     #def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
@@ -599,8 +462,8 @@ class BasicModel:
     #    return ret
     
     
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=100, eid=0, test=True, seed=None):
-        sess = tf.get_default_session()
+    def train(self, n_epochs, n_batches, batch_size=100, n_steps=100, eid=0, test=True, seed=None, session=None):
+        self.session = session or tf.get_default_session() 
         if eid > 0:
             self.restore(eid)
 
@@ -623,18 +486,19 @@ class BasicModel:
                     losses = list(losses.values())[0]
 
 
-                input_state = inf['cell'].zero_state(tf.size(self.x))
-                state = sess.run(input_state, {self.x: problem.init})
+                #input_state = inf['cell'].zero_state(tf.size(self.x))
+                input_state = inf['istate']
+                state = self.session.run(input_state, {self.x: problem.init})
 
                 losses_ = []
-                n_unrolls = n_steps // self.n_bptt_steps
+                n_unrolls = n_steps // self.config.n_bptt_steps
                 for _ in range(n_unrolls):
                     feed_dict = dict(zip(input_state, state))
                     feed_dict.update(problem.params)
-                    feed_dict.update(problem.optim.get_next_dict(self.n_bptt_steps, batch_size))
+                    feed_dict.update(problem.optim.get_next_dict(self.config.n_bptt_steps, batch_size))
                     feed_dict.update({self.x: problem.init, self.train_lr: 1e-4, self.momentum: 0.9})
                     
-                    loss, state, _ = sess.run([losses, inf['final_state'], ops['train_op']], feed_dict=feed_dict)
+                    loss, state, _ = self.session.run([losses, inf['final_state'], ops['train_op']], feed_dict=feed_dict)
                     losses_.append(loss)
 
                 batch_loss = np.mean(losses_)
@@ -654,17 +518,6 @@ class BasicModel:
         return epoch_losses
 
 
-
-    def _fg(self, f, x, i, stop_grad=True):
-        fx, g = f(x, i)
-
-        if stop_grad:
-            g = tf.stop_gradient(g)
-
-        g_norm = tf.reduce_sum(tf.square(g), axis=-1)
-        return fx, g, g_norm
-
-
     def restore(self, eid):
         snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
@@ -679,3 +532,24 @@ class BasicModel:
         print("Saving to ", filename)
         self.saver.save(self.session, str(filename), global_step=eid)
         print(self.name, "saved.")
+    
+    
+    @property
+    def is_rnnprop(self):
+        return self.__class__.__name__ == 'RNNPropOpt'
+        
+
+    def build_inputs(self):
+        raise NotImplementedError
+
+
+    def build_initial_state(self):
+        raise NotImplementedError
+
+
+    def build_pre(self):
+        raise NotImplementedError
+
+
+    def step(self, f, i, state):
+        raise NotImplementedError

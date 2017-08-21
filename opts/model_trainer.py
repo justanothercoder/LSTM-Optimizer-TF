@@ -96,7 +96,7 @@ class Trainer:
         self.lr = train_lr
         self.mu = momentum
 
-        if hasattr(self.model, 'cell'):
+        if self.model.config.cell:
             return self.model.train(n_epochs, n_batches, batch_size=batch_size, n_steps=n_steps, eid=eid)
 
         self.masked_train = masked_train
@@ -151,7 +151,7 @@ class Trainer:
                     train_rets.append(ret)
 
                 self.log("Epoch time: {}".format(time.time() - epoch_time))
-                self.log("Epoch loss: {}".format(loss / np.log(10) / self.model.n_bptt_steps))
+                self.log("Epoch loss: {}".format(loss / np.log(10) / self.model.config.n_bptt_steps))
 
                 if (epoch + 1) % 10 == 0:
                     self.model.save(epoch + 1)
@@ -194,7 +194,7 @@ class Trainer:
 
         self.log("Optimizee: {}".format(opt_name), level=15)
 
-        n_unrolls = n_steps // self.model.n_bptt_steps
+        n_unrolls = n_steps // self.model.config.n_bptt_steps
         if self.masked_train == 'random':
             mask = np.random.binomial(n=1, p=self.masked_train_p, size=n_unrolls)
         elif self.masked_train == 'first-last':
@@ -207,11 +207,17 @@ class Trainer:
 
 
         for i in range(n_unrolls):
-            feed_dict = optimizee_params
-            feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
-            feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
+            #feed_dict = optimizee_params
+            #feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
+            #feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
+            #feed_dict.update({
+            #    self.model.x: x,
+            #    self.model.train_lr: self.lr,
+            #    self.model.momentum: self.mu,
+            #})
+
+            feed_dict = self.model.get_feed_dict(self.model.input_state, state, optimizee_params, optimizee, batch_size)
             feed_dict.update({
-                self.model.x: x,
                 self.model.train_lr: self.lr,
                 self.model.momentum: self.mu,
             })

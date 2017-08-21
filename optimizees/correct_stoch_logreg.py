@@ -42,7 +42,6 @@ class CorrectStochLogreg(optimizee.Optimizee):
         self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
         self.batch_size = np.random.randint(low=1, high=self.dataset.data_size // 10 + 1)
 
-    def get_new_params(self, batch_size=1):
         self.w  = np.random.normal(size=(batch_size, self.num_features))
         self.w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
         
