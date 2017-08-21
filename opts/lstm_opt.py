@@ -30,7 +30,7 @@ class LSTMOpt(basic_model.BasicModel):
     def __init__(self,
         num_units=20, num_layers=2,
         beta1=0.9, beta2=0.999, eps=1e-8,
-        layer_norm=True, add_skip=False, clip_delta=100,
+        layer_norm=True, add_skip=False, clip_delta=2,
         rnn_type='lstm', residual=False,
         normalize_gradients=False,
         learn_init=False, use_both=False,

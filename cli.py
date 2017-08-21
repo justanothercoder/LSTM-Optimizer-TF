@@ -125,6 +125,7 @@ def make_new_parser(parser):
                         help='learn initial hidden state')
     parser.add_argument('--weight-norm', action='store_true', help='enable weight normalization')
     parser.add_argument('--only-adam-features', action='store_true')
+    parser.add_argument('--clip-delta', type=float, default=2)
     
 
     group = parser.add_mutually_exclusive_group()
