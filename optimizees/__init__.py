@@ -9,6 +9,7 @@ from .stochastic_linear_regression import StochasticLinearRegression
 
 from .correct_stoch_logreg import CorrectStochLogreg
 from .correct_stoch_linreg import CorrectStochLinreg
+from .bayesian_logreg import BayesianLogreg
 
 from .mlp_classifier import MLPClassifier
 from .conv_classifier import ConvClassifier
@@ -29,6 +30,8 @@ problems = [
     'stoch_logreg_10', 
     'mixed', 'mixed_stoch', 'mixed_nonstoch',
     'correct_mixed_stoch',
+
+    'bayesian_logreg',
 
     '_digits_classifier',
 
@@ -63,6 +66,10 @@ problems = [
     'mnist_classifier_relu_6',
     'mnist_classifier_relu_12',
     'mnist_classifier_relu_18',
+
+    'correct_slr_small_batch',
+    'correct_slr_mid_batch',
+    'correct_slr_big_batch',
 ]
 
 
@@ -122,6 +129,12 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
 
         'small_correct_stoch_logreg': CorrectStochLogreg(max_data_size=100, max_features=10, min_data_size=10),
         'small_correct_stoch_linear': CorrectStochLinreg(max_data_size=100, max_features=10, min_data_size=10),
+    
+        'correct_slr_small_batch': CorrectStochLogreg(max_data_size=10000, max_features=100, min_data_size=1000, max_batch_size=1e-3),
+        'correct_slr_mid_batch': CorrectStochLogreg(max_data_size=10000, max_features=100, min_data_size=1000, max_batch_size=1e-2),
+        'correct_slr_big_batch': CorrectStochLogreg(max_data_size=10000, max_features=100, min_data_size=1000, max_batch_size=1e-1),
+    
+        'bayesian_logreg': BayesianLogreg(min_data_size=100, max_data_size=1000, min_features=1, max_features=100, max_batch_size=1e-2),
 
         'noisy_1_correct_stoch_logreg': transformers.NormalNoisyGrad(CorrectStochLogreg(max_data_size=1000, max_features=100), stddev=1e-1),
         'noisy_1_correct_stoch_linear': transformers.NormalNoisyGrad(CorrectStochLinreg(max_data_size=1000, max_features=100), stddev=1e-1),

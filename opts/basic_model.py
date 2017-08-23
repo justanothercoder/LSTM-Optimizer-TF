@@ -49,12 +49,15 @@ class BasicModel:
             self.scope = scope
             self.build_pre()
             
-            self.x = tf.placeholder(tf.float32, shape=[None, None])
+            self.x = tf.placeholder(tf.float32, shape=[None, None], name='theta')
             
             if self.config.cell:
                 self.cell = LSTMOptCell(self.init_config)
                 n_coords = tf.size(self.x)
                 self.input_state = RNNOptState(self.x, self.cell.zero_state(n_coords))
+            elif self.is_rnnprop:
+                self.input_state = self.build_inputs()
+                self.initial_state = self.build_initial_state(self.x)
             else:
                 self.input_state = self.build_inputs()
                 self.initial_state = self.build_initial_state(self.x)
@@ -114,7 +117,12 @@ class BasicModel:
         step, rnn_state = self.step(value, gradient, state.rnn_state)
         state = state._replace(x=state.x + step, rnn_state=rnn_state)
 
-        return dict(value=value, gradient_norm=gradient_norm, state=state)
+        ret = dict(value=value, gradient_norm=gradient_norm, state=state)
+
+        if 'loglr' in rnn_state._fields:
+            ret['loglr'] = rnn_state.loglr
+
+        return ret
 
 
     def inference(self, optimizee, input_state):
@@ -149,8 +157,9 @@ class BasicModel:
 
     def loss(self, inference):
         values = tf.stack(inference['values'])
-        if inference.get('keys') is not None:
-            lrs = tf.stack([s['loglr'] for s in inference['lrs']])
+        if 'lrs' in inference:
+            #lrs = tf.stack([s['loglr'] for s in inference['lrs']])
+            lrs = tf.stack(inference['lrs'])
         else:
             lrs = None
 
@@ -269,9 +278,9 @@ class BasicModel:
         #    run_op['cosines'] = inf['cosines']
         #    steps_info['cosines'] = []
 
-        #if inf.get('lrs'):
-        #    run_op['lrs'] = inf['lrs']
-        #    steps_info['lrs'] = []
+        if inf.get('lrs'):
+            run_op['lrs'] = inf['lrs']
+            steps_info['lrs'] = []
 
         losses = []
 
@@ -312,14 +321,14 @@ class BasicModel:
 
 
     def get_feed_dict(self, input_state, state, params, opt, batch_size=1):
-        #if self.is_rnnprop:
-        #    feed_dict = {self.opt.x: x[0]}
         #else:
         #    feed_dict = {self.x: x}
 
         feed_dict = dict(zip(input_state, state))
         feed_dict.update(params)
         feed_dict.update(opt.get_next_dict(self.config.n_bptt_steps, batch_size))
+        #if self.is_rnnprop:
+        #    feed_dict = {self.opt.x: state.x[0]}
         return feed_dict
 
 

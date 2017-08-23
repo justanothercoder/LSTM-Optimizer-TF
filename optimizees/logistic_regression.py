@@ -1,15 +1,16 @@
 import numpy as np
 import tensorflow as tf
 from . import optimizee
+from . import datagen
 
 
 class LogisticRegression(optimizee.Optimizee):
     name = 'logistic_regression'
 
-    def __init__(self, max_data_size=300, max_features=100):
+    def __init__(self, max_data_size=300, max_features=100, min_data_size=100, min_features=1):
         super(LogisticRegression, self).__init__()
-        self.max_data_size = max_data_size
-        self.max_features = max_features
+        self.datagen = datagen.RandomNormal(min_data_size, max_data_size, min_features, max_features)
+
 
 
     def get_x_dim(self):
@@ -44,20 +45,12 @@ class LogisticRegression(optimizee.Optimizee):
 
 
     def sample_problem(self, batch_size=1):
-        num_features = np.random.randint(low=1, high=self.max_features)
-        data_size    = np.random.randint(low=1, high=self.max_data_size)
-    
-        w  = np.random.normal(size=(batch_size, num_features + 1))
-        w0 = np.random.normal(size=(batch_size, 1))
-
-        X = np.random.normal(size=(batch_size, data_size, num_features))
-        y = np.einsum('ai,aji->aj', w, X) + w0 > 0
-
-        init = np.concatenate([w, w0], axis=-1)
+        self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
+        init = np.concatenate([self.dataset.w, self.dataset.w0], axis=1)
         
         return init, {
-            self.X: X,
-            self.y: y,
+            self.X: self.dataset.X,
+            self.y: self.dataset.y,
             self.dim: num_features + 1
         }
                 

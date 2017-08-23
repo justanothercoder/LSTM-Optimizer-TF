@@ -10,6 +10,7 @@ from opts.sgd_opt import SgdOpt
 from opts.momentum_opt import MomentumOpt
 from opts.adam_opt import AdamOpt
 from opts.adamng_opt import AdamNGOpt
+from opts.basic_model import BuildConfig
 
 from opts.rnnprop_opt import RNNPropOpt
 
@@ -25,7 +26,7 @@ def pickle_test_results(filename, data):
     f.attrs['problem'] = data['problem']
     f.attrs['mode'] = data['mode']
 
-    if data.get('compare_with') is not None:
+    if 'compare_with' in data:
         f.attrs['compare_with'] = data['compare_with']
 
     for opt_name, rets in data['results'].items():
@@ -158,17 +159,20 @@ def testing(flags, opt, s_opts, optimizees):
         with session.as_default():
             for optimizee in optimizees.values():
                 optimizee.build()
+            
+            build_config = BuildConfig()._replace(inference_only=True, n_bptt_steps=1)
 
-            opt.build(optimizees, inference_only=True, adam_only=flags.adam_only, n_bptt_steps=1, cell=flags.cell)
+            opt.build(optimizees, build_config._replace(cell=flags.cell), adam_only=flags.adam_only)
 
             for i, s_opt in enumerate(s_opts):
                 with tf.variable_scope('s_opt_{}'.format(i)):
-                    s_opt.build(optimizees, inference_only=True, n_bptt_steps=1)
+                    s_opt.build(optimizees, build_config)
 
             #session.run(tf.global_variables_initializer())
 
             for i, s_opt in enumerate(s_opts):
                 if hasattr(s_opt, 'eid'):
+                    s_opt.session = tf.get_default_session()
                     s_opt.restore(s_opt.eid)
 
             if flags.mode == 'many':

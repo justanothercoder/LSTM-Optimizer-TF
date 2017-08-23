@@ -8,6 +8,7 @@ def static_inference(model, optimizee):
 
     values = []
     norms = []
+    lrs = []
 
     for i in range(model.config.n_bptt_steps):
         info = model.step_with_func(optimizee.loss, i, state, model.config.stop_grad)
@@ -16,10 +17,13 @@ def static_inference(model, optimizee):
         values.append(info['value'])
         norms.append(info['gradient_norm'])
 
+        if 'loglr' in info:
+            lrs.append(info['loglr'])
+
         if not scope.reuse:
             scope.reuse_variables()
 
-    return dict(values=values, norms=norms, final_state=state)
+    return dict(values=values, norms=norms, lrs=lrs, final_state=state)
 
 
 def dynamic_inference(model, optimizee):
@@ -27,20 +31,22 @@ def dynamic_inference(model, optimizee):
         return tf.less(sid, model.config.n_bptt_steps)
 
 
-    def body(sid, vals, norms, *state):
+    def body(sid, vals, norms, lrs, *state):
         info = model.step_with_func(optimizee.loss, i, state, model.config.stop_grad)
 
         new_vals = tf.concat([vals, tf.expand_dims(info['value'], 0)], axis=0)
         new_norms = tf.concat([norms, tf.expand_dims(info['gradient_norm'], 0)], axis=0)
+        new_lrs = tf.concat([lrs, tf.expand_dims(info['loglr'], 0)], axis=0)
 
-        out_state = (sid + 1, new_vals, new_norms) + info['state']
+        out_state = (sid + 1, new_vals, new_norms, new_lrs) + info['state']
         return out_state
 
     vals_init = tf.zeros([0, tf.shape(model.input_state.x)[0]])
     norms_init = tf.zeros([0, tf.shape(model.input_state.x)[0]])
+    lrs_init = tf.zeros([0, tf.shape(model.input_state.x)[0]])
 
     i = tf.constant(0)
-    in_state = (i, vals_init, norms_init) + model.input_state
+    in_state = (i, vals_init, norms_init, lrs_init) + model.input_state
 
     def get_shapes(t):
         shapes = []
@@ -62,14 +68,16 @@ def dynamic_inference(model, optimizee):
                 i.get_shape(),
                 tf.TensorShape([None] + vals_init.get_shape().as_list()[1:]),
                 tf.TensorShape([None] + norms_init.get_shape().as_list()[1:]),
+                tf.TensorShape([None] + lrs_init.get_shape().as_list()[1:]),
             ) + get_shapes(state_init)
 
-    _, vals, norms, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
+    _, vals, norms, lrs, *r = tf.while_loop(cond, body, in_state, shape_invariants=shape_invariants)
 
     vals  = tf.unstack(vals , num=model.config.n_bptt_steps, axis=0)
     norms = tf.unstack(norms, num=model.config.n_bptt_steps, axis=0)
+    lrs   = tf.unstack(lrs  , num=model.config.n_bptt_steps, axis=0)
 
-    return dict(values=vals, norms=norms, final_state=r)
+    return dict(values=vals, norms=norms, lrs=lrs, final_state=r)
     
 
 def cell_inference(model, optimizee):

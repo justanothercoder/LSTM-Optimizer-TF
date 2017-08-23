@@ -21,15 +21,15 @@ def save_figure(fig, filename):
 def extract_test_run_info(rets, flags, key, normalize):
     vals = []
     for ret in rets:
-        if key == 'lrs_mean' and ret.get('lrs') is not None:
+        if key == 'lrs_mean' and 'lrs' in ret:
             #value = np.mean(value, axis=1)
             value = ret['lrs']
             value = value.mean(axis=2)
-        elif key == 'lrs_max' and ret.get('lrs') is not None:
+        elif key == 'lrs_max' and 'lrs' in ret:
             value = ret['lrs']
             value = value.max(axis=2)
         else:
-            if ret.get(key) is not None:
+            if key in ret:
                 value = ret[key]
             else:
                 return [], [], [], []

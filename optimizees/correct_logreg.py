@@ -44,21 +44,16 @@ class CorrectLogReg(optimizee.Optimizee):
 
 
     def sample_problem(self, batch_size=1):
-        num_features = np.random.randint(low=1, high=self.max_features)
-        data_size    = np.random.randint(low=1, high=self.max_data_size)
-    
-        init = np.random.normal(size=(batch_size, num_features + 1))
+        self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
 
-        w  = np.random.normal(size=(batch_size, num_features))
-        w0 = np.random.normal(size=(batch_size, 1))
+        w  = np.random.normal(size=(batch_size, self.dataset.num_features))
+        w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
+        init = np.concatenate([w, w0], axis=1)
         
-        X = np.random.normal(size=(batch_size, data_size, num_features))
-        y = np.einsum('ai,aji->aj', w, X) + w0 > 0
-
         return init, {
-            self.X: X,
-            self.y: y,
-            self.dim: num_features + 1
+            self.X: self.dataset.X,
+            self.y: self.dataset.y,
+            self.dim: self.dataset.num_features + 1
         }
                 
         

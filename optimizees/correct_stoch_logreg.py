@@ -7,9 +7,10 @@ from . import datagen
 class CorrectStochLogreg(optimizee.Optimizee):
     name = 'stochastic_logistic_regression'
 
-    def __init__(self, min_data_size=100, max_data_size=1000, min_features=1, max_features=100):
+    def __init__(self, min_data_size=100, max_data_size=1000, min_features=1, max_features=100, max_batch_size=0.1):
         super(CorrectStochLogreg, self).__init__()
         self.datagen = datagen.RandomNormal(min_data_size, max_data_size, min_features, max_features)
+        self.max_batch_size = max_batch_size
 
 
     def get_x_dim(self):
@@ -40,19 +41,12 @@ class CorrectStochLogreg(optimizee.Optimizee):
 
     def sample_problem(self, batch_size=1):
         self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
-        self.batch_size = np.random.randint(low=1, high=self.dataset.data_size // 10 + 1)
+        self.batch_size = np.random.randint(low=1, high=int(self.dataset.data_size * self.max_batch_size) + 1)
+        
+        w = np.random.normal(size=(batch_size, self.dataset.num_features))
+        w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
+        init = np.concatenate([w, w0], axis=1)
 
-        self.w  = np.random.normal(size=(batch_size, self.num_features))
-        self.w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
-        
-        self.data_size    = np.random.randint(low=self.min_data_size, high=self.max_data_size)
-        self.batch_size   = np.random.randint(low=1, high=self.data_size // 10 + 2)
-            
-        self.X = np.random.normal(size=(batch_size, self.data_size, self.num_features))
-        self.Y = np.einsum('ai,aji->aj', self.w, self.X) + self.w0 > 0
-        self.s = 0
-        
-        init = np.random.normal(size=(batch_size, self.dataset.num_features + 1))
         params = {self.dim: self.dataset.num_features + 1}
         return init, params
 
