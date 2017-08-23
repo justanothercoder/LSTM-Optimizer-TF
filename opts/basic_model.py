@@ -133,7 +133,7 @@ class BasicModel:
         Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config'])
         model = Model(input_state, self.inf_scope, self.step_with_func, self.config)
 
-        if False:# self.config.cell:
+        if self.config.cell:
             Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config', 'cell'])
             model = Model(input_state, self.inf_scope, self.step_with_func, self.config, self.cell)
             ret = cell_inference(model, optimizee)

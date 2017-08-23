@@ -45,7 +45,7 @@ class OptFuncCell(OptCell):
         if self.stop_grad:
             g = tf.stop_gradient(g)
 
-        g2_norm = tf.reduce_mean(tf.square(g), axis=-1)
+        g2_norm = tf.reduce_sum(tf.square(g), axis=-1)
         
         step, new_state = self.cell(g, cell_state)
         step = tf.reshape(step, tf.shape(x))
