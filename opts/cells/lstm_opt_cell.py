@@ -108,18 +108,18 @@ class LSTMOptCell(opt_cell.OptCell):
         return features
 
 
-    def zero_state(self, batch_size):
-        m = tf.zeros([batch_size])
-        v = tf.zeros([batch_size])
-        b1t = tf.ones([batch_size])
-        b2t = tf.ones([batch_size])
-        loglr = tf.random_uniform(shape=[batch_size], minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
-        lstm_state = self.cell.zero_state(batch_size, tf.float32)
+    def zero_state(self, x):
+        m = tf.zeros(shape=tf.shape(x))
+        v = tf.zeros(shape=tf.shape(x))
+        b1t = tf.ones([tf.shape(x)[0]])
+        b2t = tf.ones([tf.shape(x)[0]])
+        loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
+        lstm_state = self.cell.zero_state(tf.size(x), tf.float32)
 
         state = m, v, b1t, b2t, loglr, lstm_state
 
         if self.init_config.use_both:
-            state = state + (tf.zeros([batch_size]), tf.zeros([batch_size]))
+            state = state + (tf.zeros(shape=tf.shape(x)), tf.zeros(shape=tf.shape(x)))
         
         return self.LSTMOptState(*state)
 
@@ -131,7 +131,7 @@ class LSTMOptCell(opt_cell.OptCell):
 
     def __call__(self, g, state):
         g_shape = tf.shape(g)
-        g = tf.reshape(g, [-1])
+        #g = tf.reshape(g, [-1])
         
         new_state, features, s = self.adam_prep(g, state)
         prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])

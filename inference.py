@@ -94,7 +94,8 @@ def cell_inference(model, optimizee):
     n_coords = tf.size(model.input_state.x)
     inputs = tf.zeros([n_coords, model.config.n_bptt_steps, 1])
 
-    istate = cell.zero_state(n_coords)
+    #istate = cell.zero_state(n_coords)
+    istate = cell.zero_state(model.input_state.x)
     outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=istate, scope=model.inference_scope)
     values, norms = tf.unstack(outputs, num=2, axis=-1)
 

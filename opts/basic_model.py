@@ -53,8 +53,7 @@ class BasicModel:
             
             if self.config.cell:
                 self.cell = LSTMOptCell(self.init_config)
-                n_coords = tf.size(self.x)
-                self.input_state = RNNOptState(self.x, self.cell.zero_state(n_coords))
+                self.input_state = RNNOptState(self.x, self.cell.zero_state(self.x))
             elif self.is_rnnprop:
                 self.input_state = self.build_inputs()
                 self.initial_state = self.build_initial_state(self.x)
@@ -74,8 +73,6 @@ class BasicModel:
         
                 ops[opt_name] = dict(inference=inference)
 
-                #if not self.inf_scope.reuse:
-                #    self.inf_scope.reuse_variables()
                 if not reuse:
                     reuse = True
             
@@ -118,13 +115,16 @@ class BasicModel:
 
         gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
 
-        step, rnn_state = self.step(value, gradient, state.rnn_state)
+        if self.config.cell:
+            step, rnn_state = self.cell(gradient, state.rnn_state)
+        else:
+            step, rnn_state = self.step(value, gradient, state.rnn_state)
         state = state._replace(x=state.x + step, rnn_state=rnn_state)
 
         ret = dict(value=value, gradient_norm=gradient_norm, state=state)
 
         if 'loglr' in rnn_state._fields:
-            ret['loglr'] = rnn_state.loglr
+            ret['loglr'] = tf.reshape(rnn_state.loglr, tf.shape(state.x))
 
         return ret
 
@@ -133,7 +133,7 @@ class BasicModel:
         Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config'])
         model = Model(input_state, self.inf_scope, self.step_with_func, self.config)
 
-        if self.config.cell:
+        if False:# self.config.cell:
             Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config', 'cell'])
             model = Model(input_state, self.inf_scope, self.step_with_func, self.config, self.cell)
             ret = cell_inference(model, optimizee)
@@ -162,7 +162,6 @@ class BasicModel:
     def loss(self, inference):
         values = tf.stack(inference['values'])
         if 'lrs' in inference:
-            #lrs = tf.stack([s['loglr'] for s in inference['lrs']])
             lrs = tf.stack(inference['lrs'])
         else:
             lrs = None
@@ -288,10 +287,7 @@ class BasicModel:
 
         losses = []
 
-        if self.config.cell:
-            input_state = inf['istate']
-        else:
-            input_state = self.input_state
+        input_state = self.input_state
 
         state = self.get_init_state(x)
         for _ in range(n_steps // self.config.n_bptt_steps):
@@ -325,9 +321,6 @@ class BasicModel:
 
 
     def get_feed_dict(self, input_state, state, params, opt, batch_size=1):
-        #else:
-        #    feed_dict = {self.x: x}
-
         feed_dict = dict(zip(input_state, state))
         feed_dict.update(params)
         feed_dict.update(opt.get_next_dict(self.config.n_bptt_steps, batch_size))
@@ -564,5 +557,8 @@ class BasicModel:
         raise NotImplementedError
 
 
-    def step(self, f, i, state):
-        raise NotImplementedError
+    def step(self, g, state):
+        if self.config.cell:
+            return self.cell(g, state)
+        else:
+            raise NotImplementedError

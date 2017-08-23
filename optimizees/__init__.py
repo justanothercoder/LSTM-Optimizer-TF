@@ -13,7 +13,7 @@ from .bayesian_logreg import BayesianLogreg
 
 from .mlp_classifier import MLPClassifier
 from .conv_classifier import ConvClassifier
-from .lstm_ptb import LSTM_PTB
+#from .lstm_ptb import LSTM_PTB
 
 from . import transformers
 
@@ -150,7 +150,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         'stoch_logreg_10': StochasticLogisticRegression(max_data_size=400, max_features=10),
         
         '_digits_classifier': MLPClassifier(num_units=100, num_layers=1, dataset_name='digits', return_func=True),
-        'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
+#        'lstm_ptb': LSTM_PTB(num_layers=1, hidden_size=50, batch_size=1, vocab_size=3000),
         
         'digits_classifier_0': MLPClassifier(num_units=100, num_layers=0, dataset_name='digits'),
         '_digits_classifier_0': MLPClassifier(num_units=100, num_layers=0, dataset_name='digits', return_func=True),
