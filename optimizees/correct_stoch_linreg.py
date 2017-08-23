@@ -40,7 +40,7 @@ class CorrectStochLinreg(optimizee.Optimizee):
         self.batch_size = np.random.randint(low=1, high=self.dataset.data_size + 1)
     
         init = np.random.normal(size=(batch_size, self.dataset.num_features + 1))
-        params = {self.dim: dataset.num_features + 1}
+        params = {self.dim: self.dataset.num_features + 1}
         return init, params
 
         
