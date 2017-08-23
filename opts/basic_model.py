@@ -65,15 +65,19 @@ class BasicModel:
 
                 self.input_state = RNNOptState(self.x, self.input_state)
 
+            reuse = False
+
             for opt_name, optimizee in optimizees.items():
-                with tf.variable_scope('inference_scope') as self.inf_scope:
+                with tf.variable_scope('inference_scope', reuse=reuse) as self.inf_scope:
                     inference = self.inference(optimizee, self.input_state)
                     vars_opt |= set(optimizee.vars_)
         
                 ops[opt_name] = dict(inference=inference)
 
-                if not self.inf_scope.reuse:
-                    self.inf_scope.reuse_variables()
+                #if not self.inf_scope.reuse:
+                #    self.inf_scope.reuse_variables()
+                if not reuse:
+                    reuse = True
             
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.inf_scope.name)
             self.all_vars = list(set(self.all_vars) - vars_opt)

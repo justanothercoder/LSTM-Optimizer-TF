@@ -25,7 +25,6 @@ class RNNPropAdapter(optimizee.Optimizee):
             f = f[None]
 
         g = self.grad(x, f)
-
         return f, g
 
 
