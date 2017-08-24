@@ -95,11 +95,11 @@ def cell_inference(model, optimizee):
     inputs = tf.zeros([n_coords, model.config.n_bptt_steps, 1])
 
     #istate = cell.zero_state(n_coords)
-    istate = cell.zero_state(model.input_state.x)
-    outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=istate, scope=model.inference_scope)
+    #istate = cell.zero_state(model.input_state.x)
+    outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=model.input_state, scope=model.inference_scope)
     values, norms = tf.unstack(outputs, num=2, axis=-1)
 
     values = tf.unstack(values, num=model.config.n_bptt_steps, axis=1)
     norms  = tf.unstack(norms , num=model.config.n_bptt_steps, axis=1)
     
-    return dict(values=values, norms=norms, final_state=state, cell=cell, istate=istate)
+    return dict(values=values, norms=norms, final_state=state)

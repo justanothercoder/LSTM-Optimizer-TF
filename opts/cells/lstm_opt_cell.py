@@ -67,10 +67,12 @@ class LSTMOptCell(opt_cell.OptCell):
         m = b1 * state.m + (1 - b1) * g
         v = b2 * state.v + (1 - b2) * tf.square(g)
 
+        m = tf.Print(m, [g[0][0], m[0][0], v[0][0]], message='gmv', summarize=30)
+
         b1t = state.b1t * b1
         b2t = state.b2t * b2
 
-        a = tf.sqrt(1 - b2t) / (1 - b1t)
+        a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
         s = a * m / (tf.sqrt(v) + self.init_config.eps)
 
         new_state = (m, v, b1t, b2t, state.loglr, state.lstm_state)
@@ -145,23 +147,24 @@ class LSTMOptCell(opt_cell.OptCell):
 
         d, loglr_add = tf.unstack(last, axis=1)
 
+        d = tf.reshape(d, g_shape)
+        loglr_add = tf.reshape(loglr_add, g_shape)
+
         loglr = tf.minimum(state.loglr + loglr_add, np.log(self.init_config.clip_delta))
 
         if self.init_config.add_skip:
             d += -s
         
-        #if self.kwargs.get('adam_only', False):
-        #    print("ADAMONLY")
-        #    d = -s
+        if self.kwargs.get('adam_only', False):
+            print("ADAMONLY")
+            d = -s
 
-        d = tf.reshape(d, g_shape)
-
-        n_coords = tf.cast(g_shape[0], tf.float32)
+        n_coords = tf.cast(g_shape[1], tf.float32)
         d = normalize(d, 1. / n_coords)
 
         lr = tf.exp(loglr, name='lr')
         lr = tf.clip_by_value(lr, 0, self.init_config.clip_delta)
-        lr = tf.reshape(lr, g_shape)
+        #lr = tf.reshape(lr, g_shape)
 
         step = d * lr
         new_state = new_state._replace(loglr=loglr, lstm_state=cell_state)

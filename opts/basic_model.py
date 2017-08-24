@@ -53,6 +53,7 @@ class BasicModel:
             
             if self.config.cell:
                 self.cell = LSTMOptCell(self.init_config)
+                self.cell.kwargs = kwargs
                 self.input_state = RNNOptState(self.x, self.cell.zero_state(self.x))
             elif self.is_rnnprop:
                 self.input_state = self.build_inputs()
@@ -493,8 +494,8 @@ class BasicModel:
 
 
                 #input_state = inf['cell'].zero_state(tf.size(self.x))
-                input_state = inf['istate']
-                state = self.session.run(input_state, {self.x: problem.init})
+                #input_state = inf['istate']
+                state = self.session.run(self.input_state, {self.x: problem.init})
 
                 losses_ = []
                 n_unrolls = n_steps // self.config.n_bptt_steps

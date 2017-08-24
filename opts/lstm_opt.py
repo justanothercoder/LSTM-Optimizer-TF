@@ -144,6 +144,8 @@ class LSTMOpt(basic_model.BasicModel):
         m = b1 * state.m + (1 - b1) * g
         v = b2 * state.v + (1 - b2) * tf.square(g)
 
+        m = tf.Print(m, [g[0][0], m[0][0], v[0][0]], message='gmv', summarize=30)
+
         b1t = state.b1t * b1
         b2t = state.b2t * b2
 
@@ -192,7 +194,7 @@ class LSTMOpt(basic_model.BasicModel):
         loglr_add = tf.reshape(loglr_add, g_shape)
 
         loglr = tf.minimum(state.loglr + loglr_add, np.log(self.init_config.clip_delta))
-        n_coords = tf.cast(g_shape[0], tf.float32)
+        n_coords = tf.cast(g_shape[1], tf.float32)
 
         if self.init_config.add_skip:
             d += -s
@@ -214,3 +216,4 @@ class LSTMOpt(basic_model.BasicModel):
         #cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
 
         return step, new_state
+

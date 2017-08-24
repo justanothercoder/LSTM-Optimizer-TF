@@ -49,7 +49,8 @@ class OptFuncCell(OptCell):
         
         step, new_state = self.cell(g, cell_state)
         step = tf.reshape(step, tf.shape(x))
-        new_state = (x + step, new_state)
+        #new_state = (x + step, new_state)
+        new_state = state._replace(x=x + step, rnn_state=new_state)
 
         def reshape_out(val):
             val = tf.expand_dims(val, -1)
