@@ -500,7 +500,7 @@ class BasicModel:
                 losses_ = []
                 n_unrolls = n_steps // self.config.n_bptt_steps
                 for _ in range(n_unrolls):
-                    feed_dict = dict(zip(input_state, state))
+                    feed_dict = dict(zip(self.input_state, state))
                     feed_dict.update(problem.params)
                     feed_dict.update(problem.optim.get_next_dict(self.config.n_bptt_steps, batch_size))
                     feed_dict.update({self.x: problem.init, self.train_lr: 1e-4, self.momentum: 0.9})
