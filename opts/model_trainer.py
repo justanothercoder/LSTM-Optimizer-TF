@@ -61,7 +61,8 @@ class Trainer:
                 'loss': losses[0],
                 'values': inf['values'],
                 'norms': inf['norms'],
-                'final_state': inf['final_state']
+                'final_state': inf['final_state'],
+                'summary': model.ops[opt_name]['summaries'],
             }
 
             if mode == 'train':
@@ -95,6 +96,8 @@ class Trainer:
 
         self.lr = train_lr
         self.mu = momentum
+
+        self.summary_writer = tf.summary.FileWriter('logs/' + self.model.name + '/train', self.session.graph)
 
         if self.model.config.cell:
             return self.model.train(n_epochs, n_batches, batch_size=batch_size, n_steps=n_steps, eid=eid)
@@ -231,6 +234,12 @@ class Trainer:
 
             losses.append(info['loss'])
             fxs.extend(info['values'])
+
+        #for summary_str in info['summary']:
+        #    print(summary_str, self.bid)
+        #    self.summary_writer.add_summary(summary_str, self.bid)
+        self.summary_writer.add_summary(info['summary'], self.bid)
+        self.summary_writer.flush()
 
         self.log("First function value: {}".format(fxs[0][0]), level=15)
         self.log("Last function value: {}".format(fxs[-1][0]), level=15)

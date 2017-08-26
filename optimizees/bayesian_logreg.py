@@ -37,13 +37,16 @@ class BayesianLogreg(optimizee.Optimizee):
         p = tf.clip_by_value(tf.sigmoid(score), 1e-5, 1 - 1e-5)
 
         y = tf.cast(self.y[i], tf.float32)
-        f = -tf.reduce_mean(y * tf.log(p) + (1 - y) * tf.log(1 - p))
+        #f = -tf.reduce_mean(y * tf.log(p) + (1 - y) * tf.log(1 - p))
+        f = tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=score[:, 0], name='cross_entropy')
+        #f = tf.Print(f, [f, self.logalpha, logsigma, score, y], summarize=10)
+        f = tf.Print(f, [f, score, tf.shape(self.x[i]), tf.shape(w)], summarize=10)
 
         n = tf.shape(w)[0]
         #n = tf.shape(w)[1]
 
-        sigma = tf.exp(logsigma)
-        alpha = tf.exp(self.logalpha)
+        sigma = tf.exp(logsigma, name='sigma')
+        alpha = tf.maximum(tf.exp(self.logalpha), 1e-8, name='alpha')
 
         KL = 0.5 * tf.cast(n, tf.float32) * (tf.reduce_sum(self.logalpha - logsigma + sigma / alpha) - 1) + 0.5 * tf.reduce_sum(theta * theta / alpha)
         f = f + KL
@@ -59,7 +62,7 @@ class BayesianLogreg(optimizee.Optimizee):
 
         n_f = self.dataset.num_features
         
-        init = np.random.normal(size=(batch_size, n_f * 2))
+        init = np.random.normal(size=(batch_size, n_f * 2), scale=0.1)
         logalpha = np.random.normal(size=(batch_size, n_f), scale=0.1)
 
         params = {self.dim: n_f * 2, self.logalpha: logalpha}

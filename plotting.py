@@ -24,7 +24,6 @@ def extract_test_run_info(rets, flags, key, normalize):
         if key == 'lrs_mean' and 'lrs' in ret:
             #value = np.mean(value, axis=1)
             value = ret['lrs']
-            print(value.shape)
             value = value.mean(axis=2)
         elif key == 'lrs_max' and 'lrs' in ret:
             value = ret['lrs']

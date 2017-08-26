@@ -66,44 +66,78 @@ class BasicModel:
                 self.input_state = RNNOptState(self.x, self.input_state)
 
             reuse = False
+                
+            summaries = set()
 
             for opt_name, optimizee in optimizees.items():
-                with tf.variable_scope('inference_scope', reuse=reuse) as self.inf_scope:
-                    inference = self.inference(optimizee, self.input_state)
-                    vars_opt |= set(optimizee.vars_)
-        
-                ops[opt_name] = dict(inference=inference)
+                with tf.name_scope(opt_name):
+                    with tf.variable_scope('inference_scope', reuse=reuse) as self.inf_scope:
+                        inference = self.inference(optimizee, self.input_state)
+                        vars_opt |= set(optimizee.vars_)
+            
+                    ops[opt_name] = dict(inference=inference)
 
-                if not reuse:
-                    reuse = True
+                    if not reuse:
+                        reuse = True
+
+                new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
+                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+
+                ops[opt_name]['summaries'] = new_summaries
             
             self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.inf_scope.name)
             self.all_vars = list(set(self.all_vars) - vars_opt)
 
             for opt_name, optimizee in optimizees.items():
-                inference = ops[opt_name]['inference']
-                ops[opt_name]['losses'] = self.loss(inference)
-
-        with tf.variable_scope('opt_scope', reuse=False) as scope:
+                with tf.name_scope(opt_name):
+                    inference = ops[opt_name]['inference']
+                    ops[opt_name]['losses'] = self.loss(inference)
+                
+                new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
+                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+                
+                ops[opt_name]['summaries'] |= new_summaries
 
             if not self.config.inference_only and self.all_vars:
                 self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
                 self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
                 self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
+                
+                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+
+                for v in self.all_vars:
+                    tf.summary.histogram(v.name, v)
+
+                var_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
+                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
                 for opt_name in optimizees:
-                    losses = ops[opt_name]['losses']
+                    with tf.name_scope(opt_name):
+                        losses = ops[opt_name]['losses']
 
-                    grads = self.grads(self.optimizer, losses)
-                    train_op = self.train_op(self.optimizer, grads)
+                        grads = self.grads(self.optimizer, losses)
 
-                    ops[opt_name].update({
-                        'grads': grads,
-                        'train_op': train_op
-                    })
+                        if isinstance(losses, dict):
+                            losses = list(losses.values())[0]
+                
+                        tf.summary.scalar('sum_loss', tf.add_n(losses))
 
-                    if not scope.reuse:
-                        scope.reuse_variables()
+                        for g, v in grads:
+                            tf.summary.histogram('%s/grad' % v.name, g)
+
+                        train_op = self.train_op(self.optimizer, grads)
+
+                        ops[opt_name].update({
+                            'grads': grads,
+                            'train_op': train_op
+                        })
+
+                        if not scope.reuse:
+                            scope.reuse_variables()
+
+                        new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
+                        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+                        ops[opt_name]['summaries'] = tf.summary.merge(list(ops[opt_name]['summaries'] | new_summaries | var_summaries))
 
             self.ops = ops
             self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
@@ -115,6 +149,10 @@ class BasicModel:
             gradient = tf.stop_gradient(gradient)
 
         gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
+
+        if i == 0 and self.config.inference_only:
+            tf.summary.scalar('mean_value', tf.reduce_mean(value))
+            tf.summary.scalar('mean_grad_norm', tf.reduce_mean(gradient_norm))
 
         if self.config.cell:
             step, rnn_state = self.cell(gradient, state.rnn_state)
@@ -161,57 +199,58 @@ class BasicModel:
 
 
     def loss(self, inference):
-        values = tf.stack(inference['values'])
-        if 'lrs' in inference:
-            lrs = tf.stack(inference['lrs'])
-        else:
-            lrs = None
+        with tf.name_scope('loss'):
+            values = tf.stack(inference['values'])
+            losses = []
 
-        losses = []
+            if self.config.loss_type == 'log':
+                loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8), name='loss')
 
-        if self.config.loss_type == 'log':
-            loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
+                if 'lrs' in inference and self.config.lambd != 0.:
+                    lrs = tf.stack(inference['lrs'], name='lrs')
+                    lr_loss = -self.config.lambd * tf.reduce_mean(lrs - lrs[:1])
+                    losses.append(lr_loss)
 
-            if lrs is not None:
-                lr_loss = -self.config.lambd * tf.reduce_mean(lrs - lrs[:1])
-                losses.append(lr_loss)
+            elif self.config.loss_type == 'log_smooth':
+                smooth_vals = []
+                for i in range(self.config.n_bptt_steps):
+                    if i == 0:
+                        smooth_val = values[i]
+                    else:
+                        smooth_val = 0.95 * smooth_val + 0.05 * values[i]
+                    smooth_vals.append(smooth_val)
 
-        elif self.config.loss_type == 'log_smooth':
-            smooth_vals = []
-            for i in range(self.config.n_bptt_steps):
-                if i == 0:
-                    smooth_val = values[i]
-                else:
-                    smooth_val = 0.95 * smooth_val + 0.05 * values[i]
-                smooth_vals.append(smooth_val)
+                smooth_vals = tf.stack(smooth_vals)
+                loss = tf.reduce_mean(tf.log(smooth_vals + 1e-8) - tf.log(smooth_vals[:1] + 1e-8))
 
-            smooth_vals = tf.stack(smooth_vals)
-            loss = tf.reduce_mean(tf.log(smooth_vals + 1e-8) - tf.log(smooth_vals[:1] + 1e-8))
+            elif self.config.loss_type == 'sum':
+                loss = tf.reduce_mean(values)
+            else:
+                loss = values[-1]
 
-        elif self.config.loss_type == 'sum':
-            loss = tf.reduce_mean(values)
-        else:
-            loss = values[-1]
+            if self.all_vars:
+                weights = [v for v in self.all_vars if 'bias' not in v.name]
+                reg_loss = tf.add_n([self.config.lambd_l1 * tf.norm(v, ord=1) for v in weights], name='reg_loss')
+                losses.append(reg_loss)
+                tf.summary.scalar('reg_loss', reg_loss)
 
-        if self.all_vars:
-            weights = [v for v in self.all_vars if 'bias' not in v.name]
-            reg_loss = tf.add_n([self.config.lambd_l1 * tf.norm(v, ord=1) for v in weights])
-            losses.append(reg_loss)
-
-        return [loss] + losses
+            tf.summary.scalar('loss', loss)
+            return [loss] + losses
 
 
     def grads(self, optimizer, losses):
-        loss = tf.add_n(losses)
-        grads = optimizer.compute_gradients(loss, var_list=self.all_vars)
+        loss = tf.add_n(losses, name='sum_loss')
 
-        if self.config.normalize_lstm_grads:
-            print("Using normalized meta-grads")
-            norm = tf.global_norm(grads)
-            grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
+        with tf.name_scope('grads'):
+            grads = optimizer.compute_gradients(loss, var_list=self.all_vars)
 
-        grads, _ = tf.clip_by_global_norm([g for g, _ in grads], self.config.grad_clip)
-        grads = list(zip(grads, self.all_vars))
+            if self.config.normalize_lstm_grads:
+                print("Using normalized meta-grads")
+                norm = tf.global_norm(grads)
+                grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
+
+            grads, _ = tf.clip_by_global_norm([g for g, _ in grads], self.config.grad_clip)
+            grads = list(zip(grads, self.all_vars))
 
         return grads
 
@@ -219,9 +258,9 @@ class BasicModel:
     def train_op(self, optimizer, grads):
         train_op = optimizer.apply_gradients(grads)
 
-        if self.debug:
-            check_op = tf.add_check_numerics_ops()
-            train_op = tf.group(train_op, check_op)
+        #if self.debug:
+        #    check_op = tf.add_check_numerics_ops()
+        #    train_op = tf.group(train_op, check_op)
 
         return train_op
 
@@ -324,7 +363,9 @@ class BasicModel:
     def get_feed_dict(self, input_state, state, params, opt, batch_size=1):
         feed_dict = dict(zip(input_state, state))
         feed_dict.update(params)
-        feed_dict.update(opt.get_next_dict(self.config.n_bptt_steps, batch_size))
+
+        nd = opt.get_next_dict(self.config.n_bptt_steps, batch_size)
+        feed_dict.update(nd)
         #if self.is_rnnprop:
         #    feed_dict = {self.opt.x: state.x[0]}
         return feed_dict

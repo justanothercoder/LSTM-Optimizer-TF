@@ -104,6 +104,7 @@ rnnprop_problems = [
     '_mnist-nn-relu-100',
     '_mnist-nn-elu-100',
     '_mnist-nn-tanh-100',
+    '_sin_lstm',
 
     'digits_classifier_0',
     '_digits_classifier_0',
@@ -201,6 +202,7 @@ def get_optimizees(problems_list, clip_by_value=False, random_scale=False, noisy
         '_mnist-nn-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu'), reshape_f=True),
         '_mnist-nn-elu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='elu'), reshape_f=True),
         '_mnist-nn-tanh-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='tanh'), reshape_f=True),
+        '_sin_lstm': RNNPropAdapter(from_rnnprop.lstm.SinLSTMModel(), reshape_f=True),
 
         'mnist-nn-sigmoid-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='sigmoid')),
         'mnist-nn-relu-100': RNNPropAdapter(from_rnnprop.mnist.MnistLinearModel(activation='relu')),

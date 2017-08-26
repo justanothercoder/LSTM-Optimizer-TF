@@ -56,6 +56,7 @@ class LSTMOpt(basic_model.BasicModel):
         if init_config.use_both:
             states += ['m_norm', 'v_norm']
         self.LSTMOptState = namedtuple('LSTMOptState', states)
+        self.added_summary = False
 
 
     def build_pre(self):
@@ -138,82 +139,92 @@ class LSTMOpt(basic_model.BasicModel):
 
 
     def adam_prep(self, g, state):
-        b1 = self.init_config.beta1
-        b2 = self.init_config.beta2
+        with tf.name_scope('adam_step'):
+            b1 = self.init_config.beta1
+            b2 = self.init_config.beta2
 
-        m = b1 * state.m + (1 - b1) * g
-        v = b2 * state.v + (1 - b2) * tf.square(g)
+            m = b1 * state.m + (1 - b1) * g
+            v = b2 * state.v + (1 - b2) * tf.square(g)
 
-        m = tf.Print(m, [g[0][0], m[0][0], v[0][0]], message='gmv', summarize=30)
+            b1t = state.b1t * b1
+            b2t = state.b2t * b2
 
-        b1t = state.b1t * b1
-        b2t = state.b2t * b2
+            a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
+            s = a * m / (tf.sqrt(v) + self.init_config.eps)
 
-        a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
-        s = a * m / (tf.sqrt(v) + self.init_config.eps)
-
-        new_state = (m, v, b1t, b2t, state.loglr, state.lstm_state)
-
-        if self.init_config.only_adam_features:
-            features = [s]
-        else:
-            features = [g, tf.square(g), m, v, s]
-
-        if self.init_config.use_both:
-            g_norm = normalize(g)
-            m_norm = b1 * state.m_norm + (1 - b1) * g_norm
-            v_norm = b2 * state.v_norm + (1 - b2) * tf.square(g_norm)
-            s_norm = a * m_norm / (tf.sqrt(v_norm) + self.init_config.eps)
-
-            new_state = new_state + (m_norm, v_norm)
+            new_state = (m, v, b1t, b2t, state.loglr, state.lstm_state)
 
             if self.init_config.only_adam_features:
-                features += [s_norm]
+                features = [s]
             else:
-                features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
+                features = [g, tf.square(g), m, v, s]
 
-        return self.LSTMOptState(*new_state), features, s
+            if self.init_config.use_both:
+                g_norm = normalize(g)
+                m_norm = b1 * state.m_norm + (1 - b1) * g_norm
+                v_norm = b2 * state.v_norm + (1 - b2) * tf.square(g_norm)
+                s_norm = a * m_norm / (tf.sqrt(v_norm) + self.init_config.eps)
+
+                new_state = new_state + (m_norm, v_norm)
+
+                if self.init_config.only_adam_features:
+                    features += [s_norm]
+                else:
+                    features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
+
+            return self.LSTMOptState(*new_state), features, s
 
 
     def step(self, f, g, state):
-        g_shape = tf.shape(g)
+        with tf.name_scope('lstm_step'):
+            g_shape = tf.shape(g)
 
-        new_state, features, s = self.adam_prep(g, state)
-        prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
-        
-        if self.init_config.weight_norm:
-            scope = tf.get_variable_scope()
-            scope.set_custom_getter(custom_getter)
-        
-        last, lstm_state = self.lstm(prep, state.lstm_state)
-        last = tf.layers.dense(last, 2, use_bias=False, name='dense')
+            new_state, features, s = self.adam_prep(g, state)
+            prep = tf.reshape(tf.stack(features, axis=-1), [-1, len(features)])
+            
+            if self.init_config.weight_norm:
+                scope = tf.get_variable_scope()
+                scope.set_custom_getter(custom_getter)
+            
+            last, lstm_state = self.lstm(prep, state.lstm_state)
 
-        d, loglr_add = tf.unstack(last, axis=1)
+            if self.added_summary:
+                tf.summary.histogram('lstm_activations', last)
 
-        d = tf.reshape(d, g_shape)
-        loglr_add = tf.reshape(loglr_add, g_shape)
+            last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
-        loglr = tf.minimum(state.loglr + loglr_add, np.log(self.init_config.clip_delta))
-        n_coords = tf.cast(g_shape[1], tf.float32)
+            d, loglr_add = tf.unstack(last, axis=1)
 
-        if self.init_config.add_skip:
-            d += -s
-        
-        if self.kwargs.get('adam_only', False):
-            print("ADAMONLY")
-            d = -s
+            d = tf.reshape(d, g_shape)
+            loglr_add = tf.reshape(loglr_add, g_shape)
 
-        d = normalize(d, 1. / n_coords)
+            loglr = tf.minimum(state.loglr + loglr_add, np.log(self.init_config.clip_delta))
+            n_coords = tf.cast(g_shape[1], tf.float32)
 
-        lr = tf.exp(loglr, name='lr')
-        lr = tf.clip_by_value(lr, 0, self.init_config.clip_delta)
+            if self.init_config.add_skip:
+                d += -s
+            
+            if self.kwargs.get('adam_only', False):
+                print("ADAMONLY")
+                d = -s
 
-        step = d * lr
-        new_state = new_state._replace(lstm_state=lstm_state, loglr=loglr)
+            d = normalize(d, 1. / n_coords)
 
-        #adam_normed = tf.nn.l2_normalize(-s, 1)
-        #step_normed = tf.nn.l2_normalize(d, 1)
-        #cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
+            lr = tf.exp(loglr, name='lr')
+            lr = tf.clip_by_value(lr, 0, self.init_config.clip_delta)
+
+            step = d * lr
+            new_state = new_state._replace(lstm_state=lstm_state, loglr=loglr)
+
+            if self.added_summary:
+                tf.summary.histogram('loglr', loglr)
+                tf.summary.scalar('max_loglr', tf.reduce_max(tf.reduce_mean(loglr, axis=0)))
+                tf.summary.scalar('mean_loglr', tf.reduce_mean(loglr))
+                self.added_summary = True
+
+            #adam_normed = tf.nn.l2_normalize(-s, 1)
+            #step_normed = tf.nn.l2_normalize(d, 1)
+            #cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
 
         return step, new_state
 
