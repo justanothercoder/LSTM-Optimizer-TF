@@ -8,7 +8,7 @@ from tensorflow.contrib.rnn import LSTMStateTuple
 
 from .cells import LSTMOptCell, OptFuncCell
 import util
-from problem_producer import ProblemProducer
+from problem_producer import RandomProducer
 from inference import static_inference, dynamic_inference, cell_inference
 
 
@@ -516,7 +516,7 @@ class BasicModel:
             self.restore(eid)
 
         epoch_losses = []
-        problem_producer = ProblemProducer(self.optimizees, seed=seed)
+        problem_producer = RandomProducer(self.optimizees, seed=seed)
 
         for epoch in range(eid, n_epochs):
             epoch_start = time.time()
