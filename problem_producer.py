@@ -2,33 +2,71 @@ import time
 from collections import namedtuple
 import random
 import numpy as np
+from contextlib import contextmanager
+
+
+@contextmanager
+def set_random_state(r):
+    old_state = np.random.get_state()
+    np.random.set_state(r.get_state())
+
+    yield
+
+    r.set_state(np.random.get_state())
+    np.random.set_state(old_state)
+
 
 Problem = namedtuple('Problem', ['name', 'optim', 'init', 'params'])
 
-class ProblemProducer:
+class RandomProducer:
     def __init__(self, optimizees, seed=None):
         self.optimizees = list(optimizees.items())
         self.seed = seed or int(time.time())
 
-        random.seed(self.seed)
-        np.random.seed(self.seed)
+        self.random = random.Random(self.seed)
+        self.np_random = np.random.RandomState(self.seed)
 
 
     def reset(self):
-        random.seed(self.seed)
-        np.random.seed(self.seed)
+        self.random.seed(self.seed)
+        self.np_random.seed(self.seed)
 
 
     def sample(self, batch_size=1, name=None):
         if name is None:
-            name, optim = random.choice(self.optimizees)
+            name, optim = self.random.choice(self.optimizees)
         else:
             optim = self.optimizees[name]
 
-        init, params = optim.sample_problem(batch_size)
+        with set_random_state(self.np_random):
+            init, params = optim.sample_problem(batch_size)
         return Problem(name=name, optim=optim, init=init, params=params)
 
 
     def sample_sequence(self, n_batches, batch_size=1, name=None):
         for _ in range(n_batches):
             yield self.sample(batch_size, name)
+
+
+class FixedProducer:
+    def __init__(self, optimizees):
+        self.optimizees = optimizees
+
+
+    def new(self, data_size, batch_size):
+        self.data_size = data_size
+        self.batch_size = batch_size
+        self.data = list(RandomProducer(self.optimizees).sample_sequence(data_size, batch_size))
+        self.p = 0
+        return self
+
+
+    def sample(self):
+        p = self.p
+        self.p += 1
+        return self.data[p] 
+
+
+    def sample_sequence(self):
+        for p in self.data:
+            yield p
