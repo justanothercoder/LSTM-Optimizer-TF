@@ -271,7 +271,7 @@ class BasicModel:
             print(message)
 
 
-    def test(self, eid, n_batches, n_steps=20, opt_name=None, verbose=1, session=None):
+    def test(self, eid, n_batches, n_steps=20, batch_size=1, opt_name=None, verbose=1, session=None):
         self.session = session or tf.get_default_session()
         self.restore(eid)
         self.verbose = verbose
@@ -287,7 +287,7 @@ class BasicModel:
                 opt_name = random.choice(opt_names)
 
             batch_time = time.time()
-            ret = self.test_one_iteration(n_steps, opt_name)
+            ret = self.test_one_iteration(n_steps, opt_name, batch_size=batch_size)
             batch_time = time.time() - batch_time
             self.log("Time: {}".format(batch_time), verbosity=1, level=1)
             rets.append(ret)
@@ -295,11 +295,11 @@ class BasicModel:
         return rets
 
 
-    def test_one_iteration(self, n_steps, opt_name):
+    def test_one_iteration(self, n_steps, opt_name, batch_size=1):
         self.bid += 1
 
         optimizee = self.optimizees[opt_name]
-        x, optimizee_params = optimizee.sample_problem()
+        x, optimizee_params = optimizee.sample_problem(batch_size)
 
         inf = self.ops[opt_name]['inference']
         losses = self.ops[opt_name]['losses']
@@ -331,7 +331,7 @@ class BasicModel:
 
         state = self.get_init_state(x)
         for _ in range(n_steps // self.config.n_bptt_steps):
-            feed_dict = self.get_feed_dict(input_state, state, optimizee_params, optimizee)
+            feed_dict = self.get_feed_dict(input_state, state, optimizee_params, optimizee, batch_size=batch_size)
             info = self.session.run(run_op, feed_dict=feed_dict)
 
             state = info['final_state']

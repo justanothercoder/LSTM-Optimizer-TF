@@ -39,7 +39,8 @@ def extract_test_run_info(rets, flags, key, normalize):
 
         if normalize:
             value = value / ret[key][:1]
-        vals.append(value.reshape(-1, 1))
+        #vals.append(value.reshape(-1, 1))
+        vals.append(value)
     vals = np.concatenate(vals, axis=-1).T
     #print(vals.shape)
 

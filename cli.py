@@ -59,6 +59,7 @@ def make_test_parser(parser):
 
     parser.add_argument('--n_steps', type=int, default=1000, help='number of steps')
     parser.add_argument('--n_batches', type=int, default=20, help='number of batches per epoch')
+    parser.add_argument('--batch_size', type=int, default=1)
 
     parser.add_argument('--compare_with', type=str, default='adam',
                         choices=['sgd', 'momentum', 'adam', 'adamng', 'adam_reduce'], help='baseline for optimizer')
