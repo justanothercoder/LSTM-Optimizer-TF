@@ -56,12 +56,19 @@ class UniformRandomScaling(optimizee.Optimizee):
 
     
     def sample_problem(self, batch_size=1):
-        x, d = self.optim.sample_problem(batch_size)
+        #x, d = self.optim.sample_problem(batch_size)
+        problem = self.optim.sample_problem(batch_size)
+        x, d = problem.init, problem.params
 
         coef = np.exp(np.random.uniform(-self.r, self.r, size=x.shape))
         init = x / coef
         d[self.c] = coef
-        return init, d
+
+        problem.init = init
+        problem.params = d
+
+        #return init, d
+        return problem
 
 
     def get_next_dict(self, n_bptt_steps, batch_size=1):

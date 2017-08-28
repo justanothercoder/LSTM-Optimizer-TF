@@ -1,3 +1,4 @@
+import copy
 import time
 from collections import namedtuple
 import random
@@ -16,7 +17,22 @@ def set_random_state(r):
     np.random.set_state(old_state)
 
 
-Problem = namedtuple('Problem', ['name', 'optim', 'init', 'params'])
+class Problem:
+    def __init__(self, name, optim, init, params):
+        self.name = name
+        self.optim = optim
+        self.init = init
+        self.params = params
+
+        self.np_random = np.random.RandomState()
+        self.np_random.set_state(np.random.get_state())
+
+
+    def get_next_dict(self, n_bptt_steps, batch_size):
+        with set_random_state(self.np_random):
+            feed_dict = self.optim.get_next_dict(n_bptt_steps, batch_size)
+        return feed_dict
+
 
 class RandomProducer:
     def __init__(self, optimizees, seed=None):
@@ -39,8 +55,11 @@ class RandomProducer:
             optim = self.optimizees[name]
 
         with set_random_state(self.np_random):
-            init, params = optim.sample_problem(batch_size)
-        return Problem(name=name, optim=optim, init=init, params=params)
+            #init, params = optim.sample_problem(batch_size)
+            #problem = Problem(name=name, optim=copy.copy(optim), init=init, params=params)
+            problem = optim.sample_problem(batch_size)
+
+        return problem
 
 
     def sample_sequence(self, n_batches, batch_size=1, name=None):
@@ -61,9 +80,9 @@ class FixedProducer:
         return self
 
 
-    def sample(self):
+    def sample(self, batch_size=1):
         p = self.p
-        self.p += 1
+        self.p = (self.p + 1) % self.data_size
         return self.data[p] 
 
 

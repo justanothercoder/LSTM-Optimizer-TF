@@ -1,22 +1,12 @@
-import time
 import random
 import logging
 import functools
 
 import numpy as np
 import tensorflow as tf
+from util import log_execution_time
 from opts import distributed
 from problem_producer import RandomProducer, FixedProducer
-
-
-def log_execution_time(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        ret = func(*args, **kwargs)
-        logging.info("Time: {}".format(time.time() - start_time))
-        return ret
-    return wrapper
 
 
 class Trainer:
@@ -119,82 +109,77 @@ class Trainer:
         train_rets = []
         test_rets = []
 
-        sample_steps = bool(n_steps == 0)
+        def get_number_of_steps():
+            sample_steps = bool(n_steps == 0)
+            if sample_steps:
+                exp_scale = min(50, epoch)
+                steps = int(np.random.exponential(scale=exp_scale)) + 1
+                steps *= self.n_bptt_steps
+                self.log("n_steps: {}".format(n_steps), level=15)
+                return steps
+            else:
+                return n_steps
+
+
+        def run_test_epoch():
+            self.log_epoch("Test epoch: {}".format(epoch))
+            for batch in range(n_batches):
+                self.log_batch("Test batch: {}".format(batch))
+                with log_execution_time('test batch', self.log_batch):
+                    #ret = self.run_iter(fixed_producer, n_steps, batch_size=1, train=False, summary_writer=test_writer)
+                    ret = self.run_iter(fixed_producer, n_steps, batch_size, train=False, summary_writer=test_writer)
+                    test_rets.append(ret)
+
+
+        def run_train_epoch():
+            loss = None
+
+            for batch in range(n_batches):
+                self.batch = batch
+                with log_execution_time('train batch', self.log_batch):
+                    ret = self.run_iter(random_producer, get_number_of_steps(), batch_size, train=True, summary_writer=train_writer)
+
+                if np.isnan(ret['loss']):
+                    self.log("Loss is NaN", level=40)
+                    raise "Loss is NaN"
+                elif np.isinf(ret['loss']):
+                    self.log("Loss is +-INF", level=40)
+                    raise "Loss is +-INF"
+
+                if loss is not None:
+                    loss = 0.9 * loss + 0.1 * ret['loss']
+                else:
+                    loss = ret['loss']
+
+                train_rets.append(ret)
+
+            return loss
 
         try:
             for epoch in range(eid, n_epochs):
                 self.epoch = epoch
-                #self.logger.info("Epoch: {}".format(epoch))
-                epoch_time = time.time()
+                with log_execution_time('train epoch', self.log_epoch):
+                    loss = run_train_epoch()
 
-                loss = None
-
-                for batch in range(n_batches):
-                    self.batch = batch
-                    #self.logger.info("Batch: {}".format(batch))
-                    if sample_steps:
-                        #n_steps = int(np.random.exponential(scale=200)) + 50
-
-                        exp_scale = min(50, epoch)
-                        n_steps = int(np.random.exponential(scale=exp_scale)) + 1
-                        n_steps *= self.n_bptt_steps
-                        self.log("n_steps: {}".format(n_steps), level=15)
-
-                    #opt_name = random.choice(list(self.model.optimizees.keys()))
-                    #ret = self.run_iter(opt_name, n_steps, batch_size, train=True)
-                    ret = self.run_iter(random_producer, n_steps, batch_size, train=True, summary_writer=train_writer)
-
-                    if np.isnan(ret['loss']):
-                        self.log("Loss is NaN", level=40)
-                        raise "Loss is NaN"
-                    elif np.isinf(ret['loss']):
-                        self.log("Loss is +-INF", level=40)
-                        raise "Loss is +-INF"
-                        #print(ret['fxs'])
-
-                    if loss is not None:
-                        loss = 0.9 * loss + 0.1 * ret['loss']
-                    else:
-                        loss = ret['loss']
-
-                    train_rets.append(ret)
-
-                self.log("Epoch time: {}".format(time.time() - epoch_time))
-                self.log("Epoch loss: {}".format(loss / np.log(10) / self.model.config.n_bptt_steps))
+                self.log("Epoch loss: {}".format(loss / np.log(10)))
 
                 if (epoch + 1) % 10 == 0:
                     self.model.save(epoch + 1)
 
                 if test and (epoch + 1) % 10 == 0:
-                    self.log("Test epoch: {}".format(epoch))
-                    test_epoch_time = time.time()
-
-                    for batch in range(n_batches):
-                        self.log("Test batch: {}".format(batch), level=15)
-                    
-                        #opt_name = random.choice(list(self.model.optimizees.keys()))
-                        #ret = self.run_iter(opt_name, n_steps, batch_size=1, train=False)
-                        ret = self.run_iter(fixed_producer, n_steps, batch_size=1, train=False, summary_writer=test_writer)
-
-                        test_rets.append(ret)
-
-                    test_epoch_time = time.time() - test_epoch_time
-                    self.log("Epoch time: {}".format(test_epoch_time))
+                    with log_execution_time('test epoch', self.log_epoch):
+                        run_test_epoch()
         except KeyboardInterrupt:
             print("Stopped training early")
 
         return train_rets, test_rets
 
 
-    @log_execution_time
-    #def run_iter(self, opt_name, n_steps, batch_size, train=True):
     def run_iter(self, producer, n_steps, batch_size, train=True, summary_writer=None):
-        self.bid += 1
+        if train:
+            self.bid += 1
 
-        #optimizee = self.model.optimizees[opt_name]
-        #x, optimizee_params = optimizee.sample_problem(batch_size)
         problem = producer.sample(batch_size)
-
         state = self.session.run(self.model.initial_state, feed_dict={self.model.x: problem.init})
         
         steps_info = {
@@ -220,24 +205,16 @@ class Trainer:
 
 
         for i in range(n_unrolls):
-            #feed_dict = optimizee_params
-            #feed_dict.update({inp: state[name] for name, inp in self.model.input_state.items()})
-            #feed_dict.update(optimizee.get_next_dict(self.model.n_bptt_steps, batch_size))
-            #feed_dict.update({
-            #    self.model.x: x,
-            #    self.model.train_lr: self.lr,
-            #    self.model.momentum: self.mu,
-            #})
-
             #feed_dict = self.model.get_feed_dict(self.model.input_state, state, optimizee_params, optimizee, batch_size)
-            feed_dict = self.model.get_feed_dict(self.model.input_state, state, problem.params, problem.optim, batch_size)
+            feed_dict = self.model.get_feed_dict(state, problem, batch_size)
+
             feed_dict.update({
                 self.model.train_lr: self.lr,
                 self.model.momentum: self.mu,
             })
 
             run_op = self.run_op[problem.name].copy()
-            if mask[i] == 0:
+            if not train or mask[i] == 0:
                 del run_op['train_op']
 
             info = self.session.run(run_op, feed_dict=feed_dict)
@@ -259,7 +236,7 @@ class Trainer:
         
         return {
             'optimizee_name': problem.name,
-            'loss': np.nanmean(losses),
+            'loss': np.mean(losses),
             'fxs': np.array(fxs),
         }
 
@@ -270,3 +247,11 @@ class Trainer:
             'epoch': self.epoch,
         }
         self.logger.log(level, message, extra=extra)
+
+
+    def log_batch(self, message):
+        self.log(message, level=15)
+    
+
+    def log_epoch(self, message):
+        self.log(message, level=30)

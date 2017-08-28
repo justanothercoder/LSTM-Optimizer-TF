@@ -299,7 +299,9 @@ class BasicModel:
         self.bid += 1
 
         optimizee = self.optimizees[opt_name]
-        x, optimizee_params = optimizee.sample_problem(batch_size)
+        #x, optimizee_params = optimizee.sample_problem(batch_size)
+        problem = optimizee.sample_problem(batch_size)
+        x, optimizee_params = problem.init, problem.params
 
         inf = self.ops[opt_name]['inference']
         losses = self.ops[opt_name]['losses']
@@ -327,11 +329,10 @@ class BasicModel:
 
         losses = []
 
-        input_state = self.input_state
-
         state = self.get_init_state(x)
         for _ in range(n_steps // self.config.n_bptt_steps):
-            feed_dict = self.get_feed_dict(input_state, state, optimizee_params, optimizee, batch_size=batch_size)
+            #feed_dict = self.get_feed_dict(state, optimizee_params, optimizee, batch_size=batch_size)
+            feed_dict = self.get_feed_dict(state, problem, batch_size=batch_size)
             info = self.session.run(run_op, feed_dict=feed_dict)
 
             state = info['final_state']
@@ -360,11 +361,11 @@ class BasicModel:
         return state
 
 
-    def get_feed_dict(self, input_state, state, params, opt, batch_size=1):
-        feed_dict = dict(zip(input_state, state))
-        feed_dict.update(params)
+    def get_feed_dict(self, state, problem, batch_size=1):
+        feed_dict = dict(zip(self.input_state, state))
+        feed_dict.update(problem.params)
 
-        nd = opt.get_next_dict(self.config.n_bptt_steps, batch_size)
+        nd = problem.get_next_dict(self.config.n_bptt_steps, batch_size)
         feed_dict.update(nd)
         #if self.is_rnnprop:
         #    feed_dict = {self.opt.x: state.x[0]}

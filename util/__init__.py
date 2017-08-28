@@ -1,10 +1,19 @@
+import time
 import inspect
 import random
 import json
 import pickle
+from contextlib import contextmanager
 import numpy as np
 from collections import namedtuple, OrderedDict
 from . import paths
+
+
+@contextmanager
+def log_execution_time(name='event', print_func=print):
+    start_time = time.time()
+    yield
+    print_func("Time of {}: {}".format(name, time.time() - start_time))
 
 
 def namedtuple_with_defaults(name, fields):

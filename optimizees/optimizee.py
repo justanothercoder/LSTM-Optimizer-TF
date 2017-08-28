@@ -1,5 +1,20 @@
+from collections import namedtuple
 import numpy as np
 import tensorflow as tf
+
+
+class Problem:
+    def __init__(self, init, params, name=None):
+        self.init = init
+        self.params = params
+        self.name = name
+
+
+    def get_next_dict(self, n_bptt_steps, batch_size):
+        raise NotImplementedError
+
+
+P = namedtuple('P', ['init', 'params'])
 
 
 class Optimizee:
