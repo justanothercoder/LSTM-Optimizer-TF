@@ -36,7 +36,6 @@ if __name__ == '__main__':
         import plotting
         plotting.run_plot(flags)
     elif flags.command_name == 'new':
-        import util
         util.run_new(flags)
     elif flags.command_name == 'explore':
         import explore

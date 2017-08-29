@@ -1,11 +1,11 @@
 from collections import namedtuple
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell, LSTMStateTuple
+from tensorflow.contrib.rnn import GRUCell, MultiRNNCell, LayerNormBasicLSTMCell, ResidualWrapper, LSTMBlockCell
 
 from . import basic_model
 from . import lstm_utils
-from .adam_opt import AdamOpt
+from . import config
 import util
 
 
@@ -27,95 +27,52 @@ def normalize(d, gamma=1.0, eps=1e-8):
     return d / (gamma * tf.norm(d, axis=-1, keep_dims=True) + eps)
 
 
-InitConfig = util.namedtuple_with_defaults(
-    'InitConfig', [
-        ('num_units', 20),
-        ('num_layers', 2),
-        ('beta1', 0.9),
-        ('beta2', 0.999),
-        ('eps', 1e-8),
-        ('layer_norm', True),
-        ('add_skip', False),
-        ('clip_delta', 2),
-        ('rnn_type', 'lstm'),
-        ('residual', False),
-        ('normalize_gradients', False),
-        ('learn_init', False),
-        ('use_both', False),
-        ('weight_norm', False),
-        ('only_adam_features', False)
-])
+class InitConfig(config.Config):
+    _default = {
+        'num_units': 20,
+        'num_layers': 2,
+        'beta1': 0.9,
+        'beta2': 0.999,
+        'eps': 1e-8,
+        'layer_norm': True,
+        'add_skip': False,
+        'clip_delta': 2,
+        'rnn_type': 'lstm',
+        'residual': False,
+        'normalize_gradients': False,
+        'learn_init': False,
+        'use_both': False,
+        'weight_norm': False,
+        'only_adam_features': False,
+        'adam_only': False,
+    }
+    
+
+LSTMOptState = namedtuple('LSTMOptState', ['m', 'v', 'b1t', 'b2t', 'loglr', 'cell_state', 'm_norm', 'v_norm'])
 
 
 class LSTMOpt(basic_model.BasicModel):
-    def __init__(self, init_config, **kwargs):
-        super(LSTMOpt, self).__init__(**kwargs)
-        self.init_config = init_config
-
-        states = ['m', 'v', 'b1t', 'b2t', 'loglr', 'lstm_state']
-        if init_config.use_both:
-            states += ['m_norm', 'v_norm']
-        self.LSTMOptState = namedtuple('LSTMOptState', states)
-        self.added_summary = False
-
-
     def build_pre(self):
         def make_cell(num_units, residual):
             if self.init_config.rnn_type == 'gru':
-                print("GRU")
                 cell = GRUCell(num_units)
             else:
                 if self.init_config.layer_norm:
-                    print("LSTM With layer norm")
                     cell = LayerNormBasicLSTMCell(num_units, layer_norm=True)
                 else:
-                    print("LSTM Without layer norm")
-                    #cell = LSTMCell(num_units)
                     cell = LSTMBlockCell(num_units)
 
             if residual:
                 cell = ResidualWrapper(cell)
             return cell
 
-        self.lstm = MultiRNNCell([
-                make_cell(self.init_config.num_units, self.init_config.residual and i > 0)
-                for i in range(self.init_config.num_layers)
+        self.cell = MultiRNNCell([
+            make_cell(self.init_config.num_units, self.init_config.residual and i > 0)
+            for i in range(self.init_config.num_layers)
         ])
 
-
-    def build_inputs(self):
-        m = tf.placeholder(tf.float32, [None, None], name='m')
-        v = tf.placeholder(tf.float32, [None, None], name='v')
-        b1t = tf.placeholder(tf.float32, [None], name='b1t')
-        b2t = tf.placeholder(tf.float32, [None], name='b2t')
-        loglr = tf.placeholder(tf.float32, [None, None], name='loglr')
-
-        if self.init_config.rnn_type == 'gru':
-            lstm_state = tuple(
-                tf.placeholder(tf.float32, [None, size]) # shape = (n_functions * n_coords, num_units)
-                for size in self.lstm.state_size
-            )
-        else:
-            lstm_state = tuple(
-                LSTMStateTuple(
-                    tf.placeholder(tf.float32, [None, size.c]),
-                    tf.placeholder(tf.float32, [None, size.h])
-                    ) # shape = (n_functions * n_coords, num_units)
-                for size in self.lstm.state_size
-            )
-
-        state = (m, v, b1t, b2t, loglr, lstm_state)
-
-        if self.init_config.use_both:
-            m_norm = tf.placeholder(tf.float32, [None, None], name='m_norm')
-            v_norm = tf.placeholder(tf.float32, [None, None], name='v_norm')
-            state = state + (m_norm, v_norm)
-
-        self.input_state = self.LSTMOptState(*state)
-        return self.input_state
-
     
-    def build_initial_state(self, x):
+    def init_state(self, x):
         m = tf.zeros(shape=tf.shape(x))
         v = tf.zeros(shape=tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
@@ -123,19 +80,20 @@ class LSTMOpt(basic_model.BasicModel):
         loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
 
         if self.init_config.learn_init:
-            lstm_state = lstm_utils.get_initial_cell_state(self.lstm, lstm_utils.make_variable_state_initializer(), tf.size(x), tf.float32)
+            cell_state = lstm_utils.get_initial_cell_state(self.cell, lstm_utils.make_variable_state_initializer(), tf.size(x), tf.float32)
         else:
-            lstm_state = self.lstm.zero_state(tf.size(x), tf.float32)
+            cell_state = self.cell.zero_state(tf.size(x), tf.float32)
 
-        state = (m, v, b1t, b2t, loglr, lstm_state)
+        state = (m, v, b1t, b2t, loglr, cell_state)
 
         if self.init_config.use_both:
             m_norm = tf.zeros(shape=tf.shape(x))
             v_norm = tf.zeros(shape=tf.shape(x))
             state = state + (m_norm, v_norm)
+        else:
+            state = state + (None, None)
 
-        self.initial_state = self.LSTMOptState(*state)
-        return self.initial_state
+        return LSTMOptState(*state)
 
 
     def adam_prep(self, g, state):
@@ -152,7 +110,7 @@ class LSTMOpt(basic_model.BasicModel):
             a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
             s = a * m / (tf.sqrt(v) + self.init_config.eps)
 
-            new_state = (m, v, b1t, b2t, state.loglr, state.lstm_state)
+            new_state = (m, v, b1t, b2t, state.loglr, state.cell_state)
 
             if self.init_config.only_adam_features:
                 features = [s]
@@ -171,11 +129,13 @@ class LSTMOpt(basic_model.BasicModel):
                     features += [s_norm]
                 else:
                     features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
+            else:
+                new_state = new_state + (None, None)
 
-            return self.LSTMOptState(*new_state), features, s
+            return LSTMOptState(*new_state), features, s
 
 
-    def step(self, f, g, state):
+    def step(self, g, state):
         with tf.name_scope('lstm_step'):
             g_shape = tf.shape(g)
 
@@ -186,11 +146,7 @@ class LSTMOpt(basic_model.BasicModel):
                 scope = tf.get_variable_scope()
                 scope.set_custom_getter(custom_getter)
             
-            last, lstm_state = self.lstm(prep, state.lstm_state)
-
-            if self.added_summary:
-                tf.summary.histogram('lstm_activations', last)
-
+            last, cell_state = self.cell(prep, state.cell_state)
             last = tf.layers.dense(last, 2, use_bias=False, name='dense')
 
             d, loglr_add = tf.unstack(last, axis=1)
@@ -203,28 +159,17 @@ class LSTMOpt(basic_model.BasicModel):
 
             if self.init_config.add_skip:
                 d += -s
-            
-            if self.kwargs.get('adam_only', False):
-                print("ADAMONLY")
-                d = -s
 
-            d = normalize(d, 1. / n_coords)
+            if self.init_config.adam_only:
+                d = -s
+            
+            #d = normalize(d, 1. / n_coords)
+            d = normalize(d, 1.)
 
             lr = tf.exp(loglr, name='lr')
             lr = tf.clip_by_value(lr, 0, self.init_config.clip_delta)
 
             step = d * lr
-            new_state = new_state._replace(lstm_state=lstm_state, loglr=loglr)
-
-            if self.added_summary:
-                tf.summary.histogram('loglr', loglr)
-                tf.summary.scalar('max_loglr', tf.reduce_max(tf.reduce_mean(loglr, axis=0)))
-                tf.summary.scalar('mean_loglr', tf.reduce_mean(loglr))
-                self.added_summary = True
-
-            #adam_normed = tf.nn.l2_normalize(-s, 1)
-            #step_normed = tf.nn.l2_normalize(d, 1)
-            #cos_ = tf.reduce_sum(adam_normed * step_normed, axis=1)
+            new_state = new_state._replace(cell_state=cell_state, loglr=loglr)
 
         return step, new_state
-

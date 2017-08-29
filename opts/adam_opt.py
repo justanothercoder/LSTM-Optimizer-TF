@@ -24,28 +24,7 @@ class AdamOpt(BasicModel):
         self.AdamOptState = namedtuple('AdamOptState', fields)
     
     
-    def build_inputs(self):
-        m = tf.placeholder(tf.float32, [None, None], name='v')
-        v = tf.placeholder(tf.float32, [None, None], name='v')
-        b1t = tf.placeholder(tf.float32, [None], name='beta1')
-        b2t = tf.placeholder(tf.float32, [None], name='beta1')
-
-        state = (m, v, b1t, b2t)
-
-        if self.enable_reduce:
-            lr = tf.placeholder(tf.float32, [None], name='lr')
-            f_best = tf.placeholder(tf.float32, [None], name='f_best')
-            f_ma = tf.placeholder(tf.float32, [None], name='f_ma')
-            patience = tf.placeholder(tf.int32, [None], name='patience')
-            sid = tf.placeholder(tf.int32, [], name='sid')
-
-            state = state + (lr, f_best, f_ma, patience, sid)
-
-        self.input_state = self.AdamOptState(*state)
-        return self.input_state
-    
-    
-    def build_initial_state(self, x):
+    def init_state(self, x):
         m = tf.zeros(tf.shape(x))
         v = tf.zeros(tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
@@ -62,8 +41,8 @@ class AdamOpt(BasicModel):
 
             state = state + (lr, f_best, f_ma, patience, sid)
 
-        self.initial_state = self.AdamOptState(*state)
-        return self.initial_state
+        initial_state = self.AdamOptState(*state)
+        return initial_state
 
 
     def build_pre(self):
@@ -137,4 +116,3 @@ class AdamOpt(BasicModel):
 
     def save(self, eid):
         pass
-

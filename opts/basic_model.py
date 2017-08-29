@@ -1,607 +1,280 @@
+import logging
 from collections import namedtuple
-import time
-import random
+
 import numpy as np
-
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMStateTuple
 
-from .cells import LSTMOptCell, OptFuncCell
-import util
-from problem_producer import RandomProducer
-from inference import static_inference, dynamic_inference, cell_inference
+from util import log_execution_time
+from problem_producer import RandomProducer, FixedProducer
+
+
+def clip_grads(grads, clip=3.0):
+    grads, tvars = list(zip(*grads))
+
+    grads, _ = tf.clip_by_global_norm(grads, clip)
+    grads = list(zip(grads, tvars))
+
+    return grads
 
 
 RNNOptState = namedtuple('RNNOptState', ['x', 'rnn_state'])
-
-BuildConfig = util.namedtuple_with_defaults(
-    'BuildConfig', [
-        ('n_bptt_steps', 20),
-        ('loss_type', 'log'),
-        ('lambd', 0.),
-        ('lambd_l1', 0.),
-        ('inference_only', False),
-        ('normalize_lstm_grads', False),
-        ('grad_clip', 1.),
-        ('stop_grad', True),
-        ('dynamic', False),
-        ('cell', False)
-    ])
+Point = namedtuple('Point', ['value', 'gradient', 'gradient_norm'])
 
 
 class BasicModel:
-    def __init__(self, name=None, snapshot_path=None, debug=False):
-        self.bid = 0
+    def __init__(self, init_config, name=None, snapshot_path=None):
         self.name = name
+        self.init_config = init_config
         self.snapshot_path = snapshot_path
-        self.debug = debug
+
+        #FORMAT = '%(asctime)-15s epoch=%(epoch)d;batch=%(batch)d; %(message)s'
+        FORMAT = '%(asctime)-15s %(message)s'
+        logging.basicConfig(format=FORMAT)
+        logging.getLogger().setLevel(logging.INFO)
 
     
-    def build(self, optimizees, build_config=BuildConfig(), **kwargs):
-        self.optimizees = optimizees
-        self.config = build_config
-        ops = {}
-
-        self.kwargs = kwargs
-        vars_opt = set()
-
-        with tf.variable_scope('opt_scope') as scope:
-            self.scope = scope
-            self.build_pre()
-            
-            self.x = tf.placeholder(tf.float32, shape=[None, None], name='theta')
-            
-            if self.config.cell:
-                self.cell = LSTMOptCell(self.init_config)
-                self.cell.kwargs = kwargs
-                self.input_state = RNNOptState(self.x, self.cell.zero_state(self.x))
-            elif self.is_rnnprop:
-                self.input_state = self.build_inputs()
-                self.initial_state = self.build_initial_state(self.x)
-            else:
-                self.input_state = self.build_inputs()
-                self.initial_state = self.build_initial_state(self.x)
-                self.initial_state = RNNOptState(self.x, self.initial_state)
-
-                self.input_state = RNNOptState(self.x, self.input_state)
-
-            reuse = False
-                
-            summaries = set()
-
-            for opt_name, optimizee in optimizees.items():
-                with tf.name_scope(opt_name):
-                    with tf.variable_scope('inference_scope', reuse=reuse) as self.inf_scope:
-                        inference = self.inference(optimizee, self.input_state)
-                        vars_opt |= set(optimizee.vars_)
-            
-                    ops[opt_name] = dict(inference=inference)
-
-                    if not reuse:
-                        reuse = True
-
-                new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
-                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-
-                ops[opt_name]['summaries'] = new_summaries
-            
-            self.all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.inf_scope.name)
-            self.all_vars = list(set(self.all_vars) - vars_opt)
-
-            for opt_name, optimizee in optimizees.items():
-                with tf.name_scope(opt_name):
-                    inference = ops[opt_name]['inference']
-                    ops[opt_name]['losses'] = self.loss(inference)
-                
-                new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
-                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-                
-                ops[opt_name]['summaries'] |= new_summaries
-
-            if not self.config.inference_only and self.all_vars:
-                self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
-                self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
-                self.optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
-                
-                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-
-                for v in self.all_vars:
-                    tf.summary.histogram(v.name, v)
-
-                var_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
-                summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-
-                for opt_name in optimizees:
-                    with tf.name_scope(opt_name):
-                        losses = ops[opt_name]['losses']
-
-                        grads = self.grads(self.optimizer, losses)
-
-                        if isinstance(losses, dict):
-                            losses = list(losses.values())[0]
-                
-                        tf.summary.scalar('sum_loss', tf.add_n(losses))
-
-                        for g, v in grads:
-                            tf.summary.histogram('%s/grad' % v.name, g)
-
-                        train_op = self.train_op(self.optimizer, grads)
-
-                        ops[opt_name].update({
-                            'grads': grads,
-                            'train_op': train_op
-                        })
-
-                        if not scope.reuse:
-                            scope.reuse_variables()
-
-                        new_summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES)) - summaries
-                        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-                        ops[opt_name]['summaries'] = tf.summary.merge(list(ops[opt_name]['summaries'] | new_summaries | var_summaries))
-
-            self.ops = ops
-            self.saver = tf.train.Saver(max_to_keep=None, var_list=self.all_vars, allow_empty=True)
+    def build_pre(self):
+        raise NotImplementedError
 
 
-    def step_with_func(self, f, i, state, stop_grad=True):
-        value, gradient = f(state.x, i)
-        if stop_grad:
-            gradient = tf.stop_gradient(gradient)
+    def step(self, f, state):
+        raise NotImplementedError
 
+
+    @staticmethod
+    def get_inputs(f, theta, i):
+        value, gradient = f(theta, i)
+        gradient = tf.stop_gradient(gradient)
         gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
 
-        if i == 0 and self.config.inference_only:
-            tf.summary.scalar('mean_value', tf.reduce_mean(value))
-            tf.summary.scalar('mean_grad_norm', tf.reduce_mean(gradient_norm))
+        return Point(value, gradient, gradient_norm)
 
-        if self.config.cell:
-            step, rnn_state = self.cell(gradient, state.rnn_state)
-        else:
-            step, rnn_state = self.step(value, gradient, state.rnn_state)
+
+    def step_with_func(self, f, state, step):
+        output = self.get_inputs(f, state.x, step)
+        step, rnn_state = self.step(output.gradient, state.rnn_state)
         state = state._replace(x=state.x + step, rnn_state=rnn_state)
-
-        ret = dict(value=value, gradient_norm=gradient_norm, state=state)
-
-        if 'loglr' in rnn_state._fields:
-            ret['loglr'] = tf.reshape(rnn_state.loglr, tf.shape(state.x))
-
-        return ret
+        return output, state
 
 
-    def inference(self, optimizee, input_state):
-        Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config'])
-        model = Model(input_state, self.inf_scope, self.step_with_func, self.config)
+    def build(self, optimizees, config):
+        self.theta = tf.placeholder(tf.float32, shape=[None, None], name='theta')
 
-        if self.config.cell:
-            Model = namedtuple('Model', ['input_state', 'inference_scope', 'step_with_func', 'config', 'cell'])
-            model = Model(input_state, self.inf_scope, self.step_with_func, self.config, self.cell)
-            ret = cell_inference(model, optimizee)
-        else:
-            if self.config.dynamic:
-                ret = dynamic_inference(model, optimizee)
-            else:
-                ret = static_inference(model, optimizee)
+        self.build_pre()
+        self.initial_state = RNNOptState(self.theta, self.init_state(self.theta))
 
-        # first_step = steps_info[0]
-        # if not self.is_rnnprop:
-        #     keys = set(first_step.keys())
+        self.n_bptt_steps = config.n_bptt_steps
+        self.optimizees = optimizees
 
-        #     if 'state' in keys:
-        #         state_keys = set(first_step['state'].keys())
-        #     
-        #         if 'loglr' in state_keys:
-        #             ret['lrs'] = [info['state']['loglr'] for info in steps_info]
+        ops = {}
+        
+        if not config.inference_only:
+            self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
+            self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
 
-        #     if 'cos_step_adam' in keys:
-        #         ret['cosines'] = [info['cos_step_adam'] for info in steps_info]
+            optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
 
-        return ret
+        reuse = False
+        reg_loss = None
 
+        for opt_name, optimizee in optimizees.items():
+            with tf.variable_scope('inference', reuse=reuse) as self.scope:
+                with tf.name_scope(opt_name):
+                    state = self.initial_state
+                    values = []
+                    norms = []
+                    lrs = []
 
-    def loss(self, inference):
-        with tf.name_scope('loss'):
-            values = tf.stack(inference['values'])
-            losses = []
+                    for step in range(config.n_bptt_steps):
+                        output, state = self.step_with_func(optimizee.loss, state, step)
 
-            if self.config.loss_type == 'log':
-                loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8), name='loss')
+                        values.append(output.value)
+                        norms.append(output.gradient_norm)
 
-                if 'lrs' in inference and self.config.lambd != 0.:
-                    lrs = tf.stack(inference['lrs'], name='lrs')
-                    lr_loss = -self.config.lambd * tf.reduce_mean(lrs - lrs[:1])
-                    losses.append(lr_loss)
+                        if 'loglr' in state.rnn_state._fields:
+                            lrs.append(state.rnn_state.loglr)
 
-            elif self.config.loss_type == 'log_smooth':
-                smooth_vals = []
-                for i in range(self.config.n_bptt_steps):
-                    if i == 0:
-                        smooth_val = values[i]
-                    else:
-                        smooth_val = 0.95 * smooth_val + 0.05 * values[i]
-                    smooth_vals.append(smooth_val)
+                        if step == 0:
+                            self.scope.reuse_variables()
 
-                smooth_vals = tf.stack(smooth_vals)
-                loss = tf.reduce_mean(tf.log(smooth_vals + 1e-8) - tf.log(smooth_vals[:1] + 1e-8))
+                    values = tf.stack(values, axis=0)
+                    loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
 
-            elif self.config.loss_type == 'sum':
-                loss = tf.reduce_mean(values)
-            else:
-                loss = values[-1]
+            reuse = True
 
-            if self.all_vars:
-                weights = [v for v in self.all_vars if 'bias' not in v.name]
-                reg_loss = tf.add_n([self.config.lambd_l1 * tf.norm(v, ord=1) for v in weights], name='reg_loss')
-                losses.append(reg_loss)
-                tf.summary.scalar('reg_loss', reg_loss)
+            if not config.inference_only:
+                with tf.variable_scope('train'):
+                    if reg_loss is None:
+                        reg_loss = tf.add_n([tf.norm(v, 1) for v in tf.trainable_variables()]) * config.lambd_l1
 
-            tf.summary.scalar('loss', loss)
-            return [loss] + losses
+                    grads = optimizer.compute_gradients(loss + reg_loss, var_list=tf.trainable_variables())
+
+                    if config.normalize_lstm_grads:
+                        norm = tf.global_norm(grads)
+                        grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
+
+                    grads = clip_grads(grads, config.grad_clip)
+                    train_op = optimizer.apply_gradients(grads)
+
+                    ops[opt_name] = dict(values=values, norms=norms, losses=[loss, reg_loss], train_op=train_op, final_state=state)
+                    if 'loglr' in state._fields:
+                        ops[opt_name]['lrs'] = lrs
+
+            self.ops = ops
+            self.saver = tf.train.Saver(max_to_keep=None, var_list=tf.trainable_variables(), allow_empty=True)
 
 
-    def grads(self, optimizer, losses):
-        loss = tf.add_n(losses, name='sum_loss')
+    def test(self, config, producer=None):
+        self.session = tf.get_default_session()
+        if config.restore:
+            self.restore(config.eid)
 
-        with tf.name_scope('grads'):
-            grads = optimizer.compute_gradients(loss, var_list=self.all_vars)
-
-            if self.config.normalize_lstm_grads:
-                print("Using normalized meta-grads")
-                norm = tf.global_norm(grads)
-                grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
-
-            grads, _ = tf.clip_by_global_norm([g for g, _ in grads], self.config.grad_clip)
-            grads = list(zip(grads, self.all_vars))
-
-        return grads
-
-
-    def train_op(self, optimizer, grads):
-        train_op = optimizer.apply_gradients(grads)
-
-        #if self.debug:
-        #    check_op = tf.add_check_numerics_ops()
-        #    train_op = tf.group(train_op, check_op)
-
-        return train_op
-
-
-    def log(self, message, verbosity, level=0):
-        if verbosity <= self.verbose:
-            message = '\t' * level + message
-            print(message)
-
-
-    def test(self, eid, n_batches, n_steps=20, batch_size=1, opt_name=None, verbose=1, session=None):
-        self.session = session or tf.get_default_session()
-        self.restore(eid)
-        self.verbose = verbose
-
+        producer = producer or RandomProducer(self.optimizees)
         rets = []
 
-        sample_optimizee = (opt_name is None)
-        opt_names = list(self.optimizees.keys())
-
-        for batch in range(n_batches):
-            self.log("Batch: {}".format(batch), verbosity=1, level=0)
-            if sample_optimizee:
-                opt_name = random.choice(opt_names)
-
-            batch_time = time.time()
-            ret = self.test_one_iteration(n_steps, opt_name, batch_size=batch_size)
-            batch_time = time.time() - batch_time
-            self.log("Time: {}".format(batch_time), verbosity=1, level=1)
+        for batch in range(config.n_batches):
+            with log_execution_time('batch {}'.format(batch), logging.info):
+                problem = producer.sample(config.batch_size)
+                ops = self.ops[problem.name].copy()
+                ops.pop('train_op')
+                ret = self.run_iteration(problem, config, ops)
+                
+            logging.info("Loss: {}".format(ret['loss'] / np.log(10)))
             rets.append(ret)
 
         return rets
 
 
-    def test_one_iteration(self, n_steps, opt_name, batch_size=1):
-        self.bid += 1
+    def run_iteration(self, problem, config, run_op):
+        n_unrolls = config.n_steps // self.n_bptt_steps
+        train = 'train_op' in run_op
 
-        optimizee = self.optimizees[opt_name]
-        #x, optimizee_params = optimizee.sample_problem(batch_size)
-        problem = optimizee.sample_problem(batch_size)
-        x, optimizee_params = problem.init, problem.params
+        if train:
+            if config.masked_train == 'random':
+                mask = np.random.binomial(n=1, p=config.masked_train_p, size=n_unrolls)
+            elif config.masked_train == 'first-last':
+                mask = np.ones(n_unrolls)
+                left = int(config.masked_train_p / 2 * n_unrolls)
+                right = n_unrolls - int(config.masked_train_p / 2 * n_unrolls)
+                mask[left:right] = 0 
+            else:
+                mask = np.ones(n_unrolls)
 
-        inf = self.ops[opt_name]['inference']
-        losses = self.ops[opt_name]['losses']
-
-        if hasattr(self, 'devices'):
-            inf = list(inf.values())[0]
-            losses = list(losses.values())[0]
-
-        run_op = {
-            'loss': losses[0],
-            'values': inf['values'],
-            'norms': inf['norms'],
-            'final_state': inf['final_state'],
-        }
-
-        steps_info = dict(values=[], norms=[])
-
-        #if inf.get('cosines'):
-        #    run_op['cosines'] = inf['cosines']
-        #    steps_info['cosines'] = []
-
-        if inf.get('lrs'):
-            run_op['lrs'] = inf['lrs']
-            steps_info['lrs'] = []
-
+        state = self.session.run(self.initial_state, feed_dict={self.theta: problem.init})
         losses = []
+        results = {field: [] for field in run_op if field not in {'losses', 'final_state', 'train_op'}}
 
-        state = self.get_init_state(x)
-        for _ in range(n_steps // self.config.n_bptt_steps):
-            #feed_dict = self.get_feed_dict(state, optimizee_params, optimizee, batch_size=batch_size)
-            feed_dict = self.get_feed_dict(state, problem, batch_size=batch_size)
+        logging.info("Optimizee: {}".format(problem.name))
+
+        for i in range(n_unrolls):
+            feed_dict = self.get_feed_dict(state, problem, self.n_bptt_steps, config.batch_size)
+
+            if train:
+                feed_dict.update({
+                    self.train_lr: config.train_lr,
+                    self.momentum: config.momentum,
+                })
+
+            if train and mask[i] == 0:
+                run_op = run_op.copy()
+                del run_op['train_op']
+
             info = self.session.run(run_op, feed_dict=feed_dict)
-
             state = info['final_state']
-            losses.append(info['loss'])
 
-            for k in steps_info:
-                steps_info[k].extend(info[k])
+            losses.append(info['losses'][0])
 
-        self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
-
-        ret = dict(optimizee_name=opt_name, loss=np.mean(losses))
-        for k in steps_info:
-            ret[k] = np.array(steps_info[k])
-
-        return ret
-
+            for field in results:
+                results[field].extend(info[field])
+                
+        d = dict(optimizee_name=problem.name, loss=np.mean(losses))
+        d.update({
+            field: np.array(vals)
+            for field, vals in results.items()
+        })
+        return d
     
-    def get_init_state(self, x):
-        if self.config.cell:
-            state = self.session.run(self.input_state, {self.x: x})
-        elif self.is_rnnprop:
-            state = self.session.run(self.initial_state, feed_dict={self.opt.x: x[0]})
-        else:
-            state = self.session.run(self.initial_state, feed_dict={self.x: x})
+    
+    def run_train_epoch(self, config, producer):
+        train_rets = []
 
-        return state
+        for batch in range(config.n_batches):
+            with log_execution_time('train batch', logging.info):
+                problem = producer.sample(config.batch_size)
+                ret = self.run_iteration(problem, config, self.ops[problem.name])
+
+            logging.info("First function value: {}".format(ret['values'][0][0]))
+            logging.info("Last function value: {}".format(ret['values'][-1][0]))
+            logging.info("Loss: {}".format(ret['loss'] / np.log(10)))
+
+            if np.isnan(ret['loss']):
+                logging.error("Loss is NaN")
+                raise "Loss is NaN"
+            elif np.isinf(ret['loss']):
+                logging.error("Loss is +-INF")
+                raise "Loss is +-INF"
+
+            train_rets.append(ret)
+
+        return train_rets
 
 
-    def get_feed_dict(self, state, problem, batch_size=1):
-        feed_dict = dict(zip(self.input_state, state))
+    def train(self, config):
+        self.session = tf.get_default_session()
+        random_producer = RandomProducer(self.optimizees)
+        fixed_producer = FixedProducer(self.optimizees).new(config.n_batches, config.batch_size)
+
+        logging.info("Training model: {}".format(self.name))
+
+        if config.eid > 0:
+            self.restore(config.eid)
+            self.bid = config.eid * config.n_batches
+
+        train_rets = []
+        test_rets = []
+
+        test_config = config.to_test_config()
+
+        try:
+            for epoch in range(config.eid, config.n_epochs):
+                self.epoch = epoch
+                with log_execution_time('train epoch', logging.info):
+                    train_rets.extend(self.run_train_epoch(config, producer=random_producer))
+
+                loss = np.mean([r['loss'] for r in train_rets])
+                logging.info("Epoch loss: {}".format(loss / np.log(10)))
+
+                if (epoch + 1) % config.save_every == 0:
+                    self.save(epoch + 1)
+
+                if config.test and (epoch + 1) % config.test_every == 0:
+                    with log_execution_time('test epoch', logging.info):
+                        test_rets.extend(self.test(test_config, producer=fixed_producer))
+
+        except KeyboardInterrupt:
+            print("Stopped training early")
+
+        return train_rets, test_rets
+
+
+    def get_feed_dict(self, state, problem, n_bptt_steps, batch_size=1):
+        feed_dict = dict(zip(self.initial_state, state))
         feed_dict.update(problem.params)
-
-        nd = problem.get_next_dict(self.config.n_bptt_steps, batch_size)
-        feed_dict.update(nd)
-        #if self.is_rnnprop:
-        #    feed_dict = {self.opt.x: state.x[0]}
+        feed_dict.update(problem.get_next_dict(n_bptt_steps, batch_size))
         return feed_dict
-
-
-    #def train(self, n_epochs, n_batches, batch_size=100, n_steps=20, train_lr=1e-2, momentum=0.9, eid=0, test=True, verbose=1):
-    #    self.verbose = verbose
-    #    self.lr = train_lr
-    #    self.mu = momentum
-
-    #    if eid > 0:
-    #        self.restore(eid)
-    #        self.bid = eid * n_batches
-
-    #    train_rets = []
-    #    test_rets = []
-
-    #    sample_steps = bool(n_steps == 0)
-
-    #    try:
-    #        for epoch in range(eid, n_epochs):
-    #            self.log("Epoch: {}".format(epoch), verbosity=1, level=0)
-    #            epoch_time = time.time()
-
-    #            loss = None
-
-    #            for batch in range(n_batches):
-    #                self.log("Batch: {}".format(batch), verbosity=2, level=1)
-    #                if sample_steps:
-    #                    #n_steps = int(np.random.exponential(scale=200)) + 50
-
-    #                    exp_scale = min(50, epoch)
-    #                    n_steps = int(np.random.exponential(scale=exp_scale)) + 1
-    #                    n_steps *= self.n_bptt_steps
-    #                    self.log("n_steps: {}".format(n_steps), verbosity=2, level=2)
-
-    #                batch_time = time.time()
-    #                ret = self.train_one_iteration(n_steps, batch_size)
-
-    #                if np.isnan(ret['loss']):
-    #                    print("Loss is NaN")
-    #                    #print(ret['fxs'])
-
-    #                if loss is not None:
-    #                    loss = 0.9 * loss + 0.1 * ret['loss']
-    #                else:
-    #                    loss = ret['loss']
-    #                batch_time = time.time() - batch_time
-
-    #                self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
-    #                train_rets.append(ret)
-
-    #            self.log("Epoch time: {}".format(time.time() - epoch_time), verbosity=1, level=1)
-    #            self.log("Epoch loss: {}".format(loss / np.log(10) / self.n_bptt_steps), verbosity=1, level=1)
-
-    #            if test and (epoch + 1) % 10 == 0:
-    #                self.save(epoch + 1)
-
-    #                opt_name = random.choice(list(self.optimizees.keys()))
-
-    #                self.log("Test epoch: {}".format(epoch), verbosity=1, level=0)
-    #                test_epoch_time = time.time()
-
-    #                for batch in range(n_batches):
-    #                    self.log("Test batch: {}".format(batch), verbosity=2, level=1)
-
-    #                    batch_time = time.time()
-    #                    ret = self.test_one_iteration(n_steps, opt_name)
-    #                    batch_time = time.time() - batch_time
-    #                    self.log("Batch time: {}".format(batch_time), verbosity=2, level=2)
-
-    #                    test_rets.append(ret)
-
-    #                test_epoch_time = time.time() - test_epoch_time
-    #                self.log("Epoch time: {}".format(test_epoch_time), verbosity=1, level=1)
-    #    except KeyboardInterrupt:
-    #        print("Stopped training early")
-
-    #    return train_rets, test_rets
-
-
-    #def train_one_iteration(self, n_steps, batch_size=1):
-    #    self.bid += 1
-    #    session = tf.get_default_session()
-
-    #    ret = {}
-
-    #    opt_name, optimizee = random.choice(list(self.optimizees.items()))
-
-    #    x = optimizee.get_initial_x(batch_size)
-    #    state = session.run(self.initial_state, feed_dict={self.x: x})
-
-    #    optimizee_params = optimizee.get_new_params(batch_size)
-
-    #    losses = []
-    #    fxs = []
-
-    #    self.log("Optimizee: {}".format(opt_name), verbosity=2, level=2)
-
-    #    def extract(opt_name, key, pkey='inference'):
-    #        inf = self.ops[opt_name][pkey]
-
-    #        if hasattr(self, 'devices'):
-    #            inf = list(inf.values())[0]
-
-    #        return inf[key]
-
-    #    run_op = [
-    #            self.ops[opt_name]['train_op'],
-    #            extract(opt_name, 0, pkey='losses'),
-    #            extract(opt_name, 'values'),
-    #            extract(opt_name, 'norms'),
-    #            extract(opt_name, 'cosines'),
-    #        ]
-
-    #    for i in range(n_steps // self.n_bptt_steps):
-    #        feed_dict = optimizee_params
-    #        feed_dict.update({inp: init for inp, init in zip(self.input_state, state)})
-    #        feed_dict.update(optimizee.get_next_dict(self.n_bptt_steps, batch_size))
-    #        feed_dict.update({
-    #            self.train_lr: self.lr,
-    #            self.momentum: self.mu,
-    #        })
-    #        _, state, loss, fx, g_norm, cos_step_grad = session.run(run_op, feed_dict=feed_dict)
-
-    #        if i == 0:
-    #            #self.log("fx shape: {}".format(np.array(fx).shape), verbosity=2, level=2)
-    #            self.log("First function value: {}".format(fx[0][0]), verbosity=2, level=2)
-
-    #        losses.append(loss)
-    #        fxs.extend(fx)
-    #        norms.extend(g_norm)
-    #        cosines.extend(cos_step_grad)
-
-    #    self.log("Last function value: {}".format(fx[-1][0]), verbosity=2, level=2)
-    #    self.log("Loss: {}".format(np.mean(losses / np.log(10))), verbosity=2, level=2)
-
-    #    ret['optimizee_name'] = opt_name
-    #    ret['loss'] = np.mean(losses)
-    #    ret['fxs'] = fxs
-
-    #    return ret
-    
-    
-    def train(self, n_epochs, n_batches, batch_size=100, n_steps=100, eid=0, test=True, seed=None, session=None):
-        self.session = session or tf.get_default_session() 
-        if eid > 0:
-            self.restore(eid)
-
-        epoch_losses = []
-        problem_producer = RandomProducer(self.optimizees, seed=seed)
-
-        for epoch in range(eid, n_epochs):
-            epoch_start = time.time()
-            batch_losses = []
-            for problem in problem_producer.sample_sequence(n_batches, batch_size):
-                batch_start = time.time()
-
-                ops = self.ops[problem.name]
-                inf = ops['inference']
-
-                losses = ops['losses']
-
-                if hasattr(self, 'devices'):
-                    inf = list(inf.values())[0]
-                    losses = list(losses.values())[0]
-
-
-                #input_state = inf['cell'].zero_state(tf.size(self.x))
-                #input_state = inf['istate']
-                state = self.session.run(self.input_state, {self.x: problem.init})
-
-                losses_ = []
-                n_unrolls = n_steps // self.config.n_bptt_steps
-                for _ in range(n_unrolls):
-                    feed_dict = dict(zip(self.input_state, state))
-                    feed_dict.update(problem.params)
-                    feed_dict.update(problem.optim.get_next_dict(self.config.n_bptt_steps, batch_size))
-                    feed_dict.update({self.x: problem.init, self.train_lr: 1e-4, self.momentum: 0.9})
-                    
-                    loss, state, _ = self.session.run([losses, inf['final_state'], ops['train_op']], feed_dict=feed_dict)
-                    losses_.append(loss)
-
-                batch_loss = np.mean(losses_)
-                batch_time = time.time() - batch_start
-                batch_losses.append(batch_loss)
-
-            epoch_loss = np.mean(batch_losses)
-            epoch_losses.extend(batch_losses)
-
-            train_loss = np.mean(epoch_losses)
-            epoch_time = time.time() - epoch_start
-            print("Epoch: {}, Train loss: {}, Time: {}".format(epoch, train_loss, epoch_time))
-
-            if (epoch + 1) % 5 == 0:
-                self.save(epoch + 1)
-
-        return epoch_losses
 
 
     def restore(self, eid):
         snapshot_path = self.snapshot_path / 'epoch-{}'.format(eid)
         print("Snapshot path: ", snapshot_path)
+
         self.saver.restore(self.session, str(snapshot_path))
         print(self.name, "restored.")
 
 
     def save(self, eid):
-        folder = self.snapshot_path
-        filename = folder / 'epoch'
-
+        filename = self.snapshot_path / 'epoch'
         print("Saving to ", filename)
+
         self.saver.save(self.session, str(filename), global_step=eid)
         print(self.name, "saved.")
-    
-    
-    @property
-    def is_rnnprop(self):
-        return self.__class__.__name__ == 'RNNPropOpt'
-        
-
-    def build_inputs(self):
-        raise NotImplementedError
-
-
-    def build_initial_state(self):
-        raise NotImplementedError
-
-
-    def build_pre(self):
-        raise NotImplementedError
-
-
-    def step(self, g, state):
-        if self.config.cell:
-            return self.cell(g, state)
-        else:
-            raise NotImplementedError

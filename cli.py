@@ -2,22 +2,12 @@ import argparse
 
 def make_train_parser(parser):
     parser.add_argument('--eid', type=int, default=0, help='epoch id from which start training')
-
-    parser.add_argument('--optimizer', type=str,
-                        default='adam', choices=['adam', 'momentum', 'yellowfin'],
-                        help='optimizer to train LSTM')
-
     parser.add_argument('--normalize_lstm_grads', action='store_true')
 
     parser.add_argument('--train_lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
     parser.add_argument('--grad_clip', type=float, default=1.)
 
-    parser.add_argument('--loss-type', type=str,
-                        choices=['log', 'sum', 'last', 'log_smooth'], default='log',
-                        help='loss function to use')
-
-    parser.add_argument('--lambd', type=float, default=0)
     parser.add_argument('--lambd-l1', type=float, default=0)
 
     parser.add_argument('--n_steps', type=int, default=100, help='number of steps')
@@ -30,13 +20,11 @@ def make_train_parser(parser):
     parser.add_argument('-opt', '--optimizee', type=str, nargs='+', default='all',
                         help='space separated list of optimizees or all')
 
-    parser.add_argument('--enable_random_scaling', action='store_true',
+    parser.add_argument('-scale','--enable_random_scaling', action='store_true',
                         help='enable random scaling of problems')
 
     parser.add_argument('--noisy_grad', action='store_true',
                         help='add normal noise to gradients of non-stochastic problems')
-    parser.add_argument('--no_stop_grad', action='store_false', dest='stop_grad',
-                        help='whether to compute second derivatives')
     parser.add_argument('--masked-train', type=str, choices=['none', 'random', 'first-last'], default='none')
     parser.add_argument('--masked-train-p', type=float, default=0.2)
 
@@ -126,6 +114,7 @@ def make_new_parser(parser):
                         help='learn initial hidden state')
     parser.add_argument('--weight-norm', action='store_true', help='enable weight normalization')
     parser.add_argument('--only-adam-features', action='store_true')
+    parser.add_argument('--adam-only', action='store_true')
     parser.add_argument('--clip-delta', type=float, default=2)
     
 
@@ -159,8 +148,6 @@ def make_parser():
 
     run_parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1)
     run_parser.add_argument('--debug', action='store_true')
-    run_parser.add_argument('--dynamic', action='store_true')
-    run_parser.add_argument('--cell', action='store_true')
 
     parser_new = subparsers.add_parser('new', help='add new model')
     parser_train = subparsers.add_parser('train', parents=[run_parser],

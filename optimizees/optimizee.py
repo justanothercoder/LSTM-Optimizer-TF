@@ -4,17 +4,13 @@ import tensorflow as tf
 
 
 class Problem:
-    def __init__(self, init, params, name=None):
+    def __init__(self, init, params):
         self.init = init
         self.params = params
-        self.name = name
 
 
     def get_next_dict(self, n_bptt_steps, batch_size):
         raise NotImplementedError
-
-
-P = namedtuple('P', ['init', 'params'])
 
 
 class Optimizee:
@@ -26,8 +22,6 @@ class Optimizee:
     
     
     def custom_getter(self, getter, name, shape=None, *args, **kwargs):
-        #print('getter', name, shape)
-
         def dim_to_int(dim):
             if isinstance(dim, tf.Dimension):
                 dim = dim.value
@@ -37,7 +31,6 @@ class Optimizee:
             shape = [dim_to_int(d) for d in shape]
             dim = np.prod(shape)
 
-            #print(shape, dim)
             var = tf.reshape(self.coord_vector[0, self.coord_pos: self.coord_pos + dim], shape)
 
             pos = (self.coord_pos, self.coord_pos + dim)
@@ -68,8 +61,4 @@ class Optimizee:
 
 
     def sample_problem(self, batch_size=1):
-        raise NotImplementedError
-
-
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
         raise NotImplementedError
