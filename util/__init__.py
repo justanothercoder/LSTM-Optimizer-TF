@@ -87,9 +87,10 @@ def load_opt(model_path):
 
     name = flags.pop('name')
     snapshot_path = model_path / 'snapshots'
-    config = InitConfig(**flags)
 
     from opts.lstm_opt import LSTMOpt, InitConfig
+    config = InitConfig(**flags)
+
     opt = LSTMOpt(config, name=name, snapshot_path=snapshot_path)
     return opt
 

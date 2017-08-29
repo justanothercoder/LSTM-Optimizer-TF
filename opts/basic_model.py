@@ -91,7 +91,7 @@ class BasicModel:
                         values.append(output.value)
                         norms.append(output.gradient_norm)
 
-                        if 'loglr' in state.rnn_state._fields:
+                        if hasattr(state.rnn_state, '_fields') and 'loglr' in state.rnn_state._fields:
                             lrs.append(state.rnn_state.loglr)
 
                         if step == 0:

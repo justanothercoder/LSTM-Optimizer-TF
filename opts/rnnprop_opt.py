@@ -1,15 +1,13 @@
 import pathlib
-
-import numpy as np
 import tensorflow as tf
 
-from . import basic_model
+from .basic_model import BasicModel, Point
 from rnnprop.nn_opt.rnn import RNNpropModel
 
 
-class RNNPropOpt(basic_model.BasicModel):
-    def __init__(self, name='rnnprop', eid=250, **kwargs):
-        super(RNNPropOpt, self).__init__(name=name, snapshot_path=pathlib.Path('rnnprop/snapshots'), **kwargs)
+class RNNPropOpt(BasicModel):
+    def __init__(self, name='rnnprop', eid=340, **kwargs):
+        super(RNNPropOpt, self).__init__(None, name=name, snapshot_path=pathlib.Path('rnnprop/snapshots'))
         self.name = name
         self.model = RNNpropModel
         self.old_build = self.model._build
@@ -20,7 +18,6 @@ class RNNPropOpt(basic_model.BasicModel):
 
 
     def build(self, optimizees, build_config, **kwargs):
-
         self.opt = RNNpropModel('rnnprop', is_training=not build_config.inference_only, **kwargs)
         super(RNNPropOpt, self).build(optimizees, build_config, **kwargs)
 
@@ -28,22 +25,16 @@ class RNNPropOpt(basic_model.BasicModel):
     def build_pre(self):
         self.opt._build_pre()
 
-    
-    def build_inputs(self):
+
+    def init_state(self, x):
         self.opt._build_input()
-        return self.opt.input_state
 
+        self.opt.x = x[0]
+        self.opt.input_state = [x[0]]
 
-    def build_initial_state(self, x):
         self.opt._build_initial()
-        return self.opt.initial_state
+        return tuple(self.opt.initial_state)
 
-
-    def step(self, f, i, state):
-        state, _ = self.opt._iter(f, i, state)
-
-        return {'state': state}
-    
 
     def restore(self, eid):
         if self.restored:
@@ -54,33 +45,28 @@ class RNNPropOpt(basic_model.BasicModel):
 
         var_list = {}
         for var in lstm_vars:
-            new_name = var.name.replace(self.scope.name + '/inference_scope', 'nn_opt/loop')
+            new_name = var.name.replace(self.scope.name, 'nn_opt/loop')
             if new_name.endswith(':0'):
                 new_name = new_name[:-2]
-            #print(new_name)
             var_list[new_name] = var
-
-        #var_list = lstm_vars
 
         self.saver = tf.train.Saver(var_list=var_list)
         super(RNNPropOpt, self).restore(eid)
         self.restored = True
 
 
-    def step_with_func(self, f, i, state, stop_grad=True):
-        x = state[3]
+    def step_with_func(self, f, state, i):
+        x = state[1][3]
         
         def opt_loss(i, x):
             opt_loss = f(x[None], i)[0]
             return opt_loss
         
         value, gradient = f(x[None], i)
-        if stop_grad:
-            gradient = tf.stop_gradient(gradient)
-
+        gradient = tf.stop_gradient(gradient)
         gradient_norm = tf.reduce_sum(tf.square(gradient), axis=-1)
 
-        #value, gradient, gradient_norm = self._fg(f, x[None], i, stop_grad)
-        state = self.step(opt_loss, i, state)['state']
+        output = Point(value, gradient, gradient_norm)
 
-        return dict(value=value, gradient_norm=gradient_norm, state=state)
+        rnn_state, _ = self.opt._iter(opt_loss, i, state.rnn_state)
+        return output, state._replace(x=rnn_state[3][None], rnn_state=rnn_state)
