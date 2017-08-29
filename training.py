@@ -7,7 +7,7 @@ import util
 import util.paths as paths
 import util.tf_utils as tf_utils
 
-from opts.config import BuildConfig, TrainConfig
+from opts import BuildConfig, TrainConfig
 
 
 def will_overwrite_snapshots(snapshots_path, eid):
@@ -16,13 +16,16 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
     snapshot_regex = re.compile(r'epoch-(?P<eid>\d+).index')
 
-    files = [str(s).split('/')[-1] for s in snapshots_path.iterdir()]
-    eids = [snapshot_regex.match(p).group('eid') for p in files if snapshot_regex.match(p)]
+    for d in snapshots_path.iterdir():
+        filename = str(d).split('/')[-1]
+        m = snapshot_regex.match(filename)
+        if m:
+            eid = m.group('eid')
+            eids.append(eid)
+
     if eids:
         max_eid = max(int(eid) for eid in eids)
-
-    if eids and eid < max_eid:
-        return True
+        return eid < max_eid:
 
     return False
 

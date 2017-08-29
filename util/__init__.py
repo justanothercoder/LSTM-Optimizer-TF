@@ -1,11 +1,10 @@
 import time
-import inspect
 import random
 import json
 import pickle
 from contextlib import contextmanager
+
 import numpy as np
-from collections import namedtuple, OrderedDict
 from . import paths
 
 
@@ -14,13 +13,6 @@ def log_execution_time(name='event', print_func=print):
     start_time = time.time()
     yield
     print_func("Time of {}: {}".format(name, time.time() - start_time))
-
-
-def namedtuple_with_defaults(name, fields):
-    d = OrderedDict(fields)
-    c = namedtuple(name, list(d.keys()))
-    c.__new__.__defaults__ = tuple(d.values())
-    return c
 
 
 seed = None
@@ -38,15 +30,6 @@ def set_seed(seed_):
 def get_seed():
     global seed
     return seed
-
-
-def get_kwargs(func, flags):
-    if not isinstance(flags, dict):
-        flags = vars(flags)
-
-    accepted_kwargs = set(inspect.signature(func).parameters.keys())
-    kwargs = {k: v for k, v in flags.items() if k in accepted_kwargs}
-    return kwargs
 
 
 def random_product(*args, repeat=1):
@@ -68,19 +51,6 @@ def get_moving(values, mu=0.9):
         v.append(mu * v[-1] + (1. - mu) * i)
 
     return v
-
-
-def split_list(lst, descr):
-    splits = { }
-
-    keys = set()
-
-    for item in lst:
-        key = descr(item)
-        keys.add(key)
-        splits.setdefault(key, []).append(item)
-
-    return splits, keys
 
 
 def dump_results(path, results, prefix=None):
@@ -115,25 +85,13 @@ def load_opt(model_path):
     with (model_path / 'config.json').open('r') as conf:
         flags = json.load(conf)
 
-    from opts.lstm_opt import LSTMOpt, InitConfig
-
     name = flags.pop('name')
     snapshot_path = model_path / 'snapshots'
     config = InitConfig(**flags)
 
+    from opts.lstm_opt import LSTMOpt, InitConfig
     opt = LSTMOpt(config, name=name, snapshot_path=snapshot_path)
     return opt
-
-
-def dump_config(path, flags, options):
-    if not isinstance(flags, dict):
-        flags = vars(flags)
-
-    config = {k: v for k, v in flags.items() if k in options}
-    print('Config: ', config)
-
-    with path.open('w') as conf:
-        json.dump(config, conf, sort_keys=True, indent=4)
 
 
 def run_new(flags):

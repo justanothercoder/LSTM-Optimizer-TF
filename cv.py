@@ -3,6 +3,7 @@ import json
 import itertools
 from collections import OrderedDict
 
+from toolz.itertoolz import toolz
 import numpy as np
 import tensorflow as tf
 
@@ -13,12 +14,11 @@ import util.tf_utils as tf_utils
 
 
 def get_score(rets):
-    by_opt = lambda ret: ret['optimizee_name']
-    splits, opt_names = util.split_list(rets, by_opt)
+    splits = toolz.groupby('optimizee_name', rets)
 
     scores = {}
 
-    for opt_name in opt_names:
+    for opt_name in splits:
         losses = [ret['loss'] for ret in splits[opt_name]]
         scores[opt_name] = -np.mean(losses)
 
@@ -26,96 +26,61 @@ def get_score(rets):
 
 
 def train_opt(opt, flags):
-    if not isinstance(flags, dict):
-        flags = vars(flags)
-
-    print("Running training with parameters: {}".format(flags))
-
-    train_options = {
-        'n_epochs', 'n_batches', 'batch_size',
-        'n_steps', 'train_lr', 'momentum'
-    }
-
-    train_options = {k: v for k, v in flags.items() if k in train_options}
-    print('train_options: {}'.format(train_options))
-
-    train_start_time = time.time()
     session = tf.get_default_session()
     session.run(tf.global_variables_initializer(), feed_dict={
-        opt.train_lr: train_options['train_lr'],
-        opt.momentum: train_options['momentum']
+        opt.train_lr: flags.train_lr,
+        opt.momentum: flags.momentum
     })
-    train_rets, _ = opt.train(test=False, **train_options)
-    train_time = time.time() - train_start_time
 
-    return train_rets, train_time
+    build_config = BuildConfig.from_namespace(flags)
+    build_config.test = False
+
+    with log_execution_time('optimizer training'):
+        train_rets, _ = opt.train(build_config)
+
+    return train_rets
 
 
 def test_configuration(opt, optimizees, flags):
-    test_start_time = time.time()
-
     test_rets = []
+    test_config = TestConfig(eid=flags.n_epochs, n_batches=flags.n_batches, n_steps=flags.n_steps)
 
-    for opt_name in optimizees.keys():
-        rets = opt.test(eid=flags.n_epochs,
-                        n_batches=flags.n_batches,
-                        n_steps=flags.n_steps,
-                        opt_name=opt_name)
-        test_rets.extend(rets)
+    with log_execution_time('configuration testing'):
+        for opt_name in optimizees.keys():
+            test_config.opt_name = opt_name
+            test_rets.extend(opt.test(test_config))
 
-    test_time = time.time() - test_start_time
-    return test_rets, test_time
+    return test_rets
 
 
-def make_opt(flags, optimizees, paths_, val_hash, devices=None):
-    opt = util.load_opt(paths_['model'], paths_['experiment'])
-    opt.snapshots_path = paths_['snapshots'] / '{}.snapshot'.format(val_hash)
+def make_opt(flags, optimizees, val_hash):
+    model_path = paths.model_path(flags.name)
+    opt = util.load_opt(model_path)
+    opt.snapshot_path = model_path / 'cv/snapshots/{}.snapshot'.format(val_hash)
 
-    paths.make_dirs(opt.snapshots_path)
-    print("Snapshot path: ", opt.snapshots_path)
+    paths.make_dirs(opt.snapshot_path)
+    print("Snapshot path: ", opt.snapshot_path)
 
     with tf.variable_scope('cv_scope_{}'.format(val_hash)):
-        opt.build(optimizees,
-                  n_bptt_steps=flags['n_bptt_steps'],
-                  loss_type=flags['loss_type'],
-                  optimizer=flags['optimizer'],
-                  lambd=flags['lambd'],
-                  devices=devices)
+        build_config = BuildConfig.from_namespace(flags)
+        opt.build(optimizees, build_config)
 
     return opt
 
 
-def get_paths(flags):
-    model_path = paths.model_path(flags.name)
-    experiment_path = paths.experiment_path(flags.name, flags.experiment_name, 'cv')
-    snapshots_path = paths.snapshots_path(experiment_path)
-    return {
-        'model': model_path,
-        'experiment': experiment_path,
-        'snapshots': snapshots_path
-    }
-
-
 def process_configuration(flags, optimizees, keys, val, results):
-    #pylint: disable=too-many-locals
     mapping = dict(zip(keys, val))
 
     configuration = vars(flags)
     configuration.update(mapping)
     del configuration['name']
 
-    opt = make_opt(
-        configuration, optimizees,
-        get_paths(flags), hash(val),
-        devices=tf_utils.get_devices(flags)
-    )
+    opt = make_opt(configuration, optimizees, hash(val))
 
-    _, train_time = train_opt(opt, configuration)
+    train_opt(opt, configuration)
     opt.save(flags.n_epochs)
 
-    test_rets, test_time = test_configuration(opt, optimizees, flags)
-    print(train_time, test_time)
-
+    test_rets = test_configuration(opt, optimizees, flags)
     scores = get_score(test_rets)
 
     for key, value in mapping.items():
@@ -124,11 +89,9 @@ def process_configuration(flags, optimizees, keys, val, results):
     for key, score in scores.items():
         results['score_{}'.format(key)].append(score)
 
-    results['train_time'].append(train_time)
-    results['test_time'].append(test_time)
     results['hash'].append(hash(val))
     results['params'].append(val)
-    results['score'].append(np.nanmean(list(scores.values())))
+    results['score'].append(np.mean(list(scores.values())))
 
 
 def exhaustive_sampler(values):
@@ -172,14 +135,7 @@ def abstract_cv(params, flags, sampler):
         print(val)
         cv_iteration(flags, keys, val, results)
 
-    #best_index = np.argmax(results['score'])
-    #best_score = results['score'][best_index]
-    #best_params = results['params'][best_index]
-
     results['keys'] = list(keys)
-    #results['best_index'] = best_index
-    #results['best_params'] = best_params
-    #results['best_score'] = best_score
 
     print(results)
     return results

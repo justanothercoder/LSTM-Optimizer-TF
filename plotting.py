@@ -7,6 +7,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import toolz.itertoolz as toolz
 import util
 import util.paths as paths
 
@@ -21,43 +22,24 @@ def save_figure(fig, filename):
 def extract_test_run_info(rets, flags, key, normalize):
     vals = []
     for ret in rets:
-        if key == 'lrs_mean' and 'lrs' in ret:
-            #value = np.mean(value, axis=1)
-            value = ret['lrs']
-            value = value.mean(axis=2)
-        elif key == 'lrs_max' and 'lrs' in ret:
-            value = ret['lrs']
-            value = value.max(axis=2)
+        if key in ret:
+            value = ret[key]
         else:
-            if key in ret:
-                value = ret[key]
-            else:
-                return [], [], [], []
-
-        if key == 'x':
-            value = np.sum(np.diff(value, axis=0)**2, axis=2)
+            return []
 
         if normalize:
             value = value / ret[key][:1]
-        #vals.append(value.reshape(-1, 1))
         vals.append(value)
-    vals = np.concatenate(vals, axis=-1).T
-    #print(vals.shape)
+    vals = np.concatenate(vals, axis=1)
 
-    l_test = int((1. - flags.frac) * vals.shape[1])
-    vals = vals[:, l_test:]
+    l_test = int((1. - flags.frac) * vals.shape[0])
+    vals = vals[l_test:]
 
-    mean = np.nanmean(vals, axis=0)
-    std = np.std(vals, axis=0)
-    mx = np.nanmax(vals, axis=0)
-
-    #print(mean[:-20])
-
-    return vals, mean, std, mx
+    return vals
 
 
 def setup_test_plot(flags):
-    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1 + 1
+    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
     if nrows == 1:
@@ -94,16 +76,8 @@ def plot(ax, vals, name, logscale=True, with_moving=False):
 
     plot_func = ax.semilogy if logscale else ax.plot
 
-    #p = plot_func(vals, label=name, alpha=alpha)
-
-    #if with_moving:
-    #    moving_vals = util.get_moving(vals, mu=0.95)
-    #    plot_func(moving_vals, label='moving {}'.format(name), color=p[-1].get_color())
-
     if with_moving:
-        #p = plot_func(vals, alpha=alpha)
         moving_vals = util.get_moving(vals, mu=0.95)
-        #plot_func(moving_vals, label=name, color=p[-1].get_color())
         plot_func(moving_vals, label=name)
     else:
         plot_func(vals, label=name, alpha=alpha)
@@ -113,16 +87,22 @@ def plot_test_results(flags, experiment_path, data):
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
-        #print(rets[0].keys())
-        fxs, fxs_mean, _, _ = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
-        _, norms_mean, _, _ = extract_test_run_info(rets, flags, 'norms', not flags.stochastic)
-        #_, diff_mean, _, _ = extract_test_run_info(rets, flags, 'x', False)
+        fxs = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
+        fxs_mean = fxs.mean(axis=1)
+
+        norms_mean = extract_test_run_info(rets, flags, 'norms', not flags.stochastic).mean(axis=1)
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
         if trainable_opt:
-            _, lrs_mean, lrs_std, _ = extract_test_run_info(rets, flags, 'lrs_mean', False)
-            _, lrs_max, lrs_std, lrs_mx = extract_test_run_info(rets, flags, 'lrs_max', False)
-            _, cos_mean, cos_std, _  = extract_test_run_info(rets, flags, 'cosines', False)
+            lrs = extract_test_run_info(rets, flags, 'lrs', False)
+            if lrs:
+                lrs_mean_mean = lrs.mean(axis=(1,2))
+                lrs_mean_max = lrs.max(axis=2).mean(axis=1)
+                lrs_max_max = lrs.max(axis=(1,2))
+
+            cos_mean = extract_test_run_info(rets, flags, 'cosines', False)
+            if cos_mean:
+                cos_mean = cos_mean.mean(axis=1)
 
         cur_ax = 0
 
@@ -133,32 +113,16 @@ def plot_test_results(flags, experiment_path, data):
             plot(axes[cur_ax], norms_mean, name, with_moving=flags.stochastic)
             cur_ax += 1
 
-        if trainable_opt and flags.plot_lr:
-            #p = axes[2 - int(flags.stochastic)].plot(lrs_mean, label=name)
-            #axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
-            #                                             lrs_mean + lrs_std,
-            #                                             lrs_mean  - lrs_std,
-            #                                             alpha=0.3,
-            #                                             facecolor=p[-1].get_color())
-
-            p = axes[cur_ax].semilogy(np.exp(lrs_mx), label=name)
-            p = axes[cur_ax].semilogy(np.exp(lrs_max), label=name)
-            p = axes[cur_ax].semilogy(np.exp(lrs_mean), label=name)
-            #axes[2 - int(flags.stochastic)].fill_between(np.arange(lrs_mean.shape[0]),
-            #                                             np.exp(lrs_mean + lrs_std),
-            #                                             np.exp(lrs_mean - lrs_std),
-            #                                             alpha=0.3,
-            #                                             facecolor=p[-1].get_color())
+        if lrs and trainable_opt and flags.plot_lr:
+            axes[cur_ax].semilogy(np.exp(lrs_max_max), label=name)
+            axes[cur_ax].semilogy(np.exp(lrs_mean_max), label=name)
+            axes[cur_ax].semilogy(np.exp(lrs_mean_mean), label=name)
 
             cur_ax += 1
         
         if trainable_opt:
             p = axes[cur_ax].plot(cos_mean, label=name)
             cur_ax += 1
-        
-        #axes[rur_ax].plot(diff_mean, label=name)
-
-
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
@@ -171,19 +135,17 @@ def plot_test_results(flags, experiment_path, data):
 
 
 def plot_training_results(flags, experiment_path, results):
-    by_opt = lambda ret: ret['optimizee_name']
     train_results, test_results = results
 
-    train_results_splits, opts = util.split_list(train_results, by_opt)
-    test_results_splits, _ = util.split_list(test_results, by_opt)
+    train_results = toolz.groupby('optimizee_name', train_results)
+    test_results = toolz.groupby('optimizee_name', test_results)
 
-    for opt_name, rets in train_results_splits.items():
+    opts = list(train_results.keys())
+
+    for opt_name, rets in train_results.items():
         print("{}: {} iterations".format(opt_name, len(rets)))
 
-    fig, axes = plt.subplots(nrows=len(opts), figsize=(15, 12))
-
-    if len(opts) == 1:
-        axes = (axes,)
+    fig, axes = plt.subplots(nrows=len(opts), figsize=(15, 12), squeeze=False)
 
     alpha = 1.0
     if flags.plot_moving:
@@ -192,31 +154,22 @@ def plot_training_results(flags, experiment_path, results):
     for i, opt_name in enumerate(opts):
         ax = axes[i]
 
-        losses_train = [ret['loss'] for ret in train_results_splits[opt_name]]
-        try:
-            losses_test = [ret['loss'] for ret in test_results_splits[opt_name]]
-        except:
-            losses_test = []
+        losses_train = [ret['loss'] for ret in train_results[opt_name]]
+        losses_test  = [ret['loss'] for ret in test_results[opt_name]]
 
         l_train = int(len(losses_train) * (1. - flags.frac))
         l_test = int(len(losses_test) * (1. - flags.frac))
 
         if flags.plot_moving:
             moving_train = util.get_moving(losses_train, mu=0.95)[l_train:]
-            try:
-                moving_test = util.get_moving(losses_test, mu=0.95)[l_test:]
-            except:
-                moving_test = []
+            moving_test = util.get_moving(losses_test, mu=0.95)[l_test:]
 
         losses_train = losses_train[l_train:]
-        losses_test = losses_test[l_test:]
+        losses_test  = losses_test[l_test:]
 
-        if len(losses_test):
-            s = len(losses_train) // len(losses_test)
-            lt = list(range(0, len(losses_train), s))
-            lt = lt[:len(losses_test)]
-        else:
-            lt = []
+        s = len(losses_train) // len(losses_test)
+        lt = list(range(0, len(losses_train), s))
+        lt = lt[:len(losses_test)]
 
         p_train = ax.plot(losses_train, label='train', alpha=alpha)
         p_test = ax.plot(lt, losses_test, label='test', alpha=alpha)
@@ -235,7 +188,6 @@ def plot_training_results(flags, experiment_path, results):
     save_figure(fig, filename=experiment_path / 'training')
 
 
-#pylint: disable=unused-argument
 def plot_cv_results(flags, experiment_path, data):
     data = data['results']
     keys = data['keys']

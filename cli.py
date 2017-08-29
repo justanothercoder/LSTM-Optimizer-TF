@@ -50,7 +50,7 @@ def make_test_parser(parser):
     parser.add_argument('--batch_size', type=int, default=1)
 
     parser.add_argument('--compare_with', type=str, default='adam',
-                        choices=['sgd', 'momentum', 'adam', 'adamng', 'adam_reduce'], help='baseline for optimizer')
+                        choices=['sgd', 'momentum', 'adam', 'adamng'], help='baseline for optimizer')
     parser.add_argument('--adam_only', action='store_true', help="enable: step from ADAM, learning rate from LSTM")
 
     parser.add_argument('--start_eid', type=int, default=100,

@@ -4,13 +4,8 @@ import json
 import numpy as np
 import tensorflow as tf
 
-from opts.sgd_opt import SgdOpt
-from opts.momentum_opt import MomentumOpt
-import opts.adam_opt as adam
-from opts.adamng_opt import AdamNGOpt
-from opts.rnnprop_opt import RNNPropOpt
-
-from opts.config import BuildConfig, TestConfig
+from opts import SgdOpt, MomentumOpt, AdamOpt, InitConfig, RNNPropOpt
+from opts import BuildConfig, TestConfig
 
 import util
 import util.tf_utils as tf_utils
@@ -22,14 +17,13 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
     def make_opt(name, learning_rate):
         opt_name = '{}_lr_{}'.format(name, learning_rate)
 
-        reduce_config = adam.InitConfig(lr=learning_rate, enable_reduce=True, patience_max=10, epsilon=1e-4, factor=0.5)
-        init_config = adam.InitConfig(lr=learning_rate)
+        reduce_config = InitConfig(lr=learning_rate, enable_reduce=True, patience_max=10, epsilon=1e-4, factor=0.5)
+        init_config = InitConfig(lr=learning_rate)
 
         return {
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
-            'adam': adam.AdamOpt,
-            'adamng': AdamNGOpt,
+            'adam': AdamOpt,
         }[name](init_config, name=opt_name)
 
     lrs = np.logspace(start=-1, stop=-4, num=4)
