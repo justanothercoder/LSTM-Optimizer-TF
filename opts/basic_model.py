@@ -98,7 +98,10 @@ class BasicModel:
                             self.scope.reuse_variables()
 
                     values = tf.stack(values, axis=0)
+                    norms = tf.stack(norms, axis=0)
+
                     loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
+                    ops[opt_name] = dict(values=values, norms=norms, losses=[loss], final_state=state)
 
             reuse = True
 
@@ -116,7 +119,7 @@ class BasicModel:
                     grads = clip_grads(grads, config.grad_clip)
                     train_op = optimizer.apply_gradients(grads)
 
-                    ops[opt_name] = dict(values=values, norms=norms, losses=[loss, reg_loss], train_op=train_op, final_state=state)
+                    ops[opt_name].update(losses=[loss, reg_loss], train_op=train_op)
                     if 'loglr' in state._fields:
                         ops[opt_name]['lrs'] = lrs
 
@@ -135,11 +138,16 @@ class BasicModel:
         for batch in range(config.n_batches):
             with log_execution_time('batch {}'.format(batch), logging.info):
                 problem = producer.sample(config.batch_size)
+                logging.info("Optimizee: {}".format(problem.name))
+
                 ops = self.ops[problem.name].copy()
-                ops.pop('train_op')
+
+                if 'train_op' in ops:
+                    ops.pop('train_op')
+
                 ret = self.run_iteration(problem, config, ops)
                 
-            logging.info("Loss: {}".format(ret['loss'] / np.log(10)))
+            #logging.info("Loss: {}".format(ret['loss'] / np.log(10)))
             rets.append(ret)
 
         return rets
@@ -163,8 +171,6 @@ class BasicModel:
         state = self.session.run(self.initial_state, feed_dict={self.theta: problem.init})
         losses = []
         results = {field: [] for field in run_op if field not in {'losses', 'final_state', 'train_op'}}
-
-        logging.info("Optimizee: {}".format(problem.name))
 
         for i in range(n_unrolls):
             feed_dict = self.get_feed_dict(state, problem, self.n_bptt_steps, config.batch_size)
@@ -219,10 +225,10 @@ class BasicModel:
         return train_rets
 
 
-    def train(self, config):
+    def train(self, config, train_producer=None, test_producer=None):
         self.session = tf.get_default_session()
-        random_producer = RandomProducer(self.optimizees)
-        fixed_producer = FixedProducer(self.optimizees).new(config.n_batches, config.batch_size)
+        train_producer = train_producer or RandomProducer(self.optimizees)
+        test_producer = test_producer or FixedProducer(self.optimizees).new(config.n_batches, config.batch_size)
 
         logging.info("Training model: {}".format(self.name))
 
@@ -239,7 +245,7 @@ class BasicModel:
             for epoch in range(config.eid, config.n_epochs):
                 self.epoch = epoch
                 with log_execution_time('train epoch', logging.info):
-                    train_rets.extend(self.run_train_epoch(config, producer=random_producer))
+                    train_rets.extend(self.run_train_epoch(config, producer=train_producer))
 
                 loss = np.mean([r['loss'] for r in train_rets])
                 logging.info("Epoch loss: {}".format(loss / np.log(10)))
@@ -249,7 +255,7 @@ class BasicModel:
 
                 if config.test and (epoch + 1) % config.test_every == 0:
                     with log_execution_time('test epoch', logging.info):
-                        test_rets.extend(self.test(test_config, producer=fixed_producer))
+                        test_rets.extend(self.test(test_config, producer=test_producer))
 
         except KeyboardInterrupt:
             print("Stopped training early")

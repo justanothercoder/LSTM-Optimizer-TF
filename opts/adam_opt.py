@@ -1,24 +1,28 @@
 from collections import namedtuple
 import tensorflow as tf
 from .basic_model import BasicModel
+from . import config
+
+
+class InitConfig(config.Config):
+    _default = {
+        'lr': 1e-4,
+        'beta1': 0.9,
+        'beta2': 0.999,
+        'eps': 1e-8,
+        'enable_reduce': False,
+        'factor': 0.5,
+        'patience_max': 10,
+        'epsilon': 1e-4
+    }
 
 
 class AdamOpt(BasicModel):
-    def __init__(self, lr, beta1=0.9, beta2=0.999, eps=1e-8, enable_reduce=False, factor=0.5, patience_max=10, epsilon=1e-4, **kwargs):
-        super(AdamOpt, self).__init__(**kwargs)
-
-        self.lr_init = lr
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.eps = eps
-
-        self.factor = factor
-        self.patience_max = patience_max
-        self.enable_reduce = enable_reduce
-        self.epsilon = epsilon
+    def __init__(self, init_config, **kwargs):
+        super(AdamOpt, self).__init__(init_config, **kwargs)
 
         fields = ['m', 'v', 'b1t', 'b2t']
-        if enable_reduce:
+        if init_config.enable_reduce:
             fields += ['lr', 'f_best', 'f_ma', 'patience', 'sid']
 
         self.AdamOptState = namedtuple('AdamOptState', fields)
@@ -32,8 +36,8 @@ class AdamOpt(BasicModel):
 
         state = (m, v, b1t, b2t)
 
-        if self.enable_reduce:
-            lr = self.lr_init * tf.ones([tf.shape(x)[0]])
+        if self.init_config.enable_reduce:
+            lr = self.init_config.lr * tf.ones([tf.shape(x)[0]])
             f_best = tf.zeros([tf.shape(x)[0]])
             f_ma = tf.zeros([tf.shape(x)[0]])
             patience = tf.zeros([tf.shape(x)[0]])
@@ -68,13 +72,13 @@ class AdamOpt(BasicModel):
                     )
 
             new_lr = tf.where(
-                        tf.equal(patience, self.patience_max),
+                        tf.equal(patience, self.init_config.patience_max),
                         state.lr * self.factor,
                         state.lr
                     )
 
             patience = tf.where(
-                        tf.equal(patience, self.patience_max),
+                        tf.equal(patience, self.init_config.patience_max),
                         tf.zeros_like(patience),
                         patience
                     )
@@ -84,27 +88,30 @@ class AdamOpt(BasicModel):
         return state._replace(lr=new_lr, f_best=new_f_best, f_ma=new_f_ma, patience=patience, sid=state.sid + 1)
 
 
-    def step(self, f, g, state):
-        m = self.beta1 * state.m + (1 - self.beta1) * g
-        v = self.beta2 * state.v + (1 - self.beta2) * tf.square(g)
+    def step(self, g, state):
+        b1 = self.init_config.beta1
+        b2 = self.init_config.beta2
 
-        b1t = self.beta1 * state.b1t
-        b2t = self.beta2 * state.b2t
+        m = b1 * state.m + (1 - b1) * g
+        v = b2 * state.v + (1 - b2) * tf.square(g)
+
+        b1t = b1 * state.b1t
+        b2t = b2 * state.b2t
 
         a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
 
-        if self.enable_reduce:
+        if self.init_config.enable_reduce:
             lr_state = self.reduce_lr_on_plateau(state, f)
 
-        if not self.enable_reduce:
-            s = self.lr_init * a * m / (tf.sqrt(v) + self.eps)
+        if not self.init_config.enable_reduce:
+            s = self.init_config.lr * a * m / (tf.sqrt(v) + self.init_config.eps)
         else:
-            s = lr_state.lr * a * m / (tf.sqrt(v) + self.eps)
+            s = lr_state.lr * a * m / (tf.sqrt(v) + self.init_config.eps)
 
         step = -s
         state = (m, v, b1t, b2t)
 
-        if self.enable_reduce:
+        if self.init_config.enable_reduce:
             state += (lr_state.lr, lr_state.f_best, lr_state.f_ma, lr_state.patience, lr_state.sid)
 
         return step, self.AdamOptState(*state)
