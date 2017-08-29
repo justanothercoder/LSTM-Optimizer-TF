@@ -19,7 +19,7 @@ def save_figure(fig, filename):
     print("Plotted to {filename}.svg and {filename}.png".format(filename=filename))
 
 
-def extract_test_run_info(rets, flags, key, normalize):
+def extract_test_run_info(rets, flags, key, normalize, concat=True):
     vals = []
     for ret in rets:
         if key in ret:
@@ -27,19 +27,24 @@ def extract_test_run_info(rets, flags, key, normalize):
         else:
             return []
 
+        if len(value) == 0:
+            return []
+
         if normalize:
             value = value / ret[key][:1]
         vals.append(value)
-    vals = np.concatenate(vals, axis=1)
 
-    l_test = int((1. - flags.frac) * vals.shape[0])
+    if concat:
+        vals = np.concatenate(vals, axis=1)
+
+    l_test = int((1. - flags.frac) * len(vals))
     vals = vals[l_test:]
 
     return vals
 
 
 def setup_test_plot(flags):
-    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr) + 1
+    nrows = 1 + (1 - int(flags.stochastic)) + int(flags.plot_lr)
     fig, axes = plt.subplots(nrows=nrows, figsize=(15, 12), sharex=True)
 
     if nrows == 1:
@@ -94,11 +99,17 @@ def plot_test_results(flags, experiment_path, data):
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
         if trainable_opt:
-            lrs = extract_test_run_info(rets, flags, 'lrs', False)
+            lrs = extract_test_run_info(rets, flags, 'lrs', False, concat=False)
             if lrs:
-                lrs_mean_mean = lrs.mean(axis=(1,2))
-                lrs_mean_max = lrs.max(axis=2).mean(axis=1)
-                lrs_max_max = lrs.max(axis=(1,2))
+                lrs_mean = [e.mean(axis=2) for e in lrs]
+                lrs_max = [e.max(axis=2) for e in lrs]
+
+                lrs_mean = np.concatenate(lrs_mean, axis=1)
+                lrs_max = np.concatenate(lrs_max, axis=1)
+
+                lrs_mean_mean = lrs_mean.mean(axis=1)
+                lrs_mean_max = lrs_max.mean(axis=1)
+                lrs_max_max = lrs_max.max(axis=1)
 
             cos_mean = extract_test_run_info(rets, flags, 'cosines', False)
             if cos_mean:
@@ -113,16 +124,16 @@ def plot_test_results(flags, experiment_path, data):
             plot(axes[cur_ax], norms_mean, name, with_moving=flags.stochastic)
             cur_ax += 1
 
-        if lrs and trainable_opt and flags.plot_lr:
+        if lrs and flags.plot_lr:
             axes[cur_ax].semilogy(np.exp(lrs_max_max), label=name)
             axes[cur_ax].semilogy(np.exp(lrs_mean_max), label=name)
             axes[cur_ax].semilogy(np.exp(lrs_mean_mean), label=name)
 
             cur_ax += 1
         
-        if trainable_opt:
-            p = axes[cur_ax].plot(cos_mean, label=name)
-            cur_ax += 1
+        #if trainable_opt:
+        #    p = axes[cur_ax].plot(cos_mean, label=name)
+        #    cur_ax += 1
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
     title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
@@ -152,7 +163,7 @@ def plot_training_results(flags, experiment_path, results):
         alpha = 0.5
 
     for i, opt_name in enumerate(opts):
-        ax = axes[i]
+        ax = axes[i][0]
 
         losses_train = [ret['loss'] for ret in train_results[opt_name]]
         losses_test  = [ret['loss'] for ret in test_results[opt_name]]

@@ -1,6 +1,7 @@
 import logging
 from collections import namedtuple
 
+import toolz.dicttoolz as toolz
 import numpy as np
 import tensorflow as tf
 
@@ -57,9 +58,44 @@ class BasicModel:
         return output, state
 
 
+    def inference(self, optimizee, config):
+        state = self.initial_state
+        values = []
+        norms = []
+        lrs = []
+
+        for step in range(config.n_bptt_steps):
+            output, state = self.step_with_func(optimizee.loss, state, step)
+
+            values.append(output.value)
+            norms.append(output.gradient_norm)
+
+            if hasattr(state.rnn_state, '_fields') and 'loglr' in state.rnn_state._fields:
+                lrs.append(state.rnn_state.loglr)
+
+            if step == 0:
+                self.scope.reuse_variables()
+
+        values = tf.stack(values, axis=0)
+        norms = tf.stack(norms, axis=0)
+
+        return dict(values=values, norms=norms, lrs=lrs, final_state=state)
+
+
+    def train_op(self, optimizer, losses, config):
+        grads = optimizer.compute_gradients(tf.add_n(losses), var_list=tf.trainable_variables())
+
+        if config.normalize_lstm_grads:
+            norm = tf.global_norm(grads)
+            grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
+
+        grads = clip_grads(grads, config.grad_clip)
+        train_op = optimizer.apply_gradients(grads)
+        return train_op
+
+
     def build(self, optimizees, config):
         self.theta = tf.placeholder(tf.float32, shape=[None, None], name='theta')
-
         self.build_pre()
         self.initial_state = RNNOptState(self.theta, self.init_state(self.theta))
 
@@ -71,60 +107,34 @@ class BasicModel:
         if not config.inference_only:
             self.train_lr = tf.placeholder(tf.float32, shape=[], name='train_lr')
             self.momentum = tf.placeholder(tf.float32, shape=[], name='momentum')
-
             optimizer = tf.train.AdamOptimizer(self.train_lr, beta1=self.momentum)
 
         reuse = False
         reg_loss = None
 
         for opt_name, optimizee in optimizees.items():
-            with tf.variable_scope('inference', reuse=reuse) as self.scope:
-                with tf.name_scope(opt_name):
-                    state = self.initial_state
-                    values = []
-                    norms = []
-                    lrs = []
-
-                    for step in range(config.n_bptt_steps):
-                        output, state = self.step_with_func(optimizee.loss, state, step)
-
-                        values.append(output.value)
-                        norms.append(output.gradient_norm)
-
-                        if hasattr(state.rnn_state, '_fields') and 'loglr' in state.rnn_state._fields:
-                            lrs.append(state.rnn_state.loglr)
-
-                        if step == 0:
-                            self.scope.reuse_variables()
-
-                    values = tf.stack(values, axis=0)
-                    norms = tf.stack(norms, axis=0)
+            with tf.name_scope(opt_name):
+                with tf.variable_scope('inference', reuse=reuse) as self.scope:
+                    inf = self.inference(optimizee, config)
+                    values = inf['values']
 
                     loss = tf.reduce_mean(tf.log(values + 1e-8) - tf.log(values[:1] + 1e-8))
-                    ops[opt_name] = dict(values=values, norms=norms, losses=[loss], final_state=state)
+                    inf['losses'] = [loss]
 
-            reuse = True
+                    ops[opt_name] = inf
 
-            if not config.inference_only:
-                with tf.variable_scope('train'):
-                    if reg_loss is None:
-                        reg_loss = tf.add_n([tf.norm(v, 1) for v in tf.trainable_variables()]) * config.lambd_l1
+                if not config.inference_only:
+                    with tf.variable_scope('train'):
+                        if reg_loss is None:
+                            reg_loss = tf.add_n([tf.norm(v, 1) for v in tf.trainable_variables()]) * config.lambd_l1
 
-                    grads = optimizer.compute_gradients(loss + reg_loss, var_list=tf.trainable_variables())
+                        train_op = self.train_op(optimizer, [loss, reg_loss], config)
+                        ops[opt_name].update(losses=[loss, reg_loss], train_op=train_op)
+                
+                reuse = True
 
-                    if config.normalize_lstm_grads:
-                        norm = tf.global_norm(grads)
-                        grads = [(grad / (norm + 1e-8), var) for grad, var in grads]
-
-                    grads = clip_grads(grads, config.grad_clip)
-                    train_op = optimizer.apply_gradients(grads)
-
-                    ops[opt_name].update(losses=[loss, reg_loss], train_op=train_op)
-                    if 'loglr' in state._fields:
-                        ops[opt_name]['lrs'] = lrs
-
-            self.ops = ops
-            self.saver = tf.train.Saver(max_to_keep=None, var_list=tf.trainable_variables(), allow_empty=True)
+        self.ops = ops
+        self.saver = tf.train.Saver(max_to_keep=None, var_list=tf.trainable_variables(), allow_empty=True)
 
 
     def test(self, config, producer=None):
@@ -136,7 +146,7 @@ class BasicModel:
         rets = []
 
         for batch in range(config.n_batches):
-            with log_execution_time('batch {}'.format(batch), logging.info):
+            with log_execution_time('test batch {}'.format(batch), logging.info):
                 problem = producer.sample(config.batch_size)
                 logging.info("Optimizee: {}".format(problem.name))
 
@@ -146,11 +156,23 @@ class BasicModel:
                     ops.pop('train_op')
 
                 ret = self.run_iteration(problem, config, ops)
-                
-            #logging.info("Loss: {}".format(ret['loss'] / np.log(10)))
-            rets.append(ret)
+                rets.append(ret)
 
         return rets
+
+
+    def get_mask(self, n_unrolls, config):
+        if config.masked_train == 'random':
+            mask = np.random.binomial(n=1, p=config.masked_train_p, size=n_unrolls)
+        elif config.masked_train == 'first-last':
+            mask = np.ones(n_unrolls)
+            left = int(config.masked_train_p / 2 * n_unrolls)
+            right = n_unrolls - int(config.masked_train_p / 2 * n_unrolls)
+            mask[left:right] = 0 
+        else:
+            mask = np.ones(n_unrolls)
+
+        return mask
 
 
     def run_iteration(self, problem, config, run_op):
@@ -158,15 +180,7 @@ class BasicModel:
         train = 'train_op' in run_op
 
         if train:
-            if config.masked_train == 'random':
-                mask = np.random.binomial(n=1, p=config.masked_train_p, size=n_unrolls)
-            elif config.masked_train == 'first-last':
-                mask = np.ones(n_unrolls)
-                left = int(config.masked_train_p / 2 * n_unrolls)
-                right = n_unrolls - int(config.masked_train_p / 2 * n_unrolls)
-                mask[left:right] = 0 
-            else:
-                mask = np.ones(n_unrolls)
+            mask = self.get_mask(n_unrolls, config)
 
         state = self.session.run(self.initial_state, feed_dict={self.theta: problem.init})
         losses = []
@@ -194,10 +208,7 @@ class BasicModel:
                 results[field].extend(info[field])
                 
         d = dict(optimizee_name=problem.name, loss=np.mean(losses))
-        d.update({
-            field: np.array(vals)
-            for field, vals in results.items()
-        })
+        d.update(toolz.valmap(np.array, results))
         return d
     
     
@@ -205,7 +216,7 @@ class BasicModel:
         train_rets = []
 
         for batch in range(config.n_batches):
-            with log_execution_time('train batch', logging.info):
+            with log_execution_time('train batch {}'.format(batch), logging.info):
                 problem = producer.sample(config.batch_size)
                 ret = self.run_iteration(problem, config, self.ops[problem.name])
 
@@ -243,9 +254,9 @@ class BasicModel:
 
         try:
             for epoch in range(config.eid, config.n_epochs):
-                self.epoch = epoch
-                with log_execution_time('train epoch', logging.info):
-                    train_rets.extend(self.run_train_epoch(config, producer=train_producer))
+                with log_execution_time('train epoch {}'.format(epoch), logging.info):
+                    rets = self.run_train_epoch(config, producer=train_producer)
+                train_rets.extend(rets)
 
                 loss = np.mean([r['loss'] for r in train_rets])
                 logging.info("Epoch loss: {}".format(loss / np.log(10)))
@@ -254,8 +265,9 @@ class BasicModel:
                     self.save(epoch + 1)
 
                 if config.test and (epoch + 1) % config.test_every == 0:
-                    with log_execution_time('test epoch', logging.info):
-                        test_rets.extend(self.test(test_config, producer=test_producer))
+                    with log_execution_time('test epoch {}'.format(epoch), logging.info):
+                        rets = self.test(test_config, producer=test_producer)
+                    test_rets.extend(rets)
 
         except KeyboardInterrupt:
             print("Stopped training early")

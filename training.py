@@ -25,7 +25,7 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
     if eids:
         max_eid = max(int(eid) for eid in eids)
-        return eid < max_eid:
+        return eid < max_eid
 
     return False
 
