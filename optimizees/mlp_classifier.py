@@ -110,21 +110,4 @@ class MLPClassifier(optimizee.Optimizee):
 
         init = w[None]
         params = {self.dim: self.x_len}
-        return init, params
-
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        x = np.zeros((n_bptt_steps, 1, self.batch_size, self.dataset.num_features)) 
-        y = np.zeros((n_bptt_steps, 1, self.batch_size)) 
-
-        random_batches = self.dataset.random_batch_iterator(n_bptt_steps, self.batch_size)
-
-        for i, (x_, y_) in enumerate(random_batches):
-            x[i] = x_[None]
-            y[i] = y_[None]
-
-        return { 
-            self.x: x,
-            self.y: y,
-        } 
-
+        return optimizee.BatchedStochProblem(init, params, self.batch_size, self.dataset, self.x, self.y, iteration='random')

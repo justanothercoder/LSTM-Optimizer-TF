@@ -12,7 +12,6 @@ class LogisticRegression(optimizee.Optimizee):
         self.datagen = datagen.RandomNormal(min_data_size, max_data_size, min_features, max_features)
 
 
-
     def get_x_dim(self):
         return self.dim
 
@@ -47,14 +46,11 @@ class LogisticRegression(optimizee.Optimizee):
     def sample_problem(self, batch_size=1):
         self.dataset = self.datagen.sample_dataset_batch(batch_size, classification=True)
         init = np.concatenate([self.dataset.w, self.dataset.w0], axis=1)
-        
-        return init, {
+        params = {
             self.X: self.dataset.X,
             self.y: self.dataset.y,
             self.dim: num_features + 1
         }
-                
         
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return { } 
+        return optimizee.SimpleNonStochProblem(init, params)
 

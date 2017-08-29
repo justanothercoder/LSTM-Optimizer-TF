@@ -41,19 +41,5 @@ class CorrectStochLinreg(optimizee.Optimizee):
     
         init = np.random.normal(size=(batch_size, self.dataset.num_features + 1))
         params = {self.dim: self.dataset.num_features + 1}
-        return init, params
 
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        x = np.zeros((n_bptt_steps, batch_size, self.batch_size, self.dataset.num_features)) 
-        y = np.zeros((n_bptt_steps, batch_size, self.batch_size)) 
-
-        batches = self.dataset.batch_iterator(n_bptt_steps, self.batch_size, shuffle=False)
-
-        for i, batch in enumerate(batches):
-            x[i], y[i] = batch
-
-        return { 
-            self.x: x,
-            self.y: y,
-        } 
+        return optimizee.BatchedStochProblem(init, params, self.dataset, self.batch_size, self.x, self.y, iteration='full')

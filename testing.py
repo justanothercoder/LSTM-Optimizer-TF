@@ -18,12 +18,13 @@ def get_tests(test_problem, compare_with, with_rnnprop=False):
         opt_name = '{}_lr_{}'.format(name, learning_rate)
 
         reduce_config = InitConfig(lr=learning_rate, enable_reduce=True, patience_max=10, epsilon=1e-4, factor=0.5)
-        init_config = InitConfig(lr=learning_rate)
+        init_config = InitConfig(lr=learning_rate, normalize=(name == 'adamng'))
 
         return {
             'sgd': SgdOpt,
             'momentum': MomentumOpt,
             'adam': AdamOpt,
+            'adamng': AdamOpt,
         }[name](init_config, name=opt_name)
 
     lrs = np.logspace(start=-1, stop=-4, num=4)

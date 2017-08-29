@@ -1,28 +1,25 @@
 import tensorflow as tf
-from . import basic_model
+from .basic_model import BasicModel
+from .config import Config
 
 
-class SgdOpt(basic_model.BasicModel):
-    def __init__(self, lr, beta1=0.9, beta2=0.999, **kwargs):
-        super(SgdOpt, self).__init__(save_tf_data=False, **kwargs)
+class SgdOpt(BasicModel):
+    def __init__(self, lr, **kwargs):
+        super(SgdOpt, self).__init__(Config(), **kwargs)
         self.lr = lr
 
 
     def build_pre(self):
         pass
         
-    def build_inputs(self):
-        x = tf.placeholder(tf.float32, shape=[None, None])
-        return dict(x=x)
+
+    def init_state(self, _):
+        return tuple()
 
 
-    def step(self, f, g, state):
-        x = state['x']
-        x -= self.lr * g
-
-        return {
-            'state': dict(x=x),
-        }
+    def step(self, g, state):
+        step = self.lr * g
+        return step, ()
 
     
     def restore(self, eid):

@@ -136,7 +136,7 @@ def plot_test_results(flags, experiment_path, data):
         #    cur_ax += 1
 
     title = r"""{problem}: mean $f(\theta_t), \|\nabla f(\theta_t)\|^2$ over {} functions for {} steps"""
-    title = title.format(fxs.shape[0], fxs.shape[1], problem=data['problem'])
+    title = title.format(fxs.shape[1], fxs.shape[0], problem=data['problem'])
     axes[0].set_title(title)
     axes[0].legend(loc='best')
 

@@ -40,8 +40,4 @@ class Quadratic(optimizee.Optimizee):
         b = np.random.normal(0, 0.1, size=(batch_size, D))
 
         params = {self.W: W, self.b: b, self.dim: D}
-        return init, params
-                
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return { } 
+        return optimizee.SimpleNonStochProblem(init, params)

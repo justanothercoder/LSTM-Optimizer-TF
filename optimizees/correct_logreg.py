@@ -49,14 +49,10 @@ class CorrectLogReg(optimizee.Optimizee):
         w  = np.random.normal(size=(batch_size, self.dataset.num_features))
         w0 = np.random.normal(size=(batch_size, 1), scale=0.1)
         init = np.concatenate([w, w0], axis=1)
-        
-        return init, {
+        params = {
             self.X: self.dataset.X,
             self.y: self.dataset.y,
             self.dim: self.dataset.num_features + 1
         }
-                
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return {} 
 
+        return self.Problem(init, params)

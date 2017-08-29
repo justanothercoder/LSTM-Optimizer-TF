@@ -219,28 +219,35 @@ class ConvClassifier(optimizee.Optimizee):
 
         w = np.random.normal(0, 0.01, size=(batch_size, self.x_len))
 
-        return w, {
-            self.dim: self.x_len
-        }
-
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        x = np.zeros((n_bptt_steps, 1, self.batch_size,) + self.X.shape[1:]) 
-        y = np.zeros((n_bptt_steps, 1, self.batch_size)) 
-
-        for i in range(n_bptt_steps):
-            if self.s + self.batch_size > self.X.shape[0]:
-                self.s = 0
-            pos_cur, pos_next = self.s, self.s + self.batch_size
-
-            x[i] = self.X[None, pos_cur:pos_next]
-            y[i] = self.Y[None, pos_cur:pos_next]
-
-            self.s = pos_next
+        return ConvClassifier.Problem(w, {self.dim: self.x_len}, self.batch_size, self.x, self.y)
 
 
-        return { 
-            self.x: x,
-            self.y: y,
-        } 
+    class Problem(optimizee.Problem):
+        name = 'conv_classifier'
+
+        def __init__(init, params, batch_size, x, y):
+            super(ConvClassifier.Problem, self).__init__(init, params)
+            self.batch_size = batch_size
+            self.x = x
+            self.y = y
+
+    
+        def get_next_dict(self, n_bptt_steps, batch_size=1):
+            x = np.zeros((n_bptt_steps, 1, self.batch_size,) + self.X.shape[1:]) 
+            y = np.zeros((n_bptt_steps, 1, self.batch_size)) 
+
+            for i in range(n_bptt_steps):
+                if self.s + self.batch_size > self.X.shape[0]:
+                    self.s = 0
+                pos_cur, pos_next = self.s, self.s + self.batch_size
+
+                x[i] = self.X[None, pos_cur:pos_next]
+                y[i] = self.Y[None, pos_cur:pos_next]
+
+                self.s = pos_next
+
+            return { 
+                self.x: x,
+                self.y: y,
+            } 
 

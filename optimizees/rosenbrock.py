@@ -44,11 +44,4 @@ class Rosenbrock(optimizee.Optimizee):
         b = np.random.uniform(10, 100, size=(batch_size, D))
         
         params = {self.a: a, self.b: b, self.dim: D * 2}
-        return Rosenbrock.Problem(init, params)
-
-
-    class Problem(optimizee.Problem):
-        name = 'rosenbrock'
-
-        def get_next_dict(self, n_bptt_steps, batch_size=1):
-            return { } 
+        return optimizee.SimpleNonStochProblem(init, params)

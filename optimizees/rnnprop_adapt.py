@@ -30,8 +30,9 @@ class RNNPropAdapter(optimizee.Optimizee):
 
     def sample_problem(self, batch_size=1):
         init = self.opt.get_initial_x()
-        return init[None], self.opt.next_internal_feed_dict()
+        return self.RNNPropProblem(init[None], self.opt.next_internal_feed_dict())
 
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return self.opt.next_feed_dict(n_bptt_steps)
+
+    class RNNPropProblem(optimizee.Problem):
+        def get_next_dict(self, n_bptt_steps, batch_size=1):
+            return self.opt.next_feed_dict(n_bptt_steps)

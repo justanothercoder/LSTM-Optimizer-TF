@@ -44,14 +44,12 @@ class Booth(optimizee.Optimizee):
         a = np.random.normal(init[..., ::2], 0.1, size=(batch_size, D))
         b = np.random.normal(init[..., 1::2], 0.1, size=(batch_size, D))
 
-        return init, {
+        params = {
             self.a: a,
             self.b: b,
             self.dim: D * 2
         }
-                
-        
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return { } 
+
+        return optimizee.SimpleNonStochProblem(init, params)
 
 

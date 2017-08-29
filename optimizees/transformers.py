@@ -67,12 +67,7 @@ class UniformRandomScaling(optimizee.Optimizee):
         problem.init = init
         problem.params = d
 
-        #return init, d
         return problem
-
-
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return self.optim.get_next_dict(n_bptt_steps, batch_size)
 
     
     def get_x_dim(self):
@@ -132,14 +127,15 @@ class ConcatAndSum(optimizee.Optimizee):
             params.update(p)
 
         init = np.concatenate(inits, axis=-1)
-        return init, params
+        return self.Problem(init, params)
 
 
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        d = { }
-        for opt in self.optim_list:
-            d.update(opt.get_next_dict(n_bptt_steps, batch_size))
-        return d
+    class Problem:
+        def get_next_dict(self, n_bptt_steps, batch_size=1):
+            d = { }
+            for opt in self.optim_list:
+                d.update(opt.get_next_dict(n_bptt_steps, batch_size))
+            return d
 
     
     def get_x_dim(self):
@@ -157,25 +153,7 @@ class NormalNoisyGrad(optimizee.Optimizee):
         return getattr(self.opt, name)
 
 
-    def build(self):
-        self.opt.build()
-
-
     def loss(self, x, i):
         f, g = self.opt.loss(x, i)
         new_g = g + tf.random_normal(tf.shape(g), mean=0, stddev=self.stddev)
         return f, new_g
-
-
-    def sample_problem(self, batch_size=1):
-        init = self.opt.get_initial_x(batch_size)
-        params = self.opt.get_new_params(batch_size)
-        return init, params
-
-
-    def get_next_dict(self, n_bptt_steps, batch_size=1):
-        return self.opt.get_next_dict(n_bptt_steps, batch_size)
-
-    
-    def get_x_dim(self):
-        return self.opt.get_x_dim()

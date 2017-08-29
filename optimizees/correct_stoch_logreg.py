@@ -49,34 +49,8 @@ class CorrectStochLogreg(optimizee.Optimizee):
         init = np.concatenate([w, w0], axis=1)
 
         params = {self.dim: self.dataset.num_features + 1}
-        return self.Problem(init, params, self.dataset, self.batch_size, self.x, self.y)
+        return optimizee.BatchedStochProblem(init, params, self.dataset, self.batch_size, self.x, self.y, iteration='random')
+
 
     #def sample_batch(self, batch_size):
     #    return self.datagen.sample_batch(batch_size)
-        
-    class Problem(optimizee.Problem):
-        def __init__(self, init, params, dataset, batch_size, x, y):
-            super(CorrectStochLogreg.Problem, self).__init__(init, params, name='correct_stoch_logreg')
-            self.dataset = dataset
-            self.batch_size = batch_size
-            self.x = x
-            self.y = y
-            
-            self.np_random = np.random.RandomState()
-            self.np_random.set_state(np.random.get_state())
-
-
-        def get_next_dict(self, n_bptt_steps, batch_size):
-            x = np.zeros((n_bptt_steps, batch_size, self.batch_size, self.dataset.num_features), dtype=np.float32) 
-            y = np.zeros((n_bptt_steps, batch_size, self.batch_size), dtype=np.int32)
-
-            with set_random_state(self.np_random):
-                random_batches = self.dataset.random_batch_iterator(n_bptt_steps, self.batch_size)
-
-                for i, batch in enumerate(random_batches):
-                    x[i], y[i] = batch 
-
-            return { 
-                self.x: x,
-                self.y: y,
-            } 

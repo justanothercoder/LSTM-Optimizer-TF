@@ -1,6 +1,7 @@
 from collections import namedtuple
 import tensorflow as tf
 from .basic_model import BasicModel
+from .lstm_opt import normalize
 from . import config
 
 
@@ -13,7 +14,8 @@ class InitConfig(config.Config):
         'enable_reduce': False,
         'factor': 0.5,
         'patience_max': 10,
-        'epsilon': 1e-4
+        'epsilon': 1e-4,
+        'normalize': False
     }
 
 
@@ -89,6 +91,9 @@ class AdamOpt(BasicModel):
 
 
     def step(self, g, state):
+        if self.init_config.normalize:
+            g = normalize(g)
+
         b1 = self.init_config.beta1
         b2 = self.init_config.beta2
 
