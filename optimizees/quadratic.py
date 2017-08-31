@@ -40,4 +40,4 @@ class Quadratic(optimizee.Optimizee):
         b = np.random.normal(0, 0.1, size=(batch_size, D))
 
         params = {self.W: W, self.b: b, self.dim: D}
-        return optimizee.SimpleNonStochProblem(init, params)
+        return optimizee.SimpleNonStochProblem(init, params, name='quadratic')

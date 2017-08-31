@@ -16,16 +16,19 @@ def will_overwrite_snapshots(snapshots_path, eid):
 
     snapshot_regex = re.compile(r'epoch-(?P<eid>\d+).index')
 
+    eids = []
+
     for d in snapshots_path.iterdir():
         filename = str(d).split('/')[-1]
         m = snapshot_regex.match(filename)
         if m:
-            eid = m.group('eid')
-            eids.append(eid)
+            e = m.group('eid')
+            eids.append(e)
 
     if eids:
-        max_eid = max(int(eid) for eid in eids)
-        return eid < max_eid
+        max_eid = max(int(e) for e in eids)
+        print(eid, max_eid)
+        return int(eid) < max_eid
 
     return False
 

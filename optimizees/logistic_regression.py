@@ -52,5 +52,5 @@ class LogisticRegression(optimizee.Optimizee):
             self.dim: num_features + 1
         }
         
-        return optimizee.SimpleNonStochProblem(init, params)
+        return optimizee.SimpleNonStochProblem(init, params, name='logreg')
 

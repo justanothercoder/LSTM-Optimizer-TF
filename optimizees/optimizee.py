@@ -1,6 +1,7 @@
 from collections import namedtuple
 import numpy as np
 import tensorflow as tf
+from problem_producer import set_random_state
 
 
 class Problem:
@@ -14,13 +15,20 @@ class Problem:
 
 
 class SimpleNonStochProblem(Problem):
-    def get_next_dict(self, _, _):
+    def __init__(self, init, params, name=None):
+        super(SimpleNonStochProblem, self).__init__(init, params)
+        self.name = name
+
+
+    def get_next_dict(self, n_bptt_steps, batch_size):
         return { }
 
 
 class BatchedStochProblem(Problem):
-    def __init__(self, init, params, dataset, batch_size, x, y, iteration='random'):
+    def __init__(self, init, params, dataset, batch_size, x, y, iteration='random', name=None):
         super(BatchedStochProblem, self).__init__(init, params)
+        self.name = name
+
         self.dataset = dataset
         self.batch_size = batch_size
         self.x = x

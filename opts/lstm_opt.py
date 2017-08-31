@@ -45,11 +45,9 @@ class InitConfig(config.Config):
         'weight_norm': False,
         'only_adam_features': False,
         'adam_only': False,
+        'average_steps': False,
     }
     
-
-LSTMOptState = namedtuple('LSTMOptState', ['m', 'v', 'b1t', 'b2t', 'loglr', 'cell_state', 'm_norm', 'v_norm'])
-
 
 class LSTMOpt(basic_model.BasicModel):
     def build_pre(self):
@@ -70,6 +68,16 @@ class LSTMOpt(basic_model.BasicModel):
             make_cell(self.init_config.num_units, self.init_config.residual and i > 0)
             for i in range(self.init_config.num_layers)
         ])
+        
+        fields = ['m', 'v', 'b1t', 'b2t', 'loglr', 'cell_state']
+        if self.init_config.use_both:
+            fields += ['m_norm', 'v_norm']
+
+        if self.init_config.average_steps:
+            fields += ['old_step']
+
+        self.LSTMOptState = namedtuple('LSTMOptState', fields)
+
 
     
     def init_state(self, x):
@@ -90,10 +98,12 @@ class LSTMOpt(basic_model.BasicModel):
             m_norm = tf.zeros(shape=tf.shape(x))
             v_norm = tf.zeros(shape=tf.shape(x))
             state = state + (m_norm, v_norm)
-        else:
-            state = state + (None, None)
 
-        return LSTMOptState(*state)
+        if self.init_config.average_steps:
+            old_step = tf.zeros(shape=tf.shape(x))
+            state = state + (old_step,)
+
+        return self.LSTMOptState(*state)
 
 
     def adam_prep(self, g, state):
@@ -110,7 +120,7 @@ class LSTMOpt(basic_model.BasicModel):
             a = tf.expand_dims(tf.sqrt(1 - b2t) / (1 - b1t), -1)
             s = a * m / (tf.sqrt(v) + self.init_config.eps)
 
-            new_state = (m, v, b1t, b2t, state.loglr, state.cell_state)
+            new_state = state._replace(m=m, v=v, b1t=b1t)
 
             if self.init_config.only_adam_features:
                 features = [s]
@@ -123,16 +133,14 @@ class LSTMOpt(basic_model.BasicModel):
                 v_norm = b2 * state.v_norm + (1 - b2) * tf.square(g_norm)
                 s_norm = a * m_norm / (tf.sqrt(v_norm) + self.init_config.eps)
 
-                new_state = new_state + (m_norm, v_norm)
+                new_state = new_state._replace(m_norm=m_norm, v_norm=v_norm)
 
                 if self.init_config.only_adam_features:
                     features += [s_norm]
                 else:
                     features += [g_norm, tf.square(g_norm), m_norm, v_norm, s_norm]
-            else:
-                new_state = new_state + (None, None)
 
-            return LSTMOptState(*new_state), features, s
+            return new_state, features, s
 
 
     def step(self, g, state):
@@ -147,22 +155,24 @@ class LSTMOpt(basic_model.BasicModel):
                 scope.set_custom_getter(custom_getter)
             
             last, cell_state = self.cell(prep, state.cell_state)
-            last = tf.layers.dense(last, 2, use_bias=False, name='dense')
+    
+            if self.init_config.adam_only:
+                last = tf.layers.dense(last, 1, use_bias=False, name='dense')
+                loglr_add = tf.unstack(last, axis=1)
+                d = -s
+            else:
+                last = tf.layers.dense(last, 2, use_bias=False, name='dense')
+                d, loglr_add = tf.unstack(last, axis=1)
 
-            d, loglr_add = tf.unstack(last, axis=1)
-
-            d = tf.reshape(d, g_shape)
+                d = tf.reshape(d, g_shape)
+            
+                if self.init_config.add_skip:
+                    d += -s
+                
             loglr_add = tf.reshape(loglr_add, g_shape)
-
             loglr = tf.minimum(state.loglr + loglr_add, np.log(self.init_config.clip_delta))
             n_coords = tf.cast(g_shape[1], tf.float32)
 
-            if self.init_config.add_skip:
-                d += -s
-
-            if self.init_config.adam_only:
-                d = -s
-            
             #d = normalize(d, 1. / n_coords)
             d = normalize(d, 1.)
 
@@ -170,6 +180,12 @@ class LSTMOpt(basic_model.BasicModel):
             lr = tf.clip_by_value(lr, 0, self.init_config.clip_delta)
 
             step = d * lr
+            if self.init_config.average_steps:
+                gamma_logits = tf.get_variable('gamma_logits', shape=[], dtype=tf.float32, initializer=tf.zeros_initializer())
+                gamma = tf.sigmoid(gamma_logits)
+                step = gamma * state.old_step + step
+                new_state = new_state._replace(old_step=step)
+
             new_state = new_state._replace(cell_state=cell_state, loglr=loglr)
 
         return step, new_state

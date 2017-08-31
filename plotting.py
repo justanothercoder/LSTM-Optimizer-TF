@@ -92,12 +92,14 @@ def plot_test_results(flags, experiment_path, data):
     fig, axes = setup_test_plot(flags)
 
     for name, rets in data['results'].items():
-        fxs = extract_test_run_info(rets, flags, 'values', not flags.stochastic)
+        fxs = extract_test_run_info(rets, flags, 'values', flags.normalize and not flags.stochastic)
         fxs_mean = fxs.mean(axis=1)
 
-        norms_mean = extract_test_run_info(rets, flags, 'norms', not flags.stochastic).mean(axis=1)
+        norms_mean = extract_test_run_info(rets, flags, 'norms', flags.normalize and not flags.stochastic)
+        norms_mean = norms_mean.mean(axis=1)
 
         trainable_opt = not (name.startswith('adam') or name.startswith('sgd') or name.startswith('momentum'))
+        lrs = []
         if trainable_opt:
             lrs = extract_test_run_info(rets, flags, 'lrs', False, concat=False)
             if lrs:

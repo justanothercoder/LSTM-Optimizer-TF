@@ -49,7 +49,7 @@ class CorrectStochLogreg(optimizee.Optimizee):
         init = np.concatenate([w, w0], axis=1)
 
         params = {self.dim: self.dataset.num_features + 1}
-        return optimizee.BatchedStochProblem(init, params, self.dataset, self.batch_size, self.x, self.y, iteration='random')
+        return optimizee.BatchedStochProblem(init, params, self.dataset, self.batch_size, self.x, self.y, iteration='random', name='correct_stoch_logreg')
 
 
     #def sample_batch(self, batch_size):

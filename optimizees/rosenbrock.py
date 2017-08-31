@@ -44,4 +44,4 @@ class Rosenbrock(optimizee.Optimizee):
         b = np.random.uniform(10, 100, size=(batch_size, D))
         
         params = {self.a: a, self.b: b, self.dim: D * 2}
-        return optimizee.SimpleNonStochProblem(init, params)
+        return optimizee.SimpleNonStochProblem(init, params, name='rosenbrock')

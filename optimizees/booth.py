@@ -50,6 +50,6 @@ class Booth(optimizee.Optimizee):
             self.dim: D * 2
         }
 
-        return optimizee.SimpleNonStochProblem(init, params)
+        return optimizee.SimpleNonStochProblem(init, params, name='booth')
 
 

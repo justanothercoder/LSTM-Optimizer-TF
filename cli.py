@@ -81,6 +81,7 @@ def make_plot_parser(parser):
                         help='whether problem is stochastic')
     parser.add_argument('--compare_with', type=str, default='adam')
     parser.add_argument('--enable_random_scaling', action='store_true')
+    parser.add_argument('--not-normalize', action='store_false', dest='normalize')
 
     return parser
 
@@ -116,6 +117,7 @@ def make_new_parser(parser):
     parser.add_argument('--only-adam-features', action='store_true')
     parser.add_argument('--adam-only', action='store_true')
     parser.add_argument('--clip-delta', type=float, default=2)
+    parser.add_argument('--average-steps', action='store_true')
     
 
     group = parser.add_mutually_exclusive_group()

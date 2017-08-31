@@ -38,4 +38,4 @@ class Matyas(optimizee.Optimizee):
 
         init = np.concatenate([x, y], axis=-1).reshape(batch_size, -1)
         params = {self.dim: D * 2}
-        return optimizee.SimpleNonStochProblem(init, params, name=self.name)
+        return optimizee.SimpleNonStochProblem(init, params, name='matyas')
