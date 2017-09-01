@@ -85,6 +85,10 @@ class LSTMOpt(basic_model.BasicModel):
         v = tf.zeros(shape=tf.shape(x))
         b1t = tf.ones([tf.shape(x)[0]])
         b2t = tf.ones([tf.shape(x)[0]])
+
+        b1t.set_shape([x.get_shape().as_list()[0]])
+        b2t.set_shape([x.get_shape().as_list()[0]])
+
         loglr = tf.random_uniform(shape=tf.shape(x), minval=np.log(1e-6), maxval=np.log(1e-2), seed=util.get_seed())
 
         if self.init_config.learn_init:

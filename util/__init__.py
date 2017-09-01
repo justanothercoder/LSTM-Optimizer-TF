@@ -1,3 +1,4 @@
+import pathlib
 import time
 import random
 import json
@@ -82,6 +83,7 @@ def load_results(path, prefix=None):
 
 
 def load_opt(model_path):
+    model_path = pathlib.Path(model_path)
     with (model_path / 'config.json').open('r') as conf:
         flags = json.load(conf)
 
